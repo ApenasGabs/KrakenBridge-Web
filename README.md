@@ -1,15 +1,6 @@
-# 🦑 KrakenBridge Web
-
 <div align="center">
 
-```
-   ___  ___ _____  _____   ___  ___     ___        __    _        __            
-  / _ \/ _ /__  / /__  /  / _ \/ _ \   / _ )____  / /__ / /__    / /  ___ ____  
- / ___/ , _// _ \  / _ \ / // / // /  / _  / __/ / // // / -_)  / _ \/ -_) _  \ 
-/_/  /_/|_|/___(_) ___(_)\___/ ___(_)/____/_/   /_/ \_,_/\__/  /_.__/\__/ .__/  
-                                                                        /_/      
-```
-
+# 🦑 KRAKENBRIDGE WEB
 ### 🌉 Multi-Agent Autonomous AI Bridge & Web IDE
 **Google Antigravity • Claude Code • OpenAI Codex / Aider • VS Code Web**
 
