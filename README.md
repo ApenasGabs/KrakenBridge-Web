@@ -60,7 +60,7 @@ flowchart TD
     API --> Drivers
     Drivers -->|Executam Comandos & Editam Código| Workspace
     
-    UI -.->|Aba [IDE] Iframe :8089| CodeServer
+    UI -.->|"Aba IDE (Iframe :8089)"| CodeServer
     CodeServer -->|Visualização de Diffs e Edição| Workspace
 ```
 
