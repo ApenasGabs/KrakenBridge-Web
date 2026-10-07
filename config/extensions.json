@@ -1,0 +1,15 @@
+[
+  {
+    "identifier": {
+      "id": "google.google-antigravity",
+      "uuid": "4060355f-c7e7-4768-a777-283f247235ff"
+    },
+    "version": "1.6.0",
+    "location": {
+      "$mid": 1,
+      "path": "/config/extensions/google.google-antigravity-1.6.0",
+      "scheme": "file"
+    },
+    "relativeLocation": "google.google-antigravity-1.6.0"
+  }
+]

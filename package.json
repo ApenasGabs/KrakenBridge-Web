@@ -1,0 +1,25 @@
+{
+  "name": "zimaos-antigravity-studio",
+  "version": "1.0.0",
+  "description": "Google Antigravity Web Studio & Integrated VS Code for ZimaOS / CasaOS / Docker",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "antigravity",
+    "google-gemini",
+    "zimaos",
+    "casaos",
+    "docker",
+    "code-server",
+    "homelab"
+  ],
+  "author": "Antigravity Community",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}

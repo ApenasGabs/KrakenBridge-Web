@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Antigravity Studio - ZimaOS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            gemini: {
+              bg: '#131314',
+              surface: '#1e1f20',
+              surfaceHover: '#282a2c',
+              border: '#333538',
+              text: '#e3e3e3',
+              muted: '#8e918f',
+              accent: '#a8c7fa',
+              blue: '#4285f4',
+              purple: '#9b72cb',
+              red: '#f28b82',
+              green: '#81c995',
+              terminalBg: '#0b0e14'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #131314; color: #e3e3e3; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #333538; border-radius: 9999px; }
+    .markdown-body { color: #e3e3e3; font-size: 0.95rem; line-height: 1.65; }
+    .markdown-body pre { background-color: #0b0e14 !important; border: 1px solid #333538; border-radius: 0.75rem; padding: 0.85rem; margin: 0.75rem 0; overflow-x: auto; position: relative; }
+    .typing-cursor::after { content: '▋'; display: inline-block; color: #a8c7fa; animation: blink 1s step-start infinite; margin-left: 2px; }
+    @keyframes blink { 50% { opacity: 0; } }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden bg-gemini-bg select-none">
+
+  <!-- Header Superior -->
+  <header class="h-14 bg-gemini-surface/90 backdrop-blur border-b border-gemini-border px-4 flex items-center justify-between flex-shrink-0 z-30">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-gemini-blue via-gemini-purple to-pink-500 p-[1.5px] flex items-center justify-center shadow-lg">
+        <div class="w-full h-full bg-gemini-bg rounded-full flex items-center justify-center text-xs font-bold text-white">✨</div>
+      </div>
+      <div>
+        <div class="font-medium text-sm text-white flex items-center gap-2">
+          <span>Antigravity Studio</span>
+          <span class="px-1.5 py-0.5 rounded text-[10px] bg-gemini-surfaceHover text-gemini-green border border-gemini-green/30">ZimaOS</span>
+        </div>
+        <div class="text-[11px] text-gemini-muted" id="workspace-label">Workspace Autônomo</div>
+      </div>
+    </div>
+
+    <!-- Seletor de Modo: Agente vs IDE -->
+    <div class="flex items-center bg-gemini-bg p-1 rounded-xl border border-gemini-border/70">
+      <button id="tab-agent" onclick="switchView('agent')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-gemini-surface text-white shadow-sm">
+        <span>🤖 Agente</span>
+      </button>
+      <button id="tab-ide" onclick="switchView('ide')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-gemini-muted hover:text-white transition-all">
+        <span>💻 IDE (VS Code)</span>
+      </button>
+    </div>
+
+    <!-- Controles -->
+    <div class="flex items-center gap-2">
+      <button id="open-ide-external" title="Abrir IDE em nova aba" class="p-2 rounded-lg bg-gemini-surface hover:bg-gemini-surfaceHover text-gemini-muted hover:text-white border border-gemini-border text-xs flex items-center gap-1.5">
+        <span class="hidden md:inline">Nova Aba ↗</span>
+      </button>
+      <button onclick="clearChat()" title="Nova Sessão" class="p-2 rounded-lg bg-gemini-surface hover:bg-gemini-surfaceHover text-gemini-muted hover:text-white border border-gemini-border text-xs flex items-center gap-1">
+        <span>Limpar</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- View 1: Chat do Agente com Logs em Tempo Real -->
+  <main id="view-agent" class="flex-1 flex flex-col overflow-hidden relative">
+    <div id="messages-container" class="flex-1 overflow-y-auto custom-scroll px-4 md:px-8 py-6 space-y-6">
+      <div id="welcome-hero" class="max-w-2xl mx-auto text-center pt-8 pb-4 space-y-4">
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-[#4285F4] via-[#9B72CB] to-[#D96570] bg-clip-text text-transparent">
+          Antigravity Studio
+        </h1>
+        <p class="text-gemini-muted text-sm max-w-md mx-auto">
+          Comandos do terminal, diffs de código e respostas do agente executados em tempo real no servidor.
+        </p>
+      </div>
+      <div id="messages-list" class="space-y-6 max-w-4xl mx-auto pb-4"></div>
+    </div>
+
+    <!-- Barra de Input Flutuante -->
+    <div class="p-4 bg-gradient-to-t from-gemini-bg via-gemini-bg to-transparent">
+      <div class="max-w-4xl mx-auto">
+        <div class="relative bg-gemini-surface rounded-2xl border border-gemini-border shadow-2xl flex flex-col p-2">
+          <textarea id="prompt-input" rows="1" placeholder="Peça para codificar, analisar repositórios ou executar comandos..." class="w-full bg-transparent text-gemini-text placeholder-gemini-muted px-3 py-2 text-sm md:text-base outline-none resize-none max-h-36 custom-scroll"></textarea>
+          <div class="flex items-center justify-between pt-1 px-1">
+            <span class="text-[11px] text-gemini-muted">Enter envia • Shift+Enter quebra linha</span>
+            <div class="flex items-center gap-2">
+              <button id="stop-btn" onclick="stopGeneration()" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gemini-surfaceHover text-gemini-red text-xs font-medium border border-gemini-red/40">
+                <span>Interromper</span>
+              </button>
+              <button id="send-btn" onclick="submitPrompt()" class="w-8 h-8 rounded-xl bg-gemini-accent text-black flex items-center justify-center font-bold hover:opacity-90 transition-opacity">➔</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- View 2: IDE VS Code Web Embutida -->
+  <main id="view-ide" class="flex-1 hidden flex-col overflow-hidden relative">
+    <iframe id="ide-frame" src="about:blank" class="w-full h-full border-0"></iframe>
+    <div class="absolute bottom-4 right-4 z-20">
+      <button onclick="switchView('agent')" class="flex items-center gap-2 px-4 py-2 rounded-full bg-gemini-surface/90 hover:bg-gemini-surfaceHover border border-gemini-border text-white text-xs font-medium shadow-xl">
+        <span>🤖 Voltar ao Agente</span>
+      </button>
+    </div>
+  </main>
+
+  <script>
+    let currentConversationId = localStorage.getItem('antigravity_conv_id') || null;
+    let isGenerating = false;
+    let abortController = null;
+    let idePort = '8089';
+    let ideUrl = `http://${window.location.hostname}:${idePort}/?folder=/workspace`;
+
+    const viewAgent = document.getElementById('view-agent');
+    const viewIde = document.getElementById('view-ide');
+    const tabAgent = document.getElementById('tab-agent');
+    const tabIde = document.getElementById('tab-ide');
+    const ideFrame = document.getElementById('ide-frame');
+    const promptInput = document.getElementById('prompt-input');
+    const sendBtn = document.getElementById('send-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const messagesContainer = document.getElementById('messages-container');
+    const messagesList = document.getElementById('messages-list');
+    const welcomeHero = document.getElementById('welcome-hero');
+    const openIdeExternal = document.getElementById('open-ide-external');
+    const workspaceLabel = document.getElementById('workspace-label');
+
+    // Carregar configuração dinâmica da API
+    fetch('/api/config')
+      .then(res => res.json())
+      .then(cfg => {
+        if (cfg.codeServerPort) {
+          idePort = cfg.codeServerPort;
+          ideUrl = `http://${window.location.hostname}:${idePort}/?folder=/workspace`;
+        }
+        if (cfg.workspaceDir) {
+          workspaceLabel.textContent = cfg.workspaceDir;
+        }
+      })
+      .catch(() => {});
+
+    openIdeExternal.onclick = () => window.open(ideUrl, '_blank');
+
+    function switchView(mode) {
+      if (mode === 'ide') {
+        viewAgent.classList.add('hidden');
+        viewIde.classList.remove('hidden');
+        viewIde.classList.add('flex');
+        tabIde.className = 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-gemini-surface text-white shadow-sm';
+        tabAgent.className = 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-gemini-muted hover:text-white';
+        if (ideFrame.src === 'about:blank' || ideFrame.getAttribute('data-loaded') !== 'true') {
+          ideFrame.src = ideUrl;
+          ideFrame.setAttribute('data-loaded', 'true');
+        }
+      } else {
+        viewIde.classList.add('hidden');
+        viewIde.classList.remove('flex');
+        viewAgent.classList.remove('hidden');
+        viewAgent.classList.add('flex');
+        tabAgent.className = 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-gemini-surface text-white shadow-sm';
+        tabIde.className = 'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium text-gemini-muted hover:text-white';
+      }
+    }
+
+    function clearChat() {
+      if (confirm('Deseja iniciar uma nova conversa com o agente?')) {
+        currentConversationId = null;
+        localStorage.removeItem('antigravity_conv_id');
+        messagesList.innerHTML = '';
+        welcomeHero.classList.remove('hidden');
+      }
+    }
+
+    promptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitPrompt(); }
+    });
+
+    async function stopGeneration() {
+      if (abortController) abortController.abort();
+      try {
+        await fetch('/api/stop', { method: 'POST' });
+      } catch (e) {}
+      isGenerating = false;
+      sendBtn.classList.remove('hidden');
+      stopBtn.classList.add('hidden');
+      stopBtn.classList.remove('flex');
+    }
+
+    async function submitPrompt() {
+      const prompt = promptInput.value.trim();
+      if (!prompt || isGenerating) return;
+
+      welcomeHero.classList.add('hidden');
+      appendUserMessage(prompt);
+      promptInput.value = '';
+
+      isGenerating = true;
+      sendBtn.classList.add('hidden');
+      stopBtn.classList.remove('hidden');
+      stopBtn.classList.add('flex');
+
+      const botMessageEl = appendBotMessagePlaceholder();
+      const timelineEl = botMessageEl.querySelector('.bot-timeline');
+      const contentEl = botMessageEl.querySelector('.bot-content');
+      const metaEl = botMessageEl.querySelector('.bot-meta');
+      contentEl.classList.add('typing-cursor');
+
+      let accumulatedText = '';
+      let activeTools = new Map();
+      abortController = new AbortController();
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: prompt,
+            conversationId: currentConversationId,
+            continueSession: !!currentConversationId
+          }),
+          signal: abortController.signal
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data: ')) continue;
+            const jsonStr = trimmed.slice(6);
+            if (!jsonStr) continue;
+
+            try {
+              const payload = JSON.parse(jsonStr);
+
+              if (payload.event === 'init' && payload.conversation_id) {
+                currentConversationId = payload.conversation_id;
+                localStorage.setItem('antigravity_conv_id', currentConversationId);
+              }
+
+              if (payload.event === 'step_update' && payload.step_update) {
+                const su = payload.step_update;
+
+                // Capturar execução de Ferramentas / Comandos de Terminal
+                if (su.step_type === 'tool') {
+                  handleToolEvent(timelineEl, su, activeTools);
+                }
+
+                // Streaming da resposta do modelo
+                if (su.step_type === 'agent_response' && su.text_delta) {
+                  accumulatedText += su.text_delta;
+                  contentEl.innerHTML = marked.parse(accumulatedText);
+                  highlightCodeBlocks(contentEl);
+                  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+
+                // Tokens de raciocínio (Thinking)
+                if (su.usage && su.usage.thinking_tokens > 0) {
+                  addThinkingBadge(timelineEl, su.usage.thinking_tokens, su.duration_seconds);
+                }
+              }
+
+              if (payload.event === 'stderr' && payload.text) {
+                addStderrNotice(timelineEl, payload.text);
+              }
+
+              if (payload.event === 'result' && payload.result) {
+                const res = payload.result;
+                if (res.response && !accumulatedText) {
+                  accumulatedText = res.response;
+                  contentEl.innerHTML = marked.parse(accumulatedText);
+                  highlightCodeBlocks(contentEl);
+                }
+                metaEl.textContent = `Executado em ${res.duration_seconds?.toFixed(1) || ''}s • ${res.usage?.total_tokens || 0} tokens`;
+                metaEl.classList.remove('hidden');
+              }
+            } catch (err) { console.warn(err); }
+          }
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          contentEl.innerHTML = `<span class="text-gemini-red">Erro na comunicação: ${escapeHtml(err.message)}</span>`;
+        }
+      } finally {
+        contentEl.classList.remove('typing-cursor');
+        isGenerating = false;
+        sendBtn.classList.remove('hidden');
+        stopBtn.classList.add('hidden');
+        stopBtn.classList.remove('flex');
+      }
+    }
+
+    // Renderizador de Ferramentas e Saídas de Terminal
+    function handleToolEvent(container, su, toolMap) {
+      const stepIdx = su.step_index;
+      const toolName = su.tool_name || (su.tool_info && su.tool_info.name) || 'ferramenta';
+      const params = (su.tool_info && su.tool_info.parameters) || {};
+      const output = su.tool_info && su.tool_info.output;
+      let toolCard = toolMap.get(stepIdx);
+
+      if (!toolCard) {
+        toolCard = document.createElement('details');
+        toolCard.open = true;
+        toolCard.className = 'rounded-xl bg-gemini-surface/80 border border-gemini-border text-xs my-2 overflow-hidden';
+        
+        const cmd = params.CommandLine ? `<span class="text-gemini-green font-mono">${escapeHtml(params.CommandLine)}</span>` : '';
+        toolCard.innerHTML = `
+          <summary class="flex items-center justify-between px-3 py-2 cursor-pointer bg-gemini-surface hover:bg-gemini-surfaceHover gap-2">
+            <div class="flex items-center gap-2 truncate">
+              <span class="status-dot w-2 h-2 rounded-full bg-gemini-blue animate-pulse"></span>
+              <span class="font-mono font-semibold text-gemini-accent uppercase">${escapeHtml(toolName)}</span>
+              <span class="truncate">${cmd}</span>
+            </div>
+            <span class="tool-dur text-[10px] text-gemini-muted font-mono">executando...</span>
+          </summary>
+          <div class="p-2.5 bg-gemini-terminalBg border-t border-gemini-border/50 space-y-2">
+            <div class="tool-params text-[11px] font-mono text-gemini-muted"></div>
+            <div class="tool-out hidden"></div>
+          </div>
+        `;
+        container.appendChild(toolCard);
+        toolMap.set(stepIdx, toolCard);
+      }
+
+      if (su.state === 'DONE') {
+        toolCard.querySelector('.status-dot').className = 'w-2 h-2 rounded-full bg-gemini-green';
+        toolCard.querySelector('.tool-dur').textContent = su.duration_seconds ? su.duration_seconds.toFixed(2) + 's' : 'concluído';
+        if (output) {
+          const outBox = toolCard.querySelector('.tool-out');
+          outBox.classList.remove('hidden');
+          outBox.innerHTML = `
+            <div class="text-[10px] text-gemini-muted font-mono uppercase mb-1">Saída do Terminal:</div>
+            <pre class="max-h-48 overflow-y-auto text-[11px] font-mono text-gray-200 bg-black/60 p-2 rounded border border-gemini-border/40 whitespace-pre-wrap">${escapeHtml(output)}</pre>
+          `;
+        }
+      }
+    }
+
+    function addThinkingBadge(container, tokens, dur) {
+      const b = document.createElement('div');
+      b.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-gemini-purple/10 border border-gemini-purple/30 text-gemini-purple text-[10px] font-mono my-1';
+      b.textContent = `🧠 Raciocínio concluído (${tokens} tokens • ${dur?.toFixed(1) || ''}s)`;
+      container.appendChild(b);
+    }
+
+    function addStderrNotice(container, text) {
+      const b = document.createElement('div');
+      b.className = 'p-2 rounded-lg bg-yellow-950/20 border border-yellow-700/40 text-yellow-300 text-[11px] font-mono my-1 whitespace-pre-wrap';
+      b.textContent = text;
+      container.appendChild(b);
+    }
+
+    function appendUserMessage(text) {
+      const d = document.createElement('div');
+      d.className = 'flex justify-end';
+      d.innerHTML = `<div class="max-w-[80%] bg-gemini-surfaceHover text-white px-4 py-3 rounded-2xl rounded-tr-sm text-sm border border-gemini-border whitespace-pre-wrap">${escapeHtml(text)}</div>`;
+      messagesList.appendChild(d);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function appendBotMessagePlaceholder() {
+      const d = document.createElement('div');
+      d.className = 'flex items-start gap-3';
+      d.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-gemini-surface flex items-center justify-center border border-gemini-border text-xs">✨</div>
+        <div class="flex-1 min-w-0 space-y-2">
+          <div class="bot-timeline space-y-1"></div>
+          <div class="bot-content markdown-body text-gemini-text leading-relaxed"></div>
+          <div class="bot-meta text-[10px] text-gemini-muted font-mono hidden pt-1"></div>
+        </div>
+      `;
+      messagesList.appendChild(d);
+      return d;
+    }
+
+    function highlightCodeBlocks(container) {
+      container.querySelectorAll('pre code').forEach((b) => hljs.highlightElement(b));
+    }
+
+    function escapeHtml(t) {
+      const d = document.createElement('div'); d.textContent = t; return d.innerHTML;
+    }
+  </script>
+</body>
+</html>

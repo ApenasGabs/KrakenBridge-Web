@@ -1,0 +1,110 @@
+name: antigravity-studio
+services:
+  # ========================================================
+  # 1. Antigravity Studio (Agente Autônomo com Logs de Terminal)
+  # ========================================================
+  antigravity-studio:
+    container_name: antigravity-studio
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: antigravity-studio:latest
+    restart: unless-stopped
+    ports:
+      - target: 8088
+        published: "${WEB_PORT:-8088}"
+        protocol: tcp
+    environment:
+      - PORT=8088
+      - WORKSPACE_DIR=/workspace
+      - CODE_SERVER_PORT=${IDE_PORT:-8089}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - NODE_ENV=production
+    volumes:
+      - "${WORKSPACE_PATH:-/DATA/Projetos}:/workspace"
+      - "${ANTIGRAVITY_CLI_CONFIG:-/DATA/AppData/antigravity/config}:/root/.gemini"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    x-casaos:
+      envs:
+        - container: GEMINI_API_KEY
+          description:
+            en_US: Google Gemini API Key (optional if using OAuth CLI)
+            pt_BR: Chave de API do Google Gemini (opcional se usar OAuth CLI)
+        - container: CODE_SERVER_PORT
+          description:
+            en_US: Port of the integrated VS Code Web instance
+            pt_BR: Porta da instância integrada do VS Code Web
+      volumes:
+        - container: /workspace
+          description:
+            en_US: Directory with your code repositories
+            pt_BR: Diretório onde ficam seus repositórios de código
+        - container: /root/.gemini
+          description:
+            en_US: Persistent configuration and credentials of Antigravity CLI
+            pt_BR: Configuração persistente e credenciais do Antigravity CLI
+      ports:
+        - container: "8088"
+          description:
+            en_US: Antigravity Studio Web UI Port
+            pt_BR: Porta da Interface Web do Antigravity Studio
+
+  # ========================================================
+  # 2. VS Code Web (code-server com Extensão Antigravity)
+  # ========================================================
+  code-server:
+    container_name: code-server
+    image: linuxserver/code-server:latest
+    restart: unless-stopped
+    ports:
+      - target: 8443
+        published: "${IDE_PORT:-8089}"
+        protocol: tcp
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-America/Sao_Paulo}
+      - PASSWORD=${IDE_PASSWORD:-} # Deixe vazio para sem senha na rede local
+      - SUDO_PASSWORD=${IDE_SUDO_PASSWORD:-password}
+      - DEFAULT_WORKSPACE=/workspace
+    volumes:
+      - "${WORKSPACE_PATH:-/DATA/Projetos}:/workspace"
+      - "${CODE_SERVER_CONFIG:-/DATA/AppData/code-server-config}:/config"
+    x-casaos:
+      volumes:
+        - container: /workspace
+          description:
+            en_US: Shared code workspace
+            pt_BR: Workspace de código compartilhado
+        - container: /config
+          description:
+            en_US: code-server configuration and extensions
+            pt_BR: Configurações e extensões do code-server
+      ports:
+        - container: "8443"
+          description:
+            en_US: VS Code Web Port
+            pt_BR: Porta do VS Code Web
+
+# ========================================================
+# Metadados de Integração ZimaOS / CasaOS App Store
+# ========================================================
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: antigravity-studio
+  author: Antigravity Community
+  category: Development
+  description:
+    en_US: "All-in-one Autonomous AI Development Platform powered by Google Antigravity and VS Code Web. Run agents, view real-time terminal tool logs, and edit code instantly on your ZimaOS / CasaOS homelab."
+    pt_BR: "Plataforma de Desenvolvimento com IA Autônoma (Google Antigravity e VS Code Web). Execute agentes, visualize saídas de terminal em tempo real e edite código instantaneamente no seu ZimaOS / CasaOS."
+  developer: Google Deepmind / Antigravity Community
+  icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-gemini.png
+  thumbnail: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-gemini.png
+  title:
+    en_US: Antigravity Studio
+    pt_BR: Antigravity Studio
+  index: /
+  port_map: "8088"
+  scheme: http
