@@ -1,0 +1,142 @@
+name: krakenbridge-web
+services:
+  krakenbridge-web:
+    image: ghcr.io/gaber/krakenbridge-web:latest
+    container_name: krakenbridge-web
+    restart: unless-stopped
+    ports:
+      - target: 8088
+        published: "8088"
+        protocol: tcp
+    environment:
+      - PORT=8088
+      - WORKSPACE_DIR=/workspace
+      - CODE_SERVER_PORT=8089
+      - GEMINI_API_KEY=
+      - ANTHROPIC_API_KEY=
+      - OPENAI_API_KEY=
+      - NODE_ENV=production
+    volumes:
+      - type: bind
+        source: /DATA/Projetos
+        target: /workspace
+      - type: bind
+        source: /DATA/AppData/$AppID/config
+        target: /root/.gemini
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+    x-casaos:
+      envs:
+        - container: GEMINI_API_KEY
+          description:
+            en_US: Google Gemini API Key (optional if using agy OAuth)
+            pt_BR: Chave de API Google Gemini (opcional se autenticado via OAuth)
+        - container: ANTHROPIC_API_KEY
+          description:
+            en_US: Anthropic API Key for Claude Code
+            pt_BR: Chave de API Anthropic para Claude Code
+        - container: OPENAI_API_KEY
+          description:
+            en_US: OpenAI API Key for Codex and Aider
+            pt_BR: Chave de API OpenAI para Codex e Aider
+      volumes:
+        - container: /workspace
+          description:
+            en_US: Directory with your code repositories
+            pt_BR: Diretório onde ficam seus repositórios de código
+        - container: /root/.gemini
+          description:
+            en_US: Persistent CLI credentials and config
+            pt_BR: Configuração persistente e credenciais do CLI
+      ports:
+        - container: "8088"
+          description:
+            en_US: KrakenBridge Web UI HTTP Port
+            pt_BR: Porta da Interface Web do KrakenBridge
+
+  code-server:
+    image: linuxserver/code-server:latest
+    container_name: code-server
+    restart: unless-stopped
+    ports:
+      - target: 8443
+        published: "8089"
+        protocol: tcp
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Sao_Paulo
+      - PASSWORD=
+      - SUDO_PASSWORD=password
+      - DEFAULT_WORKSPACE=/workspace
+    volumes:
+      - type: bind
+        source: /DATA/Projetos
+        target: /workspace
+      - type: bind
+        source: /DATA/AppData/code-server/config
+        target: /config
+    x-casaos:
+      volumes:
+        - container: /workspace
+          description:
+            en_US: Shared code workspace
+            pt_BR: Workspace de código compartilhado
+        - container: /config
+          description:
+            en_US: VS Code configuration and extensions
+            pt_BR: Configurações e extensões do VS Code
+      ports:
+        - container: "8443"
+          description:
+            en_US: VS Code Web Port
+            pt_BR: Porta do VS Code Web
+
+x-casaos:
+  id: com.krakenbridge.web
+  architectures:
+    - amd64
+    - arm64
+  main: krakenbridge-web
+  author: KrakenBridge Community
+  category: Development
+  tagline:
+    en_US: Multi-Agent Autonomous AI Bridge & Integrated VS Code Web
+    pt_BR: Ponte Multi-Agente com IA Autônoma e VS Code Web Integrado
+  description:
+    en_US: |
+      # 🦑 KrakenBridge Web
+      
+      KrakenBridge Web transforms autonomous AI coding agents (Google Antigravity, Claude Code, and OpenAI Codex/Aider) into a full-featured web development environment for ZimaOS and CasaOS.
+      
+      ### Key Features:
+      - **Multi-Engine Support:** Choose between Google Antigravity (`agy`), Anthropic Claude Code (`claude`), and OpenAI Codex (`aider`).
+      - **Real-Time Terminal Logs:** Inspect real stdout/stderr execution cards for every tool and bash command run by the agent.
+      - **Integrated VS Code Web:** Instant toggle between Agent Chat and VS Code (`code-server`) sharing the exact same `/workspace` directory.
+      - **ZimaOS Optimized:** Native volume mounts, deep Git repository scanning, and responsive dark theme UI.
+    pt_BR: |
+      # 🦑 KrakenBridge Web
+      
+      O KrakenBridge Web transforma agentes autônomos de IA (Google Antigravity, Claude Code e OpenAI Codex/Aider) em um ambiente completo de desenvolvimento web para ZimaOS e CasaOS.
+      
+      ### Principais Recursos:
+      - **Suporte Multi-Motor:** Alterne entre Google Antigravity (`agy`), Claude Code (`claude`) e OpenAI Codex (`aider`).
+      - **Logs Reais de Terminal:** Acompanhe em tempo real os cartões de execução com saída (stdout/stderr) real de cada comando.
+      - **VS Code Web Integrado:** Alterne instantaneamente entre o Agente e o editor VS Code no mesmo workspace compartilhado.
+      - **Otimizado para ZimaOS:** Montagem nativa de volumes, detecção profunda de repositórios Git e tema escuro responsivo.
+  developer: KrakenBridge Community
+  icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-gemini.png
+  thumbnail: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-gemini.png
+  title:
+    en_US: KrakenBridge Web
+    pt_BR: KrakenBridge Web
+  index: /
+  port_map: "8088"
+  scheme: http
+  tips:
+    before_install:
+      en_US: "Ensure /DATA/Projetos exists or map your desired repository path. API keys can be entered in the environment section."
+      pt_BR: "Certifique-se de que a pasta /DATA/Projetos existe ou mapeie o caminho desejado. As chaves de API podem ser configuradas no painel."
+  repo: https://github.com/SEU-USUARIO/krakenbridge-web
+  website: https://github.com/SEU-USUARIO/krakenbridge-web

@@ -1,0 +1,12 @@
+{
+  "store_id": "kraken-appstore",
+  "name": {
+    "en_US": "KrakenBridge Store",
+    "pt_BR": "KrakenBridge Store"
+  },
+  "maintainer": "Gaber",
+  "description": {
+    "en_US": "Official AppStore for KrakenBridge Web and AI Development tools for ZimaOS and CasaOS.",
+    "pt_BR": "AppStore oficial do KrakenBridge Web e ferramentas de desenvolvimento com IA para ZimaOS e CasaOS."
+  }
+}

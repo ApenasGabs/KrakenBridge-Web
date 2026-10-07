@@ -96,12 +96,16 @@ services:
 # Metadados de Integração ZimaOS / CasaOS App Store
 # ========================================================
 x-casaos:
+  id: com.krakenbridge.web
   architectures:
     - amd64
     - arm64
   main: krakenbridge-web
   author: KrakenBridge Community
   category: Development
+  tagline:
+    en_US: Multi-Agent Autonomous AI Bridge & Integrated VS Code Web
+    pt_BR: Ponte Multi-Agente com IA Autônoma e VS Code Web Integrado
   description:
     en_US: "KrakenBridge Web: Autonomous Multi-Agent AI Bridge & Integrated VS Code for ZimaOS and Docker. Run coding agents with real-time terminal logs and instant code diffs in your homelab."
     pt_BR: "KrakenBridge Web: Ponte Multi-Agente com IA Autônoma e VS Code Integrado para ZimaOS e Docker. Execute agentes com logs de terminal em tempo real e diffs instantâneos no seu homelab."
@@ -114,3 +118,7 @@ x-casaos:
   index: /
   port_map: "8088"
   scheme: http
+  tips:
+    before_install:
+      en_US: "Ensure /DATA/Projetos exists or map your desired repository path."
+      pt_BR: "Certifique-se de que a pasta /DATA/Projetos existe ou mapeie o caminho desejado."
