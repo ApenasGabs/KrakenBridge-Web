@@ -1,29 +1,39 @@
-# 🌌 Antigravity Studio for ZimaOS & Docker
+# 🦑 KrakenBridge Web
 
 <div align="center">
 
-![Antigravity Studio Banner](https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-gemini.png)
+```
+   ___  ___ _____  _____   ___  ___     ___        __    _        __            
+  / _ \/ _ /__  / /__  /  / _ \/ _ \   / _ )____  / /__ / /__    / /  ___ ____  
+ / ___/ , _// _ \  / _ \ / // / // /  / _  / __/ / // // / -_)  / _ \/ -_) _  \ 
+/_/  /_/|_|/___(_) ___(_)\___/ ___(_)/____/_/   /_/ \_,_/\__/  /_.__/\__/ .__/  
+                                                                        /_/      
+```
 
-### Plataforma Unificada de Desenvolvimento Autônomo com IA na Web
-**Google Antigravity (`agy`) + Logs de Terminal em Tempo Real + VS Code Web Integrado**
+### 🌉 Multi-Agent Autonomous AI Bridge & Web IDE
+**Google Antigravity • Claude Code • OpenAI Codex / Aider • VS Code Web**
 
-[![ZimaOS Compatible](https://img.shields.io/badge/ZimaOS-App%20Compatible-blue?style=for-the-badge&logo=linux)](https://www.zimaspace.com/zimaos)
-[![CasaOS Compatible](https://img.shields.io/badge/CasaOS-App%20Compatible-orange?style=for-the-badge&logo=docker)](https://casaos.io/)
-[![Docker](https://img.shields.io/badge/Docker-Compose%20v2-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
+[![ZimaOS Compatible](https://img.shields.io/badge/ZimaOS-App%20Compatible-00D2FF?style=for-the-badge&logo=linux)](https://www.zimaspace.com/zimaos)
+[![CasaOS Compatible](https://img.shields.io/badge/CasaOS-App%20Compatible-FF7A00?style=for-the-badge&logo=docker)](https://casaos.io/)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose%20v2-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 </div>
 
 ---
 
-## 💡 O que é o Antigravity Studio?
+## 💡 O que é o KrakenBridge Web?
 
-O **Antigravity Studio** transforma o poder do **Google Antigravity** em um ambiente web completo, ideal para **Homelabs, ZimaOS, CasaOS, VPS ou servidores locais**.
+O **KrakenBridge Web** é a ponte definitiva que transforma os agentes de programação autônomos de terminal (**Google Antigravity**, **Claude Code**, **OpenAI Codex / Aider**) em uma plataforma de desenvolvimento web completa para **ZimaOS, CasaOS, Homelabs ou VPS**.
 
-Diferente de interfaces de chat genéricas que escondem o que a IA está fazendo no servidor, o Antigravity Studio foi projetado por e para desenvolvedores:
-1. **🤖 Modo Agente com Logs Reais de Terminal:** Acompanhe a execução do agente em tempo real com streaming SSE, contadores de *thinking tokens* e **cartões interativos de terminal** mostrando cada comando executado e sua saída (`stdout`/`stderr`) real.
-2. **💻 Modo IDE Embutido:** O **VS Code Web oficial (`code-server`)** roda diretamente na aplicação. Com apenas um clique no botão **[IDE]**, o editor carrega instantaneamente, permitindo inspecionar arquivos gerados, debugar e analisar *git diffs* sem sair do navegador.
-3. **🔄 Sincronização em Tempo Real:** Agente e IDE compartilham o mesmo volume (`/workspace`). Se a IA cria ou modifica um arquivo, ele já está aberto na sua árvore do VS Code no mesmo segundo.
+Assim como o mítico **Kraken**, a aplicação controla múltiplos motores e ferramentas através de tentáculos sincronizados:
+1. **🤖 Modo Agente com Logs Reais de Terminal:** Acompanhe a execução do agente em tempo real via Server-Sent Events (SSE), contadores de *thinking tokens* e **cartões colapsáveis com os comandos de terminal executados e sua saída real (`stdout`/`stderr`)**.
+2. **💻 Modo IDE Embutido:** O **VS Code oficial para navegador (`code-server`)** roda no mesmo ambiente. Alterne instantaneamente entre o chat e o editor com um clique na aba **[IDE]**.
+3. **🐙 Suporte Multi-Motor:** Selecione no topo da interface qual cérebro deseja acionar:
+   * **✨ Google Antigravity (`agy`)**
+   * **🟣 Anthropic Claude Code (`claude`)**
+   * **🟢 OpenAI Codex / Aider (`aider`)**
+4. **🔄 Workspace Unificado:** Agentes e VS Code compartilham o mesmo volume (`/workspace`), permitindo inspecionar *git diffs* e novos arquivos no mesmo segundo em que a IA os cria.
 
 ---
 
@@ -36,24 +46,28 @@ flowchart TD
     end
 
     subgraph Servidor["Servidor ZimaOS / CasaOS / Linux"]
-        subgraph Port8088["Antigravity Web Studio (Porta 8088)"]
-            UI["Interface Web (Tema Gemini Dark #131314)"]
-            API["Backend Node.js Express (SSE Stream)"]
-            Agy["Antigravity CLI (agy)"]
+        subgraph Port8088["KrakenBridge Web (Porta 8088)"]
+            UI["Interface Web (Seletor Multi-Agente + Gemini Dark UI)"]
+            API["Backend Express (Camada de Drivers + SSE Stream)"]
+            subgraph Drivers["Tentáculos / Drivers de Execução"]
+                DAgy["✨ Google Antigravity (agy)"]
+                DClaude["🟣 Claude Code (claude)"]
+                DAider["🟢 Codex / Aider (aider)"]
+            end
         end
 
         subgraph Port8089["VS Code Web (Porta 8089)"]
             CodeServer["code-server (LinuxServer.io)"]
-            Ext["Extensão Oficial Google Antigravity"]
+            Ext["Extensões de IA & Git Integrado"]
         end
 
-        Workspace["Volume Compartilhado (/workspace)"]
+        Workspace["Volume Compartilhado (/workspace - Repositórios Git)"]
     end
 
     Browser -->|HTTP :8088| UI
     UI -->|POST /api/chat| API
-    API -->|spawn --dangerously-skip-permissions| Agy
-    Agy -->|Lê e Modifica Código| Workspace
+    API --> Drivers
+    Drivers -->|Executam Comandos & Editam Código| Workspace
     
     UI -.->|Aba [IDE] Iframe :8089| CodeServer
     CodeServer -->|Visualização de Diffs e Edição| Workspace
@@ -61,49 +75,43 @@ flowchart TD
 
 ---
 
-## 🚀 Instalação Rápida no ZimaOS / CasaOS (1 Clique)
+## 🚀 Instalação com 1 Clique no ZimaOS / CasaOS
 
-O arquivo `docker-compose.yml` deste repositório já inclui as extensões oficiais **`x-casaos`**, permitindo instalação direta na interface do ZimaOS.
+O [`docker-compose.yml`](docker-compose.yml) do KrakenBridge Web já conta com os metadados oficiais **`x-casaos`**:
 
-### Passo a Passo:
 1. Acesse o painel do seu **ZimaOS** (`http://zimaos.local` ou IP do servidor).
-2. Clique no ícone **"+"** (Instalar App) no canto superior da App Store.
-3. Selecione **"Custom Install"** (Instalação Personalizada).
-4. Clique no botão de importar no canto superior direito (**Import Compose**).
-5. Cole o conteúdo de [`docker-compose.yml`](docker-compose.yml) deste repositório.
-6. Ajuste os caminhos dos volumes se desejar:
-   * **Workspace:** Altere para a pasta dos seus projetos no ZimaOS (ex: `/DATA/Projetos`).
-   * **Web Port:** `8088` (Interface do Studio).
-   * **IDE Port:** `8089` (VS Code Web).
+2. Na App Store, clique no botão **"+"** (Instalar App) no canto superior.
+3. Escolha **"Custom Install"**.
+4. Clique no ícone de importar no canto superior direito (**Import Compose**).
+5. Cole o conteúdo de [`docker-compose.yml`](docker-compose.yml).
+6. Ajuste os caminhos se necessário (ex: seu diretório de projetos em `/DATA/Projetos`).
 7. Clique em **Install**.
 
-Pronto! Os ícones oficiais do **Antigravity Studio** e do **VS Code** aparecerão na sua tela inicial do ZimaOS.
+O app **KrakenBridge Web** e o **VS Code** aparecerão na sua tela inicial!
 
 ---
 
-## 🐳 Instalação Manual com Docker Compose (Qualquer Linux / VPS)
-
-Se você estiver em um servidor Ubuntu, Debian ou VPS tradicional:
+## 🐳 Instalação Manual com Docker Compose (Ubuntu / Debian / VPS)
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/SEU-USUARIO/zimaos-antigravity-studio.git
-cd zimaos-antigravity-studio
+git clone https://github.com/SEU-USUARIO/krakenbridge-web.git
+cd krakenbridge-web
 
-# 2. Configure as variáveis de ambiente
+# 2. Configure suas variáveis de ambiente
 cp .env.example .env
 nano .env
 
-# 3. Execute o setup automático de permissões e pastas
+# 3. Execute o setup de permissões e pastas
 chmod +x scripts/*.sh entrypoint.sh
 ./scripts/setup.sh
 
-# 4. Inicie os contêineres
+# 4. Inicie os serviços
 docker compose up -d
 ```
 
-Acesse no seu navegador:
-* **Antigravity Studio (Agente & IDE):** `http://IP-DO-SERVIDOR:8088`
+Acessos:
+* **KrakenBridge Web (Agente & IDE):** `http://IP-DO-SERVIDOR:8088`
 * **VS Code Web direto:** `http://IP-DO-SERVIDOR:8089/?folder=/workspace`
 
 ---
@@ -114,62 +122,40 @@ Acesse no seu navegador:
 |:---|:---|:---|
 | `WORKSPACE_PATH` | `/DATA/Projetos` | Caminho no host onde ficam seus repositórios de código. |
 | `CODE_SERVER_CONFIG` | `/DATA/AppData/code-server-config` | Pasta onde as configurações e extensões do VS Code ficam salvas. |
-| `ANTIGRAVITY_CLI_CONFIG` | `/DATA/AppData/antigravity/config` | Configuração persistente e credenciais do Antigravity CLI. |
-| `WEB_PORT` | `8088` | Porta da interface web do Antigravity Studio. |
+| `KRAKEN_CONFIG_PATH` | `/DATA/AppData/krakenbridge/config` | Histórico e credenciais persistentes dos CLIs. |
+| `WEB_PORT` | `8088` | Porta da interface web do KrakenBridge. |
 | `IDE_PORT` | `8089` | Porta do VS Code Web (`code-server`). |
-| `PUID` | `1000` | ID do usuário no host (garante que arquivos criados não fiquem bloqueados como root). |
-| `PGID` | `1000` | ID do grupo no host. |
-| `IDE_PASSWORD` | *(vazio)* | Senha de login no VS Code. Deixe vazio para dispensar senha na rede local. |
-| `GEMINI_API_KEY` | *(opcional)* | Chave de API Google Gemini (caso utilize autenticação direta por chave). |
-
----
-
-## 🧩 Instalando a Extensão Antigravity no VS Code Web
-
-Para que a barra lateral do VS Code Web também tenha o assistente do Google Antigravity ativo:
-
-1. Baixe ou copie o arquivo `.vsix` da extensão (`google.google-antigravity-1.6.0.vsix`) para o servidor.
-2. Execute o script auxiliar:
-   ```bash
-   ./scripts/install-extension.sh code-server /caminho/para/google-antigravity.vsix
-   ```
-3. O script injetará a extensão e reiniciará o contêiner automaticamente.
+| `GEMINI_API_KEY` | *(opcional)* | Chave de API Google Gemini (para Antigravity). |
+| `ANTHROPIC_API_KEY` | *(opcional)* | Chave de API Anthropic (para Claude Code). |
+| `OPENAI_API_KEY` | *(opcional)* | Chave de API OpenAI (para Codex / Aider). |
+| `PUID` / `PGID` | `1000` | UID e GID do seu usuário no host. |
 
 ---
 
 ## 🛠️ Resolução de Problemas Comuns (*Gotchas*)
 
-### 1. "Meus repositórios em subpastas não aparecem no painel de Git do VS Code"
-* **Motivo:** O VS Code por padrão escaneia repositórios apenas com profundidade 1 (`git.repositoryScanMaxDepth: 1`). Se seus projetos ficam agrupados em categorias como `/workspace/empresa/app`, o Git não os detecta automaticamente.
-* **Solução:** Este repositório já inclui um template pronto em `config/vscode-settings.json`. O script `./scripts/setup.sh` copia este arquivo para `/workspace/.vscode/settings.json`, definindo `"git.repositoryScanMaxDepth": 5`.
-* **Dica Adicional:** Crie symlinks na raiz do workspace para acesso rápido:
-  ```bash
-  cd /DATA/Projetos
-  ln -s empresa/app app
-  ```
+### 1. Subpastas de Projetos não aparecem no Git do VS Code
+* **Motivo:** O VS Code escaneia repositórios com profundidade 1 por padrão (`git.repositoryScanMaxDepth: 1`).
+* **Solução:** O script `./scripts/setup.sh` copia automaticamente o arquivo `config/vscode-settings.json` para `/workspace/.vscode/settings.json`, definindo `"git.repositoryScanMaxDepth": 5`.
 
 ### 2. Erro de `dubious ownership` do Git
-* **Motivo:** Ocorre quando o contêiner executa comandos em uma pasta pertencente a outro usuário ou grupo do host.
-* **Solução:** Execute no host do servidor e os contêineres já têm configurado por padrão:
+* O contêiner e o script de setup configuram globalmente:
   ```bash
   git config --global --add safe.directory "*"
   ```
 
-### 3. Agente travando esperando confirmação de comando
-* **Solução:** O backend executa o Antigravity com a flag `--dangerously-skip-permissions`, garantindo autonomia total para o agente criar arquivos, rodar migrações e executar testes sem bloquear a requisição HTTP.
-
 ---
 
-## 📱 Acesso Remoto via Tailscale
+## 📱 Acesso Remoto com Tailscale
 
-Se você utiliza o **Tailscale** no seu ZimaOS ou servidor:
-* A aplicação funcionará perfeitamente em qualquer lugar pelo IP da Tailscale:
+Se você utiliza o **Tailscale** no seu servidor:
+* Acesse de qualquer lugar do mundo pelo IP da sua tailnet:
   * `http://100.x.y.z:8088`
-* No celular, adicione à tela inicial para ter um **Progressive Web App (PWA)** com acesso ao seu servidor de desenvolvimento 24/7!
+* No iPhone ou Android, use a opção **"Adicionar à Tela de Início"** no navegador para ter uma experiência de aplicativo nativo (PWA) conectado direto ao seu homelab!
 
 ---
 
 ## 📄 Licença
 
-Distribuído sob a licença **MIT**. Veja `LICENSE` para mais informações.
-Desenvolvido com carinho para a comunidade Homelab, ZimaOS e desenvolvedores que amam produtividade com IA.
+Distribuído sob a licença **MIT**. Veja [`LICENSE`](LICENSE) para mais informações.
+Feito com 🦑 pela comunidade de desenvolvedores e entusiastas de Homelab.

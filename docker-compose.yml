@@ -1,14 +1,14 @@
-name: antigravity-studio
+name: krakenbridge-web
 services:
   # ========================================================
-  # 1. Antigravity Studio (Agente Autônomo com Logs de Terminal)
+  # 1. KrakenBridge Web (Agente Autônomo com Logs de Terminal)
   # ========================================================
-  antigravity-studio:
-    container_name: antigravity-studio
+  krakenbridge-web:
+    container_name: krakenbridge-web
     build:
       context: .
       dockerfile: Dockerfile
-    image: antigravity-studio:latest
+    image: krakenbridge-web:latest
     restart: unless-stopped
     ports:
       - target: 8088
@@ -19,21 +19,27 @@ services:
       - WORKSPACE_DIR=/workspace
       - CODE_SERVER_PORT=${IDE_PORT:-8089}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - NODE_ENV=production
     volumes:
       - "${WORKSPACE_PATH:-/DATA/Projetos}:/workspace"
-      - "${ANTIGRAVITY_CLI_CONFIG:-/DATA/AppData/antigravity/config}:/root/.gemini"
+      - "${KRAKEN_CONFIG_PATH:-/DATA/AppData/krakenbridge/config}:/root/.gemini"
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
     x-casaos:
       envs:
         - container: GEMINI_API_KEY
           description:
-            en_US: Google Gemini API Key (optional if using OAuth CLI)
-            pt_BR: Chave de API do Google Gemini (opcional se usar OAuth CLI)
-        - container: CODE_SERVER_PORT
+            en_US: Google Gemini API Key (for Antigravity)
+            pt_BR: Chave de API Google Gemini (para Antigravity)
+        - container: ANTHROPIC_API_KEY
           description:
-            en_US: Port of the integrated VS Code Web instance
-            pt_BR: Porta da instância integrada do VS Code Web
+            en_US: Anthropic API Key (for Claude Code)
+            pt_BR: Chave de API Anthropic (para Claude Code)
+        - container: OPENAI_API_KEY
+          description:
+            en_US: OpenAI API Key (for Codex / Aider)
+            pt_BR: Chave de API OpenAI (para Codex / Aider)
       volumes:
         - container: /workspace
           description:
@@ -41,16 +47,16 @@ services:
             pt_BR: Diretório onde ficam seus repositórios de código
         - container: /root/.gemini
           description:
-            en_US: Persistent configuration and credentials of Antigravity CLI
-            pt_BR: Configuração persistente e credenciais do Antigravity CLI
+            en_US: Persistent CLI credentials and history
+            pt_BR: Credenciais persistentes e histórico do CLI
       ports:
         - container: "8088"
           description:
-            en_US: Antigravity Studio Web UI Port
-            pt_BR: Porta da Interface Web do Antigravity Studio
+            en_US: KrakenBridge Web UI Port
+            pt_BR: Porta da Interface Web do KrakenBridge
 
   # ========================================================
-  # 2. VS Code Web (code-server com Extensão Antigravity)
+  # 2. VS Code Web (code-server Integrado no mesmo Workspace)
   # ========================================================
   code-server:
     container_name: code-server
@@ -64,7 +70,7 @@ services:
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
       - TZ=${TZ:-America/Sao_Paulo}
-      - PASSWORD=${IDE_PASSWORD:-} # Deixe vazio para sem senha na rede local
+      - PASSWORD=${IDE_PASSWORD:-} # Deixe vazio para dispensar senha na rede local
       - SUDO_PASSWORD=${IDE_SUDO_PASSWORD:-password}
       - DEFAULT_WORKSPACE=/workspace
     volumes:
@@ -93,18 +99,18 @@ x-casaos:
   architectures:
     - amd64
     - arm64
-  main: antigravity-studio
-  author: Antigravity Community
+  main: krakenbridge-web
+  author: KrakenBridge Community
   category: Development
   description:
-    en_US: "All-in-one Autonomous AI Development Platform powered by Google Antigravity and VS Code Web. Run agents, view real-time terminal tool logs, and edit code instantly on your ZimaOS / CasaOS homelab."
-    pt_BR: "Plataforma de Desenvolvimento com IA Autônoma (Google Antigravity e VS Code Web). Execute agentes, visualize saídas de terminal em tempo real e edite código instantaneamente no seu ZimaOS / CasaOS."
-  developer: Google Deepmind / Antigravity Community
+    en_US: "KrakenBridge Web: Autonomous Multi-Agent AI Bridge & Integrated VS Code for ZimaOS and Docker. Run coding agents with real-time terminal logs and instant code diffs in your homelab."
+    pt_BR: "KrakenBridge Web: Ponte Multi-Agente com IA Autônoma e VS Code Integrado para ZimaOS e Docker. Execute agentes com logs de terminal em tempo real e diffs instantâneos no seu homelab."
+  developer: KrakenBridge Community
   icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-gemini.png
   thumbnail: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-gemini.png
   title:
-    en_US: Antigravity Studio
-    pt_BR: Antigravity Studio
+    en_US: KrakenBridge Web
+    pt_BR: KrakenBridge Web
   index: /
   port_map: "8088"
   scheme: http

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Antigravity Studio - ZimaOS</title>
+  <title>KrakenBridge Web - Multi-Agent Studio</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css">
@@ -48,19 +48,19 @@
   <!-- Header Superior -->
   <header class="h-14 bg-gemini-surface/90 backdrop-blur border-b border-gemini-border px-4 flex items-center justify-between flex-shrink-0 z-30">
     <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-gemini-blue via-gemini-purple to-pink-500 p-[1.5px] flex items-center justify-center shadow-lg">
-        <div class="w-full h-full bg-gemini-bg rounded-full flex items-center justify-center text-xs font-bold text-white">✨</div>
+      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 p-[1.5px] flex items-center justify-center shadow-lg">
+        <div class="w-full h-full bg-gemini-bg rounded-full flex items-center justify-center text-xs font-bold text-white">🦑</div>
       </div>
       <div>
         <div class="font-medium text-sm text-white flex items-center gap-2">
-          <span>Antigravity Studio</span>
-          <span class="px-1.5 py-0.5 rounded text-[10px] bg-gemini-surfaceHover text-gemini-green border border-gemini-green/30">ZimaOS</span>
+          <span>KrakenBridge Web</span>
+          <span class="px-1.5 py-0.5 rounded text-[10px] bg-gemini-surfaceHover text-cyan-400 border border-cyan-500/30">Multi-Agent</span>
         </div>
         <div class="text-[11px] text-gemini-muted" id="workspace-label">Workspace Autônomo</div>
       </div>
     </div>
 
-    <!-- Seletor de Modo: Agente vs IDE -->
+    <!-- Seletor Central: Modo Agente vs IDE -->
     <div class="flex items-center bg-gemini-bg p-1 rounded-xl border border-gemini-border/70">
       <button id="tab-agent" onclick="switchView('agent')" class="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all bg-gemini-surface text-white shadow-sm">
         <span>🤖 Agente</span>
@@ -70,8 +70,15 @@
       </button>
     </div>
 
-    <!-- Controles -->
+    <!-- Seletor de Motor / Agente e Controles -->
     <div class="flex items-center gap-2">
+      <!-- Seletor de Motor de IA -->
+      <select id="agent-select" class="bg-gemini-surface text-xs text-white border border-gemini-border rounded-lg px-2.5 py-1.5 outline-none hover:bg-gemini-surfaceHover transition-colors cursor-pointer">
+        <option value="antigravity">✨ Antigravity</option>
+        <option value="claude">🟣 Claude Code</option>
+        <option value="aider">🟢 Codex / Aider</option>
+      </select>
+
       <button id="open-ide-external" title="Abrir IDE em nova aba" class="p-2 rounded-lg bg-gemini-surface hover:bg-gemini-surfaceHover text-gemini-muted hover:text-white border border-gemini-border text-xs flex items-center gap-1.5">
         <span class="hidden md:inline">Nova Aba ↗</span>
       </button>
@@ -85,11 +92,14 @@
   <main id="view-agent" class="flex-1 flex flex-col overflow-hidden relative">
     <div id="messages-container" class="flex-1 overflow-y-auto custom-scroll px-4 md:px-8 py-6 space-y-6">
       <div id="welcome-hero" class="max-w-2xl mx-auto text-center pt-8 pb-4 space-y-4">
-        <h1 class="text-3xl font-bold bg-gradient-to-r from-[#4285F4] via-[#9B72CB] to-[#D96570] bg-clip-text text-transparent">
-          Antigravity Studio
+        <div class="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 p-[2px] shadow-2xl flex items-center justify-center">
+          <div class="w-full h-full bg-gemini-bg rounded-3xl flex items-center justify-center text-3xl">🦑</div>
+        </div>
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-transparent">
+          KrakenBridge Web
         </h1>
         <p class="text-gemini-muted text-sm max-w-md mx-auto">
-          Comandos do terminal, diffs de código e respostas do agente executados em tempo real no servidor.
+          Ponte multi-agente para Antigravity, Claude Code e Codex. Comandos do terminal e código executados em tempo real no servidor.
         </p>
       </div>
       <div id="messages-list" class="space-y-6 max-w-4xl mx-auto pb-4"></div>
@@ -106,7 +116,7 @@
               <button id="stop-btn" onclick="stopGeneration()" class="hidden items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gemini-surfaceHover text-gemini-red text-xs font-medium border border-gemini-red/40">
                 <span>Interromper</span>
               </button>
-              <button id="send-btn" onclick="submitPrompt()" class="w-8 h-8 rounded-xl bg-gemini-accent text-black flex items-center justify-center font-bold hover:opacity-90 transition-opacity">➔</button>
+              <button id="send-btn" onclick="submitPrompt()" class="w-8 h-8 rounded-xl bg-cyan-400 text-black flex items-center justify-center font-bold hover:opacity-90 transition-opacity">➔</button>
             </div>
           </div>
         </div>
@@ -125,7 +135,7 @@
   </main>
 
   <script>
-    let currentConversationId = localStorage.getItem('antigravity_conv_id') || null;
+    let currentConversationId = localStorage.getItem('kraken_conv_id') || null;
     let isGenerating = false;
     let abortController = null;
     let idePort = '8089';
@@ -144,6 +154,7 @@
     const welcomeHero = document.getElementById('welcome-hero');
     const openIdeExternal = document.getElementById('open-ide-external');
     const workspaceLabel = document.getElementById('workspace-label');
+    const agentSelect = document.getElementById('agent-select');
 
     // Carregar configuração dinâmica da API
     fetch('/api/config')
@@ -185,7 +196,7 @@
     function clearChat() {
       if (confirm('Deseja iniciar uma nova conversa com o agente?')) {
         currentConversationId = null;
-        localStorage.removeItem('antigravity_conv_id');
+        localStorage.removeItem('kraken_conv_id');
         messagesList.innerHTML = '';
         welcomeHero.classList.remove('hidden');
       }
@@ -219,7 +230,8 @@
       stopBtn.classList.remove('hidden');
       stopBtn.classList.add('flex');
 
-      const botMessageEl = appendBotMessagePlaceholder();
+      const selectedAgent = agentSelect.value;
+      const botMessageEl = appendBotMessagePlaceholder(selectedAgent);
       const timelineEl = botMessageEl.querySelector('.bot-timeline');
       const contentEl = botMessageEl.querySelector('.bot-content');
       const metaEl = botMessageEl.querySelector('.bot-meta');
@@ -235,6 +247,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             prompt: prompt,
+            agent: selectedAgent,
             conversationId: currentConversationId,
             continueSession: !!currentConversationId
           }),
@@ -264,7 +277,14 @@
 
               if (payload.event === 'init' && payload.conversation_id) {
                 currentConversationId = payload.conversation_id;
-                localStorage.setItem('antigravity_conv_id', currentConversationId);
+                localStorage.setItem('kraken_conv_id', currentConversationId);
+              }
+
+              if (payload.event === 'raw' && payload.text) {
+                accumulatedText += payload.text + '\n';
+                contentEl.innerHTML = marked.parse(accumulatedText);
+                highlightCodeBlocks(contentEl);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
               }
 
               if (payload.event === 'step_update' && payload.step_update) {
@@ -336,8 +356,8 @@
         toolCard.innerHTML = `
           <summary class="flex items-center justify-between px-3 py-2 cursor-pointer bg-gemini-surface hover:bg-gemini-surfaceHover gap-2">
             <div class="flex items-center gap-2 truncate">
-              <span class="status-dot w-2 h-2 rounded-full bg-gemini-blue animate-pulse"></span>
-              <span class="font-mono font-semibold text-gemini-accent uppercase">${escapeHtml(toolName)}</span>
+              <span class="status-dot w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              <span class="font-mono font-semibold text-cyan-300 uppercase">${escapeHtml(toolName)}</span>
               <span class="truncate">${cmd}</span>
             </div>
             <span class="tool-dur text-[10px] text-gemini-muted font-mono">executando...</span>
@@ -387,11 +407,13 @@
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    function appendBotMessagePlaceholder() {
+    function appendBotMessagePlaceholder(agent) {
+      const icons = { antigravity: '✨', claude: '🟣', aider: '🟢' };
+      const icon = icons[agent] || '🦑';
       const d = document.createElement('div');
       d.className = 'flex items-start gap-3';
       d.innerHTML = `
-        <div class="w-8 h-8 rounded-full bg-gemini-surface flex items-center justify-center border border-gemini-border text-xs">✨</div>
+        <div class="w-8 h-8 rounded-full bg-gemini-surface flex items-center justify-center border border-gemini-border text-xs">${icon}</div>
         <div class="flex-1 min-w-0 space-y-2">
           <div class="bot-timeline space-y-1"></div>
           <div class="bot-content markdown-body text-gemini-text leading-relaxed"></div>

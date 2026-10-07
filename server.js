@@ -25,22 +25,52 @@ app.get(['/', '/chat'], (req, res) => {
 // Endpoint de configuração dinâmica para o frontend
 app.get('/api/config', (req, res) => {
   res.json({
+    appName: 'KrakenBridge Web',
     workspaceDir: WORKSPACE_DIR,
-    codeServerPort: CODE_SERVER_PORT
+    codeServerPort: CODE_SERVER_PORT,
+    supportedAgents: [
+      { id: 'antigravity', name: 'Google Antigravity (agy)', icon: '✨' },
+      { id: 'claude', name: 'Claude Code (claude)', icon: '🟣' },
+      { id: 'aider', name: 'OpenAI Codex / Aider', icon: '🟢' }
+    ]
   });
 });
 
 // Health check para contêineres Docker
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'healthy', uptime: process.uptime() });
+  res.json({ status: 'healthy', app: 'KrakenBridge Web', uptime: process.uptime() });
 });
 
 // Mapa de processos ativos para cancelamento gracioso
 const activeProcesses = new Map();
 
+// Configuração dos motores / drivers de execução de agentes CLI
+const AGENT_DRIVERS = {
+  antigravity: {
+    cmd: 'agy',
+    buildArgs: (prompt, continueSession, conversationId) => {
+      const args = ['-p', prompt, '--output-format', 'stream-json', '--dangerously-skip-permissions'];
+      if (continueSession) args.push('--continue');
+      else if (conversationId) args.push('--conversation', conversationId);
+      return args;
+    },
+    buildEnv: (env) => ({ ...env, HOME: env.HOME || '/root' })
+  },
+  claude: {
+    cmd: 'claude',
+    buildArgs: (prompt) => ['-p', prompt, '--dangerously-skip-permissions'],
+    buildEnv: (env) => ({ ...env, HOME: env.HOME || '/root', ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY })
+  },
+  aider: {
+    cmd: 'aider',
+    buildArgs: (prompt) => ['--message', prompt, '--yes-always', '--no-auto-commits'],
+    buildEnv: (env) => ({ ...env, HOME: env.HOME || '/root', OPENAI_API_KEY: env.OPENAI_API_KEY })
+  }
+};
+
 // Endpoint de Chat com Streaming SSE
 app.post('/api/chat', (req, res) => {
-  const { prompt, continueSession, conversationId } = req.body;
+  const { prompt, continueSession, conversationId, agent = 'antigravity' } = req.body;
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'Prompt é obrigatório' });
   }
@@ -50,31 +80,22 @@ app.post('/api/chat', (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
-  const args = [
-    '-p', prompt,
-    '--output-format', 'stream-json',
-    '--dangerously-skip-permissions' // Permite execução autônoma de ferramentas
-  ];
-
-  if (continueSession) {
-    args.push('--continue');
-  } else if (conversationId) {
-    args.push('--conversation', conversationId);
-  }
-
+  const driver = AGENT_DRIVERS[agent] || AGENT_DRIVERS.antigravity;
+  const args = driver.buildArgs(prompt, continueSession, conversationId);
   const reqId = randomUUID();
-  console.log(`[Antigravity Studio] Executando agy (${reqId}): "${prompt.slice(0, 60)}..."`);
 
-  const child = spawn('agy', args, {
+  console.log(`[KrakenBridge] Motor: ${agent} | PID (${reqId}) | Prompt: "${prompt.slice(0, 60)}..."`);
+
+  const child = spawn(driver.cmd, args, {
     cwd: WORKSPACE_DIR,
-    env: { ...process.env, HOME: process.env.HOME || '/root' }
+    env: driver.buildEnv(process.env)
   });
 
   activeProcesses.set(reqId, child);
 
   const rl = readline.createInterface({ input: child.stdout });
 
-  // Stream de eventos JSON emitidos pelo CLI do Antigravity
+  // Stream de eventos JSON emitidos pelo CLI do Agente
   rl.on('line', (line) => {
     const trimmed = line.trim();
     if (!trimmed) return;
@@ -82,11 +103,12 @@ app.post('/api/chat', (req, res) => {
       const parsed = JSON.parse(trimmed);
       res.write(`data: ${JSON.stringify(parsed)}\n\n`);
     } catch {
+      // Se não for JSON (ex: saída de terminal direta do claude ou aider), encapsula como evento de texto
       res.write(`data: ${JSON.stringify({ event: 'raw', text: trimmed })}\n\n`);
     }
   });
 
-  // Repassar logs do stderr (saídas de terminal, diagnósticos e avisos)
+  // Repassar logs do stderr (saídas de comandos, diagnósticos e warnings)
   child.stderr.on('data', (data) => {
     const text = data.toString();
     res.write(`data: ${JSON.stringify({ event: 'stderr', text })}\n\n`);
@@ -143,7 +165,7 @@ app.get('/api/projects', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`✨ Antigravity Studio Web ativo na porta ${PORT}`);
+  console.log(`🦑 KrakenBridge Web ativo na porta ${PORT}`);
   console.log(`📂 Workspace montado em: ${WORKSPACE_DIR}`);
   console.log(`💻 Conexão IDE configurada para a porta: ${CODE_SERVER_PORT}`);
 });

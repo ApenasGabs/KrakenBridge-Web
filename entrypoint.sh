@@ -8,7 +8,7 @@ git config --global --add safe.directory "*" || true
 mkdir -p "$WORKSPACE_DIR"
 
 echo "=========================================="
-echo "🚀 Iniciando Antigravity Studio (ZimaOS)"
+echo "🦑 Iniciando KrakenBridge Web (ZimaOS)"
 echo "📂 Workspace: $WORKSPACE_DIR"
 echo "🌐 Porta Web: $PORT"
 echo "=========================================="

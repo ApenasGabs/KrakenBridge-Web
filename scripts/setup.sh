@@ -2,7 +2,7 @@
 set -e
 
 echo "========================================================="
-echo "🛠️  Setup do Antigravity Studio para ZimaOS / Docker"
+echo "🦑 Setup do KrakenBridge Web para ZimaOS / Docker"
 echo "========================================================="
 
 # 1. Carregar variáveis de ambiente ou usar padrões
@@ -12,7 +12,7 @@ fi
 
 WORKSPACE_DIR="${WORKSPACE_PATH:-/DATA/Projetos}"
 CONFIG_DIR="${CODE_SERVER_CONFIG:-/DATA/AppData/code-server-config}"
-CLI_CONFIG_DIR="${ANTIGRAVITY_CLI_CONFIG:-/DATA/AppData/antigravity/config}"
+CLI_CONFIG_DIR="${KRAKEN_CONFIG_PATH:-/DATA/AppData/krakenbridge/config}"
 
 echo "📁 Criando diretórios persistentes..."
 mkdir -p "$WORKSPACE_DIR"
@@ -30,9 +30,9 @@ if [ ! -f "$WORKSPACE_DIR/.vscode/settings.json" ]; then
   cp config/vscode-settings.json "$WORKSPACE_DIR/.vscode/settings.json"
 fi
 
-# 4. Copiar configurações de permissão do Antigravity
+# 4. Copiar configurações de permissão autônoma
 if [ ! -f "$CLI_CONFIG_DIR/settings.json" ]; then
-  echo "⚙️ Copiando configurações autônomas do Antigravity CLI..."
+  echo "⚙️ Copiando configurações autônomas de IA..."
   cp config/antigravity-settings.json "$CLI_CONFIG_DIR/settings.json"
 fi
 

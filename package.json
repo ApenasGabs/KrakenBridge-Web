@@ -1,22 +1,26 @@
 {
-  "name": "zimaos-antigravity-studio",
+  "name": "krakenbridge-web",
   "version": "1.0.0",
-  "description": "Google Antigravity Web Studio & Integrated VS Code for ZimaOS / CasaOS / Docker",
+  "description": "KrakenBridge Web: Autonomous Multi-Agent AI Bridge & Integrated VS Code for ZimaOS and Docker",
   "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "keywords": [
+    "krakenbridge",
+    "ai-agents",
     "antigravity",
-    "google-gemini",
+    "claude-code",
+    "codex",
+    "aider",
     "zimaos",
     "casaos",
     "docker",
     "code-server",
     "homelab"
   ],
-  "author": "Antigravity Community",
+  "author": "KrakenBridge Community",
   "license": "MIT",
   "dependencies": {
     "cors": "^2.8.5",
