@@ -192,12 +192,36 @@ chatRouter.post('/', async (req, res) => {
         if (su.usage) {
           lastUsage = su.usage;
         }
-        if (su.step_type === 'tool' && su.state === 'DONE') {
-          toolCalls.push({
-            name: su.tool_name || 'tool',
-            command: su.tool_info?.CommandLine || '',
-            duration: su.duration_seconds
-          });
+        if (su.step_type === 'tool') {
+          const params = su.tool_info?.parameters || {};
+          const cmd = params.CommandLine 
+            || (params.toolAction ? `${params.toolAction}: ${params.toolSummary || ''}` : '')
+            || params.AbsolutePath 
+            || params.TargetFile 
+            || '';
+          const out = su.tool_info?.output || '';
+          const stepIdx = su.step_index;
+          const existingIdx = toolCalls.findIndex(t => t.step_index !== undefined && t.step_index === stepIdx);
+
+          if (existingIdx >= 0) {
+            toolCalls[existingIdx] = {
+              ...toolCalls[existingIdx],
+              name: su.tool_name || toolCalls[existingIdx].name,
+              command: cmd || toolCalls[existingIdx].command,
+              output: out || toolCalls[existingIdx].output,
+              duration: su.duration_seconds || toolCalls[existingIdx].duration,
+              state: su.state
+            };
+          } else {
+            toolCalls.push({
+              step_index: stepIdx,
+              name: su.tool_name || 'tool',
+              command: cmd,
+              output: out,
+              duration: su.duration_seconds,
+              state: su.state
+            });
+          }
         }
       } else if (parsed.event === 'result') {
         if (parsed.result?.response && !accumulatedText) {

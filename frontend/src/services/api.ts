@@ -1,10 +1,10 @@
-import type { AuthStatus, ChatOptions, ConversationSession, ModelsConfig, ProjectWorkspace, QuotaStats, TurnTokens } from '../types';
+import type { AuthStatus, ChatOptions, ConversationSession, ModelsConfig, ProjectWorkspace, QuotaStats, ToolCall, TurnTokens } from '../types';
 
 export interface SSECallbacks {
   onSessionStart?: (data: { conversation_id: string; reqId: string }) => void;
   onTextDelta?: (delta: string) => void;
   onThinkingDelta?: (delta: string) => void;
-  onToolUpdate?: (tool: { name: string; command?: string; state?: 'RUNNING' | 'DONE' | 'ERROR'; duration?: number }) => void;
+  onToolUpdate?: (tool: ToolCall) => void;
   onUsage?: (usage: TurnTokens) => void;
   onAuthRequired?: (data: { authUrl: string; reqId: string }) => void;
   onError?: (err: string) => void;
@@ -209,9 +209,21 @@ export const api = {
             } else if (su.step_type === 'thinking' && su.text_delta) {
               callbacks.onThinkingDelta?.(su.text_delta);
             } else if (su.step_type === 'tool') {
+              const params = su.tool_info?.parameters || {};
+              const command = params.CommandLine 
+                || (params.toolAction ? `${params.toolAction}${params.toolSummary ? ': ' + params.toolSummary : ''}` : '')
+                || params.AbsolutePath 
+                || params.TargetFile 
+                || '';
+
               callbacks.onToolUpdate?.({
+                step_index: su.step_index,
                 name: su.tool_name || 'tool',
-                command: su.tool_info?.CommandLine,
+                command: command,
+                action: params.toolAction,
+                summary: params.toolSummary,
+                args: params,
+                output: su.tool_info?.output,
                 state: su.state,
                 duration: su.duration_seconds
               });

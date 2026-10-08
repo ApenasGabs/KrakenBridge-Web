@@ -1,10 +1,13 @@
 export interface ToolCall {
+  step_index?: number;
   name: string;
   command?: string;
+  action?: string;
+  summary?: string;
   duration?: number;
   args?: Record<string, unknown>;
   output?: string;
-  state?: 'RUNNING' | 'DONE' | 'ERROR';
+  state?: 'ACTIVE' | 'RUNNING' | 'DONE' | 'ERROR';
 }
 
 export interface TurnTokens {

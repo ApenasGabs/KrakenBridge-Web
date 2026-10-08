@@ -235,9 +235,20 @@ export const App: React.FC = () => {
             setMessages(prev => prev.map(msg => {
               if (msg.id === streamingId) {
                 const tools = [...(msg.toolCalls || [])];
-                const existingIdx = tools.findIndex(t => t.name === toolUpdate.name && t.state === 'RUNNING');
+                const existingIdx = tools.findIndex(t => 
+                  (toolUpdate.step_index !== undefined && t.step_index === toolUpdate.step_index) ||
+                  (t.name === toolUpdate.name && (t.state === 'ACTIVE' || t.state === 'RUNNING'))
+                );
+
                 if (existingIdx >= 0) {
-                  tools[existingIdx] = { ...tools[existingIdx], ...toolUpdate };
+                  tools[existingIdx] = {
+                    ...tools[existingIdx],
+                    ...toolUpdate,
+                    command: toolUpdate.command || tools[existingIdx].command,
+                    output: toolUpdate.output || tools[existingIdx].output,
+                    action: toolUpdate.action || tools[existingIdx].action,
+                    summary: toolUpdate.summary || tools[existingIdx].summary
+                  };
                 } else {
                   tools.push(toolUpdate);
                 }
