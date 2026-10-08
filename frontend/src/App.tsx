@@ -5,7 +5,8 @@ import type {
   ConversationSession, 
   ProjectWorkspace, 
   SessionUsage, 
-  AuthStatus 
+  AuthStatus,
+  ModelsConfig 
 } from './types';
 import { api } from './services/api';
 import { Sidebar } from './components/Sidebar/Sidebar';
@@ -41,11 +42,11 @@ export const App: React.FC = () => {
   // Parâmetros do Agente CLI
   const [options, setOptions] = useState<ChatOptions>({
     agent: 'antigravity',
-    model: 'gemini-2.5-pro',
+    model: 'gemini-3.8-flash-high',
     effort: 'default',
-    mode: 'agent',
+    mode: 'default',
     sandbox: false,
-    skipPermissions: false,
+    skipPermissions: true,
     disableSlashCommands: false,
     subproject: ''
   });
@@ -86,17 +87,26 @@ export const App: React.FC = () => {
         const [configData, projectsData, modelsData] = await Promise.all([
           api.getConfig().catch(() => ({ workspaceDir: '/workspace', codeServerPort: 8089 })),
           api.getProjects().catch((): { projects: ProjectWorkspace[] } => ({ projects: [] })),
-          api.getModels().catch((): { models: string[] } => ({ models: [] }))
+          api.getModels().catch((): ModelsConfig => ({}))
         ]);
 
         if (configData.codeServerPort) setCodeServerPort(configData.codeServerPort);
         if (configData.workspaceDir) setWorkspaceDir(configData.workspaceDir);
         if (projectsData.projects) setProjects(projectsData.projects);
-        if (modelsData.models && modelsData.models.length > 0) {
-          setAvailableModels(modelsData.models);
-          if (!modelsData.models.includes(options.model)) {
-            setOptions(prev => ({ ...prev, model: modelsData.models[0] }));
-          }
+        
+        const agyList: string[] = [];
+        if (modelsData && modelsData.antigravity && Array.isArray(modelsData.antigravity)) {
+          agyList.push(...modelsData.antigravity.map((m: { id: string }) => m.id));
+        } else if (Array.isArray(modelsData.models)) {
+          agyList.push(...modelsData.models);
+        }
+
+        if (agyList.length > 0) {
+          setAvailableModels(agyList);
+          setOptions(prev => ({
+            ...prev,
+            model: agyList.includes(prev.model) ? prev.model : agyList[0]
+          }));
         }
 
         await Promise.all([refreshAuthStatus(), loadConversations()]);

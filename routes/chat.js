@@ -22,15 +22,30 @@ const AGENT_DRIVERS = {
       if (skipPermissions !== false) {
         args.push('--dangerously-skip-permissions');
       }
-      if (model) {
-        args.push('--model', model);
-      }
-      if (effort && effort !== 'default') {
+
+      // Validar modelo suportado pelo Antigravity CLI
+      const validAgyModels = [
+        'gemini-3.8-flash-high', 'gemini-3.8-flash-medium', 'gemini-3.8-flash-low',
+        'gemini-3.7-flash-high', 'gemini-3.7-flash-medium', 'gemini-3.7-flash-low',
+        'gemini-3.6-flash-high', 'gemini-3.6-flash-medium', 'gemini-3.6-flash-low',
+        'gemini-3.1-pro-high', 'gemini-3.1-pro-low',
+        'claude-opus-5-5-low', 'claude-opus-5-5-medium', 'claude-opus-5-5-high',
+        'claude-sonnet-5-5-low', 'claude-sonnet-5-5-medium', 'claude-sonnet-5-5-high',
+        'gpt-oss-120b-medium'
+      ];
+      const safeModel = (model && validAgyModels.includes(model)) ? model : 'gemini-3.8-flash-high';
+      args.push('--model', safeModel);
+
+      // agy só aceita esforço válido (low, medium, high, xhigh, max)
+      if (effort && effort !== 'default' && ['low', 'medium', 'high', 'xhigh', 'max'].includes(effort)) {
         args.push('--effort', effort);
       }
-      if (mode && mode !== 'default') {
+
+      // agy só aceita --mode accept-edits ou --mode plan
+      if (mode && (mode === 'accept-edits' || mode === 'plan')) {
         args.push('--mode', mode);
       }
+
       if (sandbox) {
         args.push('--sandbox');
       }
@@ -130,21 +145,10 @@ chatRouter.post('/', async (req, res) => {
 
   console.log(`[KrakenBridge] Motor: ${agent} | Conv: ${conversationId} | Cwd: ${workDir} | Prompt: "${prompt.slice(0, 50)}..."`);
 
-  const isLinux = process.platform === 'linux';
-  let child;
-  if (agent === 'antigravity' && isLinux) {
-    // Aloca pseudo-terminal (PTY) via script util para permitir interatividade e captura OAuth
-    const fullCmd = `${driver.cmd} ${args.map(a => `"${a.replace(/"/g, '\\"')}"`).join(' ')}`;
-    child = spawn('script', ['-qec', fullCmd, '/dev/null'], {
-      cwd: workDir,
-      env: driver.buildEnv(process.env)
-    });
-  } else {
-    child = spawn(driver.cmd, args, {
-      cwd: workDir,
-      env: driver.buildEnv(process.env)
-    });
-  }
+  const child = spawn(driver.cmd, args, {
+    cwd: workDir,
+    env: driver.buildEnv(process.env)
+  });
 
   activeProcesses.set(reqId, child);
 

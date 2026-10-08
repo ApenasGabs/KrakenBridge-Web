@@ -49,6 +49,18 @@ export interface AuthStatus {
   type?: string;
 }
 
+export interface ModelOption {
+  id: string;
+  name: string;
+}
+
+export interface ModelsConfig {
+  antigravity?: ModelOption[];
+  claude?: ModelOption[];
+  aider?: ModelOption[];
+  models?: string[];
+}
+
 export interface ChatOptions {
   agent: string;
   model: string;

@@ -1,4 +1,4 @@
-import type { AuthStatus, ChatOptions, ConversationSession, ProjectWorkspace, TurnTokens } from '../types';
+import type { AuthStatus, ChatOptions, ConversationSession, ModelsConfig, ProjectWorkspace, TurnTokens } from '../types';
 
 export interface SSECallbacks {
   onSessionStart?: (data: { conversation_id: string; reqId: string }) => void;
@@ -22,8 +22,9 @@ export const api = {
     return res.json();
   },
 
-  async getModels(): Promise<{ models: string[] }> {
+  async getModels(): Promise<ModelsConfig> {
     const res = await fetch('/api/config/models');
+    if (!res.ok) return {};
     return res.json();
   },
 
