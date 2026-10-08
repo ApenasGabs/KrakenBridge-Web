@@ -39,21 +39,21 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="navbar bg-base-100 border-b border-base-300 px-4 min-h-14 gap-2 z-20">
       {/* Lado Esquerdo: Toggle Sidebar + Marca */}
-      <div className="flex-1 flex items-center gap-3">
+      <div className="flex items-center gap-2 shrink-0">
         <button
           onClick={onToggleSidebar}
-          className="btn btn-ghost btn-sm btn-square lg:hidden"
+          className="btn btn-ghost btn-sm btn-square"
           title="Alternar histórico"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="w-4 h-4" />
         </button>
 
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary text-primary-content flex items-center justify-center font-bold text-base shadow-sm">
+          <div className="w-7 h-7 rounded-lg bg-primary text-primary-content flex items-center justify-center font-bold text-sm shadow-sm">
             K
           </div>
-          <div className="hidden sm:block">
-            <h1 className="text-base font-bold tracking-tight text-base-content leading-none">
+          <div className="hidden md:block">
+            <h1 className="text-sm font-bold tracking-tight text-base-content leading-none">
               KrakenBridge
             </h1>
             <span className="text-[10px] text-base-content/50 font-medium">
@@ -63,37 +63,41 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Tabs Centrais: Chat vs IDE */}
-        <div className="tabs tabs-boxed bg-base-200/80 p-0.5 ml-2 sm:ml-4">
+        <div className="inline-flex items-center bg-base-200/80 rounded-lg p-0.5 ml-1 sm:ml-3 shrink-0">
           <button
             onClick={() => onTabChange('chat')}
-            className={`tab tab-sm gap-1.5 transition-all ${
+            className={`px-2.5 py-1 text-xs rounded-md flex items-center gap-1.5 font-medium transition-all ${
               activeTab === 'chat' 
-                ? 'tab-active !bg-primary !text-primary-content font-medium shadow-sm' 
-                : 'text-base-content/70'
+                ? 'bg-primary text-primary-content shadow-sm' 
+                : 'text-base-content/70 hover:text-base-content'
             }`}
           >
             <Bot className="w-3.5 h-3.5" />
-            <span>Chat Agente</span>
+            <span className="hidden sm:inline">Chat Agente</span>
+            <span className="sm:hidden">Chat</span>
           </button>
           <button
             onClick={() => onTabChange('ide')}
-            className={`tab tab-sm gap-1.5 transition-all ${
+            className={`px-2.5 py-1 text-xs rounded-md flex items-center gap-1.5 font-medium transition-all ${
               activeTab === 'ide' 
-                ? 'tab-active !bg-primary !text-primary-content font-medium shadow-sm' 
-                : 'text-base-content/70'
+                ? 'bg-primary text-primary-content shadow-sm' 
+                : 'text-base-content/70 hover:text-base-content'
             }`}
           >
             <Code2 className="w-3.5 h-3.5" />
-            <span>IDE (VS Code)</span>
+            <span className="hidden sm:inline">IDE (VS Code)</span>
+            <span className="sm:hidden">IDE</span>
           </button>
         </div>
       </div>
 
+      <div className="flex-1" />
+
       {/* Lado Direito: Quota / Tokens + Opções + Auth + Temas */}
-      <div className="flex items-center gap-2">
-        {/* Painel de Tokens / Quota */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {/* Painel de Tokens Desktop */}
         <div 
-          className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-md bg-base-200 border border-base-300 text-xs"
+          className="hidden xl:flex items-center gap-2 px-2.5 py-1 rounded-md bg-base-200 border border-base-300 text-xs shrink-0"
           title="Consumo de tokens na sessão ativa"
         >
           <Coins className="w-3.5 h-3.5 text-warning" />
@@ -101,27 +105,38 @@ export const Header: React.FC<HeaderProps> = ({
             {sessionUsage.sessionTotalTokens.toLocaleString()} tokens
           </span>
           <span className="text-base-content/40">|</span>
-          <span className="text-[11px] text-base-content/60 truncate max-w-[100px] font-mono">
+          <span className="text-[11px] text-base-content/60 truncate max-w-[80px] font-mono">
             {currentModel}
+          </span>
+        </div>
+
+        {/* Painel de Tokens Compacto */}
+        <div 
+          className="flex xl:hidden items-center gap-1 px-2 py-1 rounded-md bg-base-200 border border-base-300 text-xs shrink-0"
+          title="Consumo de tokens na sessão ativa"
+        >
+          <Coins className="w-3.5 h-3.5 text-warning" />
+          <span className="font-mono font-medium text-[11px]">
+            {sessionUsage.sessionTotalTokens.toLocaleString()}
           </span>
         </div>
 
         {/* Botão de Opções do CLI */}
         <button
           onClick={onToggleOptions}
-          className={`btn btn-sm btn-ghost gap-1 text-xs ${
+          className={`btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1 text-xs ${
             isOptionsOpen ? 'bg-base-200 text-primary' : 'text-base-content/70'
           }`}
           title="Parâmetros avançados do CLI"
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Opções</span>
+          <span className="hidden lg:inline">Opções</span>
         </button>
 
         {/* Botão de Autenticação */}
         <button
           onClick={onOpenAuth}
-          className={`btn btn-sm gap-1.5 text-xs ${
+          className={`btn btn-sm btn-square sm:btn-auto px-2 gap-1.5 text-xs ${
             isAuthOk 
               ? 'btn-ghost text-success hover:bg-success/10' 
               : 'btn-outline btn-warning'
@@ -130,20 +145,20 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <KeyRound className="w-3.5 h-3.5" />
           {isAuthOk ? (
-            <span className="hidden sm:inline flex items-center gap-1">
+            <span className="hidden lg:inline flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3 inline text-success" />
               Autenticado
             </span>
           ) : (
-            <span className="hidden sm:inline flex items-center gap-1">
+            <span className="hidden lg:inline flex items-center gap-1">
               <AlertCircle className="w-3 h-3 inline text-warning" />
-              Conectar Conta
+              Conectar
             </span>
           )}
         </button>
 
         {/* Seletor de Tema do DaisyUI */}
-        <div className="border-l border-base-300 pl-1">
+        <div className="border-l border-base-300 pl-1 shrink-0">
           <ThemeSelector />
         </div>
       </div>

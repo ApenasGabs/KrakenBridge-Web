@@ -25,7 +25,9 @@ export const App: React.FC = () => {
 
   // Layout & Abas
   const [activeTab, setActiveTab] = useState<'chat' | 'ide'>('chat');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  );
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
