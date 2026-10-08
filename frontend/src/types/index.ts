@@ -87,6 +87,18 @@ export interface SessionUsage {
   lastTurnTokens: number;
 }
 
+export interface QuotaLimitItem {
+  remaining: number;
+  message?: string | null;
+  resetAt?: number | null;
+}
+
+export interface QuotaModelGroup {
+  title: string;
+  weekly: QuotaLimitItem;
+  fiveHour: QuotaLimitItem;
+}
+
 export interface QuotaWindowStats {
   totalTokens: number;
   inputTokens: number;
@@ -98,19 +110,23 @@ export interface QuotaWindowStats {
 }
 
 export interface QuotaStats {
-  hourly: QuotaWindowStats;
-  daily: QuotaWindowStats;
-  weekly: QuotaWindowStats;
-  modelBreakdown: Record<string, { totalTokens: number; count: number }>;
-  recentTurns: Array<{
-    id: string;
-    timestamp: string;
-    agent: string;
-    model: string;
-    input_tokens: number;
-    output_tokens: number;
-    thinking_tokens: number;
-    total_tokens: number;
-  }>;
-  totalRecordedTurns: number;
+  gemini: QuotaModelGroup;
+  claudeGpt: QuotaModelGroup;
+  tokens?: {
+    hourly: QuotaWindowStats;
+    daily: QuotaWindowStats;
+    weekly: QuotaWindowStats;
+    modelBreakdown: Record<string, { totalTokens: number; count: number }>;
+    recentTurns: Array<{
+      id: string;
+      timestamp: string;
+      agent: string;
+      model: string;
+      input_tokens: number;
+      output_tokens: number;
+      thinking_tokens: number;
+      total_tokens: number;
+    }>;
+    totalRecordedTurns: number;
+  };
 }

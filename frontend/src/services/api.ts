@@ -36,6 +36,18 @@ export const api = {
     return res.json();
   },
 
+  async syncQuota(data: {
+    gemini?: { weeklyRemaining?: number; fiveHourRemaining?: number; weeklyHoursRemaining?: number; fiveHourMinutesRemaining?: number };
+    claudeGpt?: { weeklyRemaining?: number; fiveHourRemaining?: number };
+  }): Promise<{ ok: boolean; stats: QuotaStats }> {
+    const res = await fetch('/api/quota/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
   async getAuthStatus(): Promise<AuthStatus> {
     const res = await fetch('/api/auth/status');
     return res.json();
