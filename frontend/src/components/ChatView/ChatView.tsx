@@ -15,6 +15,7 @@ interface ChatViewProps {
   currentModel?: string;
   availableModels?: (string | ModelOption)[];
   onModelChange?: (model: string) => void;
+  onOpenMcpModal?: () => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -27,7 +28,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onSelectSuggestion,
   currentModel,
   availableModels,
-  onModelChange
+  onModelChange,
+  onOpenMcpModal
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -144,6 +146,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         currentModel={currentModel}
         availableModels={availableModels}
         onModelChange={onModelChange}
+        onOpenMcpModal={onOpenMcpModal}
       />
     </div>
   );

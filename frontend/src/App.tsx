@@ -16,6 +16,7 @@ import { ChatView } from './components/ChatView/ChatView';
 import { IdeView } from './components/IdeView/IdeView';
 import { AuthModal } from './components/AuthModal/AuthModal';
 import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
+import { McpModal } from './components/McpModal/McpModal';
 
 export const App: React.FC = () => {
   // Estado das Conversas
@@ -32,6 +33,8 @@ export const App: React.FC = () => {
   );
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isMcpModalOpen, setIsMcpModalOpen] = useState(false);
+  const [mcpCount, setMcpCount] = useState(0);
 
   // Configurações do Sistema
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
@@ -121,7 +124,11 @@ export const App: React.FC = () => {
           }));
         }
 
-        await Promise.all([refreshAuthStatus(), loadConversations()]);
+        await Promise.all([
+          refreshAuthStatus(), 
+          loadConversations(),
+          api.getMcpServers().then(servers => setMcpCount(servers.length)).catch(() => {})
+        ]);
       } catch (err) {
         console.error('Erro na inicialização do app:', err);
       }
@@ -362,6 +369,8 @@ export const App: React.FC = () => {
           sessionUsage={sessionUsage}
           currentModel={options.model}
           onToggleQuota={() => handleUpdateOptions({ ...options, showQuotaBubble: !options.showQuotaBubble })}
+          onOpenMcp={() => setIsMcpModalOpen(true)}
+          mcpCount={mcpCount}
         />
 
         {/* Barra de Opções do Antigravity CLI */}
@@ -385,6 +394,7 @@ export const App: React.FC = () => {
             currentModel={options.model}
             availableModels={availableModels}
             onModelChange={(model) => handleUpdateOptions({ ...options, model })}
+            onOpenMcpModal={() => setIsMcpModalOpen(true)}
           />
         ) : (
           <IdeView
@@ -399,6 +409,12 @@ export const App: React.FC = () => {
         isVisible={!!options.showQuotaBubble}
         onClose={() => handleUpdateOptions({ ...options, showQuotaBubble: false })}
         lastTurnTokens={sessionUsage.lastTurnTokens}
+      />
+
+      {/* Modal de Gerenciamento de MCPs */}
+      <McpModal
+        isOpen={isMcpModalOpen}
+        onClose={() => setIsMcpModalOpen(false)}
       />
 
       {/* Modal de Autenticação e Configurações */}

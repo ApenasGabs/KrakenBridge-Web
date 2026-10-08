@@ -8,7 +8,8 @@ import {
   Coins, 
   KeyRound, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  Boxes
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -22,6 +23,8 @@ interface HeaderProps {
   sessionUsage: SessionUsage;
   currentModel: string;
   onToggleQuota?: () => void;
+  onOpenMcp?: () => void;
+  mcpCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,7 +37,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuth,
   sessionUsage,
   currentModel,
-  onToggleQuota
+  onToggleQuota,
+  onOpenMcp,
+  mcpCount
 }) => {
   const isAuthOk = authStatus?.authenticated || authStatus?.isKeyValid;
 
@@ -124,6 +129,19 @@ export const Header: React.FC<HeaderProps> = ({
             {sessionUsage.sessionTotalTokens.toLocaleString()}
           </span>
         </div>
+
+        {/* Botão de Servidores MCP */}
+        <button
+          onClick={onOpenMcp}
+          className="btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1.5 text-xs text-base-content/70 hover:text-primary transition-colors"
+          title="Visualizar servidores MCP (Model Context Protocol)"
+        >
+          <Boxes className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="hidden lg:inline">MCPs</span>
+          {mcpCount !== undefined && mcpCount > 0 && (
+            <span className="badge badge-xs badge-primary font-mono">{mcpCount}</span>
+          )}
+        </button>
 
         {/* Botão de Opções do CLI */}
         <button

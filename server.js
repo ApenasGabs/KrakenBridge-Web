@@ -7,6 +7,7 @@ import { conversationsRouter } from './routes/conversations.js';
 import { authRouter } from './routes/auth.js';
 import { chatRouter } from './routes/chat.js';
 import { quotaRouter } from './routes/quota.js';
+import { mcpRouter } from './routes/mcp.js';
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
@@ -33,6 +34,7 @@ app.use('/api/conversations', conversationsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/quota', quotaRouter);
+app.use('/api/mcp', mcpRouter);
 
 // Compatibilidade de rotas diretas
 app.post('/api/stop', (req, res) => res.redirect(307, '/api/chat/stop'));

@@ -1,4 +1,4 @@
-import type { AuthStatus, ChatOptions, ConversationSession, ModelsConfig, ProjectWorkspace, QuotaStats, ToolCall, TurnTokens } from '../types';
+import type { AuthStatus, ChatOptions, ConversationSession, McpServer, ModelsConfig, ProjectWorkspace, QuotaStats, ToolCall, TurnTokens } from '../types';
 
 export interface SSECallbacks {
   onSessionStart?: (data: { conversation_id: string; reqId: string }) => void;
@@ -44,6 +44,22 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  async getMcpServers(): Promise<McpServer[]> {
+    const res = await fetch('/api/mcp');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.servers || [];
+  },
+
+  async toggleMcpServer(name: string, enable: boolean): Promise<{ success: boolean; error?: string }> {
+    const res = await fetch('/api/mcp/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, enable })
     });
     return res.json();
   },

@@ -133,3 +133,18 @@ export interface QuotaStats {
     totalRecordedTurns: number;
   };
 }
+
+export interface McpServer {
+  name: string;
+  type: string;
+  status: 'enabled' | 'disabled';
+  commandOrUrl?: string;
+}
+
+export interface SlashCommand {
+  command: string;
+  title: string;
+  description: string;
+  category: 'workflow' | 'mode' | 'system';
+}
+
