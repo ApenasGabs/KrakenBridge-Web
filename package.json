@@ -5,7 +5,9 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build:frontend": "npm run --prefix frontend build",
+    "build": "npm run build:frontend"
   },
   "keywords": [
     "krakenbridge",

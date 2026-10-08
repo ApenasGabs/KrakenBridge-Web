@@ -15,9 +15,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Servir frontend estático
-const publicDir = path.resolve('public');
-app.use(express.static(publicDir));
+import fs from 'fs';
+
+// Servir frontend estático (prioriza build do Vite se existir, senão fallback para public/)
+const distDir = [
+  path.resolve('frontend/dist'),
+  path.resolve('dist'),
+  path.resolve('public')
+].find(dir => fs.existsSync(dir)) || path.resolve('public');
+
+app.use(express.static(distDir));
 
 // Rotas da API Modular
 app.use('/api/config', configRouter);
@@ -40,8 +47,9 @@ app.get('/api/health', (req, res) => {
 });
 
 // Redirecionamento SPA para index.html
-app.get(['/', '/chat'], (req, res) => {
-  res.sendFile(path.join(publicDir, 'index.html'));
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
+  res.sendFile(path.join(distDir, 'index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
