@@ -16,7 +16,7 @@ const activeProcesses = new Map();
 const AGENT_DRIVERS = {
   antigravity: {
     cmd: 'agy',
-    buildArgs: ({ prompt, conversationId, continueSession, model, effort, mode, sandbox, skipPermissions, disableSlashCommands }) => {
+    buildArgs: ({ prompt, conversationId, agyConvId, continueSession, model, effort, mode, sandbox, skipPermissions, disableSlashCommands }) => {
       const args = ['-p', prompt, '--output-format', 'stream-json'];
 
       if (skipPermissions !== false) {
@@ -34,13 +34,10 @@ const AGENT_DRIVERS = {
       if (sandbox) {
         args.push('--sandbox');
       }
-      if (disableSlashCommands) {
-        args.push('--disable-slash-commands');
-      }
       if (continueSession) {
         args.push('--continue');
-      } else if (conversationId) {
-        args.push('--conversation', conversationId);
+      } else if (agyConvId) {
+        args.push('--conversation', agyConvId);
       }
 
       return args;
@@ -96,7 +93,9 @@ chatRouter.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Prompt é obrigatório' });
   }
 
+  const existingSession = clientConvId ? await historyService.get(clientConvId) : null;
   const conversationId = clientConvId || randomUUID();
+  const agyConvId = existingSession?.agyConvId || null;
   const reqId = randomUUID();
 
   // Configuração do diretório de trabalho
@@ -108,7 +107,7 @@ chatRouter.post('/', async (req, res) => {
     role: 'user',
     text: prompt,
     timestamp: new Date().toISOString()
-  }, { agent, model, effort, mode, subproject });
+  }, { agent, model, effort, mode, subproject, agyConvId });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -119,6 +118,7 @@ chatRouter.post('/', async (req, res) => {
   const args = driver.buildArgs({
     prompt,
     conversationId,
+    agyConvId,
     continueSession,
     model,
     effort,
@@ -171,6 +171,11 @@ chatRouter.post('/', async (req, res) => {
     if (!trimmed) return;
     try {
       const parsed = JSON.parse(trimmed);
+
+      // Salva ID interno do agy para continuações futuras
+      if (parsed.event === 'init' && parsed.conversation_id) {
+        historyService.save({ id: conversationId, agyConvId: parsed.conversation_id });
+      }
 
       // Coleta respostas para persistência no histórico
       if (parsed.event === 'step_update' && parsed.step_update) {

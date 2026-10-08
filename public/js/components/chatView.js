@@ -14,7 +14,7 @@ export class ChatViewComponent {
     this.activeTools = new Map();
 
     state.subscribe((key) => {
-      if (key === 'activeConversationId') {
+      if (key === 'activeConversationId' && !state.get('isGenerating')) {
         this.loadActiveConversation();
       }
     });
