@@ -21,6 +21,7 @@ interface HeaderProps {
   onOpenAuth: () => void;
   sessionUsage: SessionUsage;
   currentModel: string;
+  onToggleQuota?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,7 +33,8 @@ export const Header: React.FC<HeaderProps> = ({
   authStatus,
   onOpenAuth,
   sessionUsage,
-  currentModel
+  currentModel,
+  onToggleQuota
 }) => {
   const isAuthOk = authStatus?.authenticated || authStatus?.isKeyValid;
 
@@ -97,8 +99,9 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-1.5 shrink-0">
         {/* Painel de Tokens Desktop */}
         <div 
-          className="hidden xl:flex items-center gap-2 px-2.5 py-1 rounded-md bg-base-200 border border-base-300 text-xs shrink-0"
-          title="Consumo de tokens na sessão ativa"
+          onClick={onToggleQuota}
+          className="hidden xl:flex items-center gap-2 px-2.5 py-1 rounded-md bg-base-200 hover:bg-base-300 border border-base-300 text-xs shrink-0 cursor-pointer transition-colors"
+          title="Consumo de tokens na sessão ativa (Clique para abrir balão de cotas)"
         >
           <Coins className="w-3.5 h-3.5 text-warning" />
           <span className="font-mono font-medium">
@@ -112,8 +115,9 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Painel de Tokens Compacto */}
         <div 
-          className="flex xl:hidden items-center gap-1 px-2 py-1 rounded-md bg-base-200 border border-base-300 text-xs shrink-0"
-          title="Consumo de tokens na sessão ativa"
+          onClick={onToggleQuota}
+          className="flex xl:hidden items-center gap-1 px-2 py-1 rounded-md bg-base-200 hover:bg-base-300 border border-base-300 text-xs shrink-0 cursor-pointer transition-colors"
+          title="Consumo de tokens na sessão ativa (Clique para abrir balão de cotas)"
         >
           <Coins className="w-3.5 h-3.5 text-warning" />
           <span className="font-mono font-medium text-[11px]">

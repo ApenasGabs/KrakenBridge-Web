@@ -15,6 +15,7 @@ import { OptionsBar } from './components/OptionsBar/OptionsBar';
 import { ChatView } from './components/ChatView/ChatView';
 import { IdeView } from './components/IdeView/IdeView';
 import { AuthModal } from './components/AuthModal/AuthModal';
+import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 
 export const App: React.FC = () => {
   // Estado das Conversas
@@ -40,16 +41,27 @@ export const App: React.FC = () => {
   const [workspaceDir, setWorkspaceDir] = useState('/workspace');
 
   // Parâmetros do Agente CLI
-  const [options, setOptions] = useState<ChatOptions>({
-    agent: 'antigravity',
-    model: 'gemini-3.8-flash-high',
-    effort: 'default',
-    mode: 'default',
-    sandbox: false,
-    skipPermissions: true,
-    disableSlashCommands: false,
-    subproject: ''
+  const [options, setOptions] = useState<ChatOptions>(() => {
+    const saved = localStorage.getItem('kraken_show_quota');
+    return {
+      agent: 'antigravity',
+      model: 'gemini-3.8-flash-high',
+      effort: 'default',
+      mode: 'default',
+      sandbox: false,
+      skipPermissions: true,
+      disableSlashCommands: false,
+      subproject: '',
+      showQuotaBubble: saved !== null ? saved === 'true' : true
+    };
   });
+
+  const handleUpdateOptions = useCallback((newOptions: ChatOptions) => {
+    setOptions(newOptions);
+    if (newOptions.showQuotaBubble !== undefined) {
+      localStorage.setItem('kraken_show_quota', String(newOptions.showQuotaBubble));
+    }
+  }, []);
 
   // Estatísticas de Cota e Consumo de Tokens
   const [sessionUsage, setSessionUsage] = useState<SessionUsage>({
@@ -338,13 +350,14 @@ export const App: React.FC = () => {
           onOpenAuth={() => setIsAuthModalOpen(true)}
           sessionUsage={sessionUsage}
           currentModel={options.model}
+          onToggleQuota={() => handleUpdateOptions({ ...options, showQuotaBubble: !options.showQuotaBubble })}
         />
 
         {/* Barra de Opções do Antigravity CLI */}
         <OptionsBar
           options={options}
           availableModels={availableModels}
-          onChange={setOptions}
+          onChange={handleUpdateOptions}
           isOpen={isOptionsOpen}
         />
 
@@ -366,6 +379,13 @@ export const App: React.FC = () => {
           />
         )}
       </div>
+
+      {/* Balão Flutuante de Cotas Antigravity (Horária e Semanal) */}
+      <QuotaBubble
+        isVisible={!!options.showQuotaBubble}
+        onClose={() => handleUpdateOptions({ ...options, showQuotaBubble: false })}
+        lastTurnTokens={sessionUsage.lastTurnTokens}
+      />
 
       {/* Modal de Autenticação e Configurações */}
       <AuthModal

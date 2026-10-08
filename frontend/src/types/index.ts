@@ -70,6 +70,7 @@ export interface ChatOptions {
   skipPermissions: boolean;
   disableSlashCommands: boolean;
   subproject: string;
+  showQuotaBubble?: boolean;
 }
 
 export interface ProjectWorkspace {
@@ -84,4 +85,32 @@ export interface SessionUsage {
   sessionThinkingTokens: number;
   sessionTotalTokens: number;
   lastTurnTokens: number;
+}
+
+export interface QuotaWindowStats {
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  thinkingTokens: number;
+  count: number;
+  limit?: number;
+  percent?: number;
+}
+
+export interface QuotaStats {
+  hourly: QuotaWindowStats;
+  daily: QuotaWindowStats;
+  weekly: QuotaWindowStats;
+  modelBreakdown: Record<string, { totalTokens: number; count: number }>;
+  recentTurns: Array<{
+    id: string;
+    timestamp: string;
+    agent: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    thinking_tokens: number;
+    total_tokens: number;
+  }>;
+  totalRecordedTurns: number;
 }

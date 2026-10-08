@@ -1,5 +1,5 @@
 import type { ChatOptions, ModelOption } from '../../types';
-import { Cpu, Zap, Shield, ShieldAlert, Sparkles } from 'lucide-react';
+import { Cpu, Zap, Shield, ShieldAlert, Sparkles, Activity } from 'lucide-react';
 
 interface OptionsBarProps {
   options: ChatOptions;
@@ -90,7 +90,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
           </select>
         </div>
 
-        {/* Flags de Segurança e Permissões */}
+        {/* Flags de Segurança, Permissões e Cotas */}
         <div className="flex items-center gap-4">
           <label className="cursor-pointer flex items-center gap-1.5 text-base-content/80 select-none">
             <input
@@ -112,6 +112,17 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             />
             <Shield className="w-3.5 h-3.5 text-primary" />
             <span>Sandbox</span>
+          </label>
+
+          <label className="cursor-pointer flex items-center gap-1.5 text-base-content/80 select-none">
+            <input
+              type="checkbox"
+              checked={!!options.showQuotaBubble}
+              onChange={(e) => update({ showQuotaBubble: e.target.checked })}
+              className="checkbox checkbox-xs checkbox-secondary"
+            />
+            <Activity className="w-3.5 h-3.5 text-secondary" />
+            <span>Balão de Cotas</span>
           </label>
         </div>
       </div>

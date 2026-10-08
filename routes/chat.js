@@ -4,6 +4,7 @@ import readline from 'readline';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import { historyService } from '../services/historyService.js';
+import { quotaService } from '../services/quotaService.js';
 
 export const chatRouter = Router();
 
@@ -157,6 +158,7 @@ chatRouter.post('/', async (req, res) => {
 
   let accumulatedText = '';
   let toolCalls = [];
+  let lastUsage = null;
 
   // Monitora stdout bruto para detectar solicitações de autenticação inline
   child.stdout.on('data', (data) => {
@@ -187,6 +189,9 @@ chatRouter.post('/', async (req, res) => {
         if (su.step_type === 'agent_response' && su.text_delta) {
           accumulatedText += su.text_delta;
         }
+        if (su.usage) {
+          lastUsage = su.usage;
+        }
         if (su.step_type === 'tool' && su.state === 'DONE') {
           toolCalls.push({
             name: su.tool_name || 'tool',
@@ -194,8 +199,13 @@ chatRouter.post('/', async (req, res) => {
             duration: su.duration_seconds
           });
         }
-      } else if (parsed.event === 'result' && parsed.result?.response) {
-        if (!accumulatedText) accumulatedText = parsed.result.response;
+      } else if (parsed.event === 'result') {
+        if (parsed.result?.response && !accumulatedText) {
+          accumulatedText = parsed.result.response;
+        }
+        if (parsed.result?.usage) {
+          lastUsage = parsed.result.usage;
+        }
       }
 
       res.write(`data: ${JSON.stringify(parsed)}\n\n`);
@@ -230,6 +240,22 @@ chatRouter.post('/', async (req, res) => {
         toolCalls,
         timestamp: new Date().toISOString()
       });
+    }
+
+    // Salvar métricas de consumo de tokens para a cota horária e semanal
+    if (lastUsage) {
+      try {
+        await quotaService.recordUsage({
+          model: model || 'gemini-3.8-flash-high',
+          agent: agent || 'antigravity',
+          input_tokens: lastUsage.input_tokens,
+          output_tokens: lastUsage.output_tokens,
+          thinking_tokens: lastUsage.thinking_tokens,
+          total_tokens: lastUsage.total_tokens
+        });
+      } catch (err) {
+        console.warn('[KrakenBridge] Falha ao registrar cota:', err.message);
+      }
     }
 
     res.write(`data: ${JSON.stringify({ event: 'done', code, conversation_id: conversationId })}\n\n`);
