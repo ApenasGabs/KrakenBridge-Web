@@ -32,8 +32,12 @@ export const api = {
     return res.json();
   },
 
-  async startAntigravityAuth(): Promise<{ authUrl?: string; message?: string }> {
-    const res = await fetch('/api/auth/antigravity/start', { method: 'POST' });
+  async startAntigravityAuth(force?: boolean): Promise<{ authUrl?: string; message?: string; alreadyAuthenticated?: boolean; email?: string }> {
+    const res = await fetch('/api/auth/antigravity/start', { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force: !!force })
+    });
     return res.json();
   },
 

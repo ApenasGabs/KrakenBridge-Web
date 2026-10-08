@@ -36,12 +36,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleStartGoogleAuth = async () => {
+  const handleStartGoogleAuth = async (force = false) => {
     setLoading(true);
     setMessage(null);
     try {
-      const res = await api.startAntigravityAuth();
-      if (res.authUrl) {
+      const res = await api.startAntigravityAuth(force);
+      if (res.alreadyAuthenticated) {
+        setMessage({ 
+          text: res.message || `Conta já conectada (${res.email || status?.email || 'Google Antigravity'})!`, 
+          type: 'success' 
+        });
+        onRefreshStatus();
+      } else if (res.authUrl) {
         setAuthUrl(res.authUrl);
         setMessage({ text: 'Link de autenticação gerado! Abra o link abaixo, copie o código do Google e cole aqui.', type: 'info' });
       } else {
@@ -132,7 +138,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
             <div>
               <span className="font-semibold text-base-content">
-                {status?.authenticated ? 'Google Antigravity Autenticado' : status?.isKeyValid ? 'Gemini API Key Ativa' : 'Não Autenticado'}
+                {status?.authenticated ? 'Google Antigravity Conectado' : status?.isKeyValid ? 'Gemini API Key Ativa' : 'Não Autenticado'}
               </span>
               {status?.email && (
                 <p className="text-base-content/60 font-mono text-[11px]">{status.email}</p>
@@ -182,19 +188,42 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Conteúdo da Aba Google OAuth */}
         {activeTab === 'google' && (
           <div className="space-y-4 text-xs">
+            {status?.authenticated ? (
+              <div className="p-3.5 rounded-xl bg-success/10 border border-success/30 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-success shrink-0" />
+                  <div>
+                    <div className="font-semibold text-success text-sm">Conta Conectada e Ativa</div>
+                    <div className="text-xs text-base-content/70 font-mono mt-0.5">
+                      {status.email || 'Conta Google'}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleStartGoogleAuth(true)}
+                  disabled={loading}
+                  className="btn btn-outline btn-xs"
+                >
+                  {loading ? <span className="loading loading-spinner loading-xs" /> : 'Trocar Conta'}
+                </button>
+              </div>
+            ) : null}
+
             <p className="text-base-content/70">
               Autentique sua conta Google para utilizar o binário nativo <code className="bg-base-200 px-1 py-0.5 rounded font-mono">agy</code> com sua cota Cloud Code.
             </p>
 
             {!authUrl ? (
-              <button
-                onClick={handleStartGoogleAuth}
-                disabled={loading}
-                className="btn btn-primary btn-sm w-full gap-2"
-              >
-                {loading ? <span className="loading loading-spinner loading-xs" /> : <Terminal className="w-4 h-4" />}
-                Iniciar Login via Google OAuth
-              </button>
+              !status?.authenticated && (
+                <button
+                  onClick={() => handleStartGoogleAuth(false)}
+                  disabled={loading}
+                  className="btn btn-primary btn-sm w-full gap-2"
+                >
+                  {loading ? <span className="loading loading-spinner loading-xs" /> : <Terminal className="w-4 h-4" />}
+                  Iniciar Login via Google OAuth
+                </button>
+              )
             ) : (
               <div className="space-y-3 bg-base-200/50 p-3 rounded-lg border border-base-300">
                 <div className="flex items-center justify-between">
