@@ -382,6 +382,9 @@ export const App: React.FC = () => {
             onStop={handleStop}
             isLoading={isLoading}
             onSelectSuggestion={(sug) => setPrompt(sug)}
+            currentModel={options.model}
+            availableModels={availableModels}
+            onModelChange={(model) => handleUpdateOptions({ ...options, model })}
           />
         ) : (
           <IdeView

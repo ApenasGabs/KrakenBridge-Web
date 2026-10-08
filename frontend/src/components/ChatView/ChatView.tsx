@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChatMessage } from '../../types';
+import type { ChatMessage, ModelOption } from '../../types';
 import { MessageItem } from './MessageItem';
 import { ChatInput } from './ChatInput';
 import { Bot, Sparkles, Terminal, Code2, ArrowDown } from 'lucide-react';
@@ -12,6 +12,9 @@ interface ChatViewProps {
   onStop: () => void;
   isLoading: boolean;
   onSelectSuggestion?: (prompt: string) => void;
+  currentModel?: string;
+  availableModels?: (string | ModelOption)[];
+  onModelChange?: (model: string) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -21,7 +24,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onSubmit,
   onStop,
   isLoading,
-  onSelectSuggestion
+  onSelectSuggestion,
+  currentModel,
+  availableModels,
+  onModelChange
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -128,13 +134,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </button>
       )}
 
-      {/* Input de Envio de Mensagem */}
+      {/* Input de Envio de Mensagem com Seletor de Modelo e Microfone */}
       <ChatInput
         prompt={prompt}
         onChange={onPromptChange}
         onSubmit={onSubmit}
         onStop={onStop}
         isLoading={isLoading}
+        currentModel={currentModel}
+        availableModels={availableModels}
+        onModelChange={onModelChange}
       />
     </div>
   );
