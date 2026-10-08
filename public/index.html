@@ -79,6 +79,11 @@
         <option value="aider">🟢 Codex / Aider</option>
       </select>
 
+      <button id="btn-auth-modal" onclick="openAuthModal()" title="Central de Autenticação dos Agentes" class="px-2.5 py-1.5 rounded-lg bg-gemini-surface hover:bg-gemini-surfaceHover text-gemini-muted hover:text-white border border-gemini-border text-xs flex items-center gap-1.5 transition-colors">
+        <span id="auth-dot" class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse"></span>
+        <span class="hidden sm:inline">Autenticação</span>
+      </button>
+
       <button id="open-ide-external" title="Abrir IDE em nova aba" class="p-2 rounded-lg bg-gemini-surface hover:bg-gemini-surfaceHover text-gemini-muted hover:text-white border border-gemini-border text-xs flex items-center gap-1.5">
         <span class="hidden md:inline">Nova Aba ↗</span>
       </button>
@@ -309,8 +314,15 @@
                 }
               }
 
+              if (payload.event === 'auth_required' && payload.authUrl) {
+                renderInlineAuthCard(timelineEl, payload.authUrl, payload.reqId);
+              }
+
               if (payload.event === 'stderr' && payload.text) {
-                addStderrNotice(timelineEl, payload.text);
+                // Se o stderr contiver o link do Google, o regex acima já capturou; senão mostra aviso
+                if (!payload.text.includes('accounts.google.com')) {
+                  addStderrNotice(timelineEl, payload.text);
+                }
               }
 
               if (payload.event === 'result' && payload.result) {
@@ -424,6 +436,69 @@
       return d;
     }
 
+    function renderInlineAuthCard(container, authUrl, reqId) {
+      const card = document.createElement('div');
+      card.className = 'p-4 rounded-xl bg-gradient-to-r from-blue-950/40 via-indigo-950/30 to-purple-950/30 border border-blue-500/40 space-y-3 my-2 shadow-lg';
+      card.innerHTML = `
+        <div class="flex items-center gap-2 text-blue-300 font-semibold text-xs">
+          <span class="text-base">🔐</span>
+          <span>Autenticação Google Antigravity Necessária</span>
+        </div>
+        <p class="text-xs text-gray-300">
+          O motor Antigravity precisa de autorização da sua conta Google para prosseguir.
+        </p>
+        <div class="flex flex-wrap items-center gap-2">
+          <a href="${authUrl}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium shadow transition-colors">
+            <span>1. Abrir Login Google em Nova Aba ↗</span>
+          </a>
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <input type="text" placeholder="2. Cole o código ou a URL completa gerada..." class="inline-auth-code flex-1 bg-black/60 border border-gemini-border rounded-lg px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 font-mono">
+          <button class="inline-auth-submit px-3 py-1.5 rounded-lg bg-gemini-surface hover:bg-gemini-surfaceHover text-white text-xs border border-gemini-border font-medium flex items-center gap-1">
+            <span>Concluir Login 🚀</span>
+          </button>
+        </div>
+        <div class="inline-auth-feedback text-xs font-mono hidden"></div>
+      `;
+
+      const codeInput = card.querySelector('.inline-auth-code');
+      const submitBtn = card.querySelector('.inline-auth-submit');
+      const feedback = card.querySelector('.inline-auth-feedback');
+
+      submitBtn.onclick = async () => {
+        const code = codeInput.value.trim();
+        if (!code) return;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enviando...';
+        try {
+          const res = await fetch('/api/chat/submit-auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reqId, code })
+          });
+          const data = await res.json();
+          feedback.classList.remove('hidden');
+          if (res.ok) {
+            feedback.className = 'inline-auth-feedback text-xs font-mono text-gemini-green';
+            feedback.textContent = '✅ Código enviado com sucesso ao Antigravity!';
+            setTimeout(checkAuthStatus, 2000);
+          } else {
+            feedback.className = 'inline-auth-feedback text-xs font-mono text-gemini-red';
+            feedback.textContent = '❌ ' + (data.error || 'Erro ao enviar código');
+          }
+        } catch (e) {
+          feedback.classList.remove('hidden');
+          feedback.className = 'inline-auth-feedback text-xs font-mono text-gemini-red';
+          feedback.textContent = '❌ Erro de conexão: ' + e.message;
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Concluir Login 🚀';
+        }
+      };
+
+      container.appendChild(card);
+    }
+
     function highlightCodeBlocks(container) {
       container.querySelectorAll('pre code').forEach((b) => hljs.highlightElement(b));
     }
@@ -431,6 +506,257 @@
     function escapeHtml(t) {
       const d = document.createElement('div'); d.textContent = t; return d.innerHTML;
     }
+
+    // Gerenciador de Autenticação (Modal & API)
+    const authModal = document.getElementById('auth-modal');
+    const authDot = document.getElementById('auth-dot');
+
+    function openAuthModal() {
+      authModal.classList.remove('hidden');
+      checkAuthStatus();
+    }
+
+    function closeAuthModal() {
+      authModal.classList.add('hidden');
+    }
+
+    function switchAuthTab(tab) {
+      const tabAgy = document.getElementById('auth-tab-agy');
+      const tabKeys = document.getElementById('auth-tab-keys');
+      const viewAgy = document.getElementById('auth-view-agy');
+      const viewKeys = document.getElementById('auth-view-keys');
+
+      if (tab === 'agy') {
+        viewAgy.classList.remove('hidden');
+        viewKeys.classList.add('hidden');
+        tabAgy.className = 'flex-1 py-2 text-xs font-medium border-b-2 border-cyan-400 text-white';
+        tabKeys.className = 'flex-1 py-2 text-xs font-medium border-b-2 border-transparent text-gemini-muted hover:text-white';
+      } else {
+        viewAgy.classList.add('hidden');
+        viewKeys.classList.remove('hidden');
+        tabKeys.className = 'flex-1 py-2 text-xs font-medium border-b-2 border-cyan-400 text-white';
+        tabAgy.className = 'flex-1 py-2 text-xs font-medium border-b-2 border-transparent text-gemini-muted hover:text-white';
+      }
+    }
+
+    async function checkAuthStatus() {
+      try {
+        const res = await fetch('/api/auth/status');
+        const data = await res.json();
+        const isAgyAuth = data.antigravity && data.antigravity.authenticated;
+        
+        if (isAgyAuth) {
+          authDot.className = 'w-2 h-2 rounded-full bg-gemini-green';
+          document.getElementById('agy-status-badge').innerHTML = '<span class="text-gemini-green">🟢 Autenticado</span>';
+        } else {
+          authDot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse';
+          document.getElementById('agy-status-badge').innerHTML = '<span class="text-yellow-400">⚠️ Não Autenticado</span>';
+        }
+
+        document.getElementById('claude-status-badge').innerHTML = data.claude?.hasKey ? '<span class="text-gemini-green">🟢 Configurada</span>' : '<span class="text-gemini-muted">⚪ Não Configurada</span>';
+        document.getElementById('aider-status-badge').innerHTML = data.aider?.hasKey ? '<span class="text-gemini-green">🟢 Configurada</span>' : '<span class="text-gemini-muted">⚪ Não Configurada</span>';
+      } catch (e) {
+        console.warn('Erro ao verificar status de auth:', e);
+      }
+    }
+
+    async function startGoogleAuth() {
+      const btn = document.getElementById('btn-start-google-auth');
+      const step2 = document.getElementById('agy-auth-step2');
+      const linkEl = document.getElementById('agy-auth-link');
+      const feedback = document.getElementById('agy-auth-feedback');
+
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳ Conectando ao Google...</span>';
+      feedback.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/auth/antigravity/start', { method: 'POST' });
+        const data = await res.json();
+
+        if (res.ok && data.authUrl) {
+          linkEl.href = data.authUrl;
+          step2.classList.remove('hidden');
+          btn.innerHTML = '<span>🔄 Reiniciar Login Google</span>';
+        } else {
+          feedback.classList.remove('hidden');
+          feedback.className = 'text-xs font-mono text-gemini-red bg-red-950/30 p-2 rounded border border-red-800/40';
+          feedback.textContent = 'Erro: ' + (data.error || 'Não foi possível gerar link de login.');
+          btn.innerHTML = '<span>🔗 Tentar Novamente</span>';
+        }
+      } catch (e) {
+        feedback.classList.remove('hidden');
+        feedback.className = 'text-xs font-mono text-gemini-red bg-red-950/30 p-2 rounded border border-red-800/40';
+        feedback.textContent = 'Erro ao contactar servidor: ' + e.message;
+        btn.innerHTML = '<span>🔗 Iniciar Login Google</span>';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function submitGoogleAuthCode() {
+      const codeInput = document.getElementById('agy-auth-code');
+      const submitBtn = document.getElementById('btn-submit-agy-code');
+      const feedback = document.getElementById('agy-auth-feedback');
+      const code = codeInput.value.trim();
+
+      if (!code) {
+        alert('Por favor, cole o código de autorização ou o link retornado pelo Google.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Validando...';
+      feedback.classList.add('hidden');
+
+      try {
+        const res = await fetch('/api/auth/antigravity/submit-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
+        const data = await res.json();
+
+        feedback.classList.remove('hidden');
+        if (res.ok) {
+          feedback.className = 'text-xs font-mono text-gemini-green bg-green-950/30 p-2.5 rounded border border-green-800/40';
+          feedback.textContent = '🎉 ' + (data.message || 'Login concluído com sucesso!');
+          setTimeout(checkAuthStatus, 1500);
+        } else {
+          feedback.className = 'text-xs font-mono text-gemini-red bg-red-950/30 p-2.5 rounded border border-red-800/40';
+          feedback.textContent = '❌ ' + (data.error || 'Código inválido ou expirado.');
+        }
+      } catch (e) {
+        feedback.classList.remove('hidden');
+        feedback.className = 'text-xs font-mono text-gemini-red bg-red-950/30 p-2.5 rounded border border-red-800/40';
+        feedback.textContent = 'Erro de comunicação: ' + e.message;
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '3. Confirmar e Conectar 🚀';
+      }
+    }
+
+    async function saveApiKeys() {
+      const anthropicApiKey = document.getElementById('input-anthropic-key').value;
+      const openaiApiKey = document.getElementById('input-openai-key').value;
+      const feedback = document.getElementById('keys-feedback');
+
+      try {
+        const res = await fetch('/api/auth/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ anthropicApiKey, openaiApiKey })
+        });
+        const data = await res.json();
+        feedback.classList.remove('hidden');
+        if (res.ok) {
+          feedback.className = 'text-xs font-mono text-gemini-green bg-green-950/30 p-2 rounded border border-green-800/40';
+          feedback.textContent = '✅ Chaves de API salvas com sucesso no servidor!';
+          setTimeout(checkAuthStatus, 1000);
+        } else {
+          feedback.className = 'text-xs font-mono text-gemini-red bg-red-950/30 p-2 rounded border border-red-800/40';
+          feedback.textContent = '❌ Erro ao salvar chaves: ' + (data.error || 'Desconhecido');
+        }
+      } catch (e) {
+        feedback.classList.remove('hidden');
+        feedback.className = 'text-xs font-mono text-gemini-red bg-red-950/30 p-2 rounded border border-red-800/40';
+        feedback.textContent = 'Erro de comunicação: ' + e.message;
+      }
+    }
+
+    // Inicializar checagem de autenticação no carregamento
+    checkAuthStatus();
   </script>
+
+  <!-- Modal de Autenticação Unificada dos Agentes -->
+  <div id="auth-modal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="max-w-md w-full bg-gemini-surface border border-gemini-border rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto custom-scroll">
+      <div class="flex items-center justify-between border-b border-gemini-border/70 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🔑</span>
+          <h2 class="text-base font-semibold text-white">Central de Autenticação</h2>
+        </div>
+        <button onclick="closeAuthModal()" class="w-7 h-7 rounded-lg bg-gemini-surfaceHover hover:bg-gemini-border text-gemini-muted hover:text-white flex items-center justify-center text-sm transition-colors">✕</button>
+      </div>
+
+      <!-- Abas do Modal -->
+      <div class="flex border-b border-gemini-border/50 text-center">
+        <button id="auth-tab-agy" onclick="switchAuthTab('agy')" class="flex-1 py-2 text-xs font-medium border-b-2 border-cyan-400 text-white">
+          ✨ Google Antigravity
+        </button>
+        <button id="auth-tab-keys" onclick="switchAuthTab('keys')" class="flex-1 py-2 text-xs font-medium border-b-2 border-transparent text-gemini-muted hover:text-white">
+          🟣 Claude & 🟢 OpenAI
+        </button>
+      </div>
+
+      <!-- Aba 1: Google Antigravity -->
+      <div id="auth-view-agy" class="space-y-4 pt-1">
+        <div class="flex items-center justify-between p-3 rounded-xl bg-gemini-bg border border-gemini-border/60 text-xs">
+          <span class="text-gemini-muted">Status do Antigravity:</span>
+          <span id="agy-status-badge" class="font-medium">Carregando...</span>
+        </div>
+
+        <div class="space-y-2">
+          <label class="text-xs font-medium text-white block">1. Iniciar Sessão de Login:</label>
+          <button id="btn-start-google-auth" onclick="startGoogleAuth()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold shadow-lg transition-all flex items-center justify-center gap-2">
+            <span>🔗 Iniciar Login com Google</span>
+          </button>
+        </div>
+
+        <div id="agy-auth-step2" class="space-y-3 pt-2 border-t border-gemini-border/50 hidden">
+          <div>
+            <label class="text-xs font-medium text-white block mb-1.5">2. Autorizar Conta:</label>
+            <a id="agy-auth-link" href="#" target="_blank" class="w-full py-2 px-3 rounded-lg bg-gemini-bg hover:bg-gemini-surfaceHover border border-cyan-500/40 text-cyan-300 text-xs flex items-center justify-between font-mono">
+              <span>Abrir link de autorização do Google</span>
+              <span>↗</span>
+            </a>
+            <p class="text-[11px] text-gemini-muted mt-1">Clique no link acima, faça login na sua conta Google e copie o código gerado.</p>
+          </div>
+
+          <div>
+            <label class="text-xs font-medium text-white block mb-1.5">3. Colar Código de Autorização:</label>
+            <input id="agy-auth-code" type="text" placeholder="Cole o código ou a URL de callback aqui..." class="w-full bg-gemini-bg border border-gemini-border rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-cyan-400 font-mono">
+          </div>
+
+          <button id="btn-submit-agy-code" onclick="submitGoogleAuthCode()" class="w-full py-2 px-4 rounded-xl bg-gemini-green hover:bg-green-600 text-black font-semibold text-xs transition-colors shadow">
+            3. Confirmar e Conectar 🚀
+          </button>
+        </div>
+
+        <div id="agy-auth-feedback" class="hidden"></div>
+      </div>
+
+      <!-- Aba 2: Chaves de API Claude e OpenAI -->
+      <div id="auth-view-keys" class="space-y-4 pt-1 hidden">
+        <div class="space-y-3">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-medium text-white flex items-center gap-1.5">
+                <span>🟣 Claude Code</span>
+              </label>
+              <span id="claude-status-badge" class="text-[10px]"></span>
+            </div>
+            <input id="input-anthropic-key" type="password" placeholder="sk-ant-..." class="w-full bg-gemini-bg border border-gemini-border rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-purple-400 font-mono">
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-xs font-medium text-white flex items-center gap-1.5">
+                <span>🟢 OpenAI Codex / Aider</span>
+              </label>
+              <span id="aider-status-badge" class="text-[10px]"></span>
+            </div>
+            <input id="input-openai-key" type="password" placeholder="sk-..." class="w-full bg-gemini-bg border border-gemini-border rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-400 font-mono">
+          </div>
+
+          <button onclick="saveApiKeys()" class="w-full py-2 px-4 rounded-xl bg-gemini-surface hover:bg-gemini-surfaceHover border border-gemini-border text-white font-medium text-xs transition-colors">
+            Salvar Chaves de API
+          </button>
+
+          <div id="keys-feedback" class="hidden"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
