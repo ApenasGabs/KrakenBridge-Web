@@ -224,10 +224,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             remarkPlugins={[remarkGfm]}
             components={{
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              code({ inline, className, children, ...props }: any) {
-                if (inline) {
+              code({ className, children, ...props }: any) {
+                const childString = String(children);
+                const hasLanguage = /language-(\w+)/.test(className || '');
+                const isMultiline = childString.includes('\n');
+                const isInline = !hasLanguage && !isMultiline;
+
+                if (isInline) {
                   return (
-                    <code className="bg-base-200 text-primary px-1.5 py-0.5 rounded text-xs font-mono" {...props}>
+                    <code className="bg-base-300/70 text-primary px-1.5 py-0.5 rounded text-[12px] font-mono mx-0.5 align-baseline inline-block font-semibold" {...props}>
                       {children}
                     </code>
                   );

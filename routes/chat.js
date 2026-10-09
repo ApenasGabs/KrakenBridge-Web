@@ -156,6 +156,13 @@ chatRouter.post('/', async (req, res) => {
   // Enviar evento de início com os IDs
   res.write(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId })}\n\n`);
 
+  // Keep-alive heartbeat para conexões de longa duração (execução de comandos / tools)
+  const pingInterval = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(': ping\n\n');
+    }
+  }, 15000);
+
   let accumulatedText = '';
   let toolCalls = [];
   let lastUsage = null;
@@ -251,6 +258,7 @@ chatRouter.post('/', async (req, res) => {
   });
 
   child.on('close', async (code) => {
+    clearInterval(pingInterval);
     activeProcesses.delete(reqId);
 
     // Salvar resposta do assistente no histórico
@@ -287,6 +295,7 @@ chatRouter.post('/', async (req, res) => {
   });
 
   child.on('error', (err) => {
+    clearInterval(pingInterval);
     activeProcesses.delete(reqId);
     res.write(`data: ${JSON.stringify({ event: 'error', error: err.message })}\n\n`);
     res.end();
@@ -294,6 +303,7 @@ chatRouter.post('/', async (req, res) => {
 
   // Cancelar se a conexão for encerrada pelo cliente
   res.on('close', () => {
+    clearInterval(pingInterval);
     if (!res.writableEnded && activeProcesses.has(reqId)) {
       const proc = activeProcesses.get(reqId);
       proc.kill('SIGTERM');

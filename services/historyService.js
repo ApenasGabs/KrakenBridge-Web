@@ -72,6 +72,7 @@ export const historyService = {
 
     const record = {
       id: session.id,
+      agyConvId: session.agyConvId || (existing && existing.agyConvId) || null,
       title: session.title || (existing && existing.title) || 'Nova Conversa',
       agent: session.agent || (existing && existing.agent) || 'antigravity',
       model: session.model || (existing && existing.model) || '',
