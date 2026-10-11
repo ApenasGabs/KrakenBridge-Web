@@ -114,7 +114,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return (
     <div className="modal modal-open z-50">
-      <div className="modal-box max-w-xl p-6 bg-base-100 border border-base-300">
+      <div className="modal-box w-11/12 max-w-xl p-4 sm:p-6 bg-base-100 border border-base-300">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between pb-3 border-b border-base-200">
           <div className="flex items-center gap-2">

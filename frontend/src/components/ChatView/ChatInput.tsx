@@ -142,6 +142,18 @@ function formatModelName(modelId?: string): string {
     .join(' ');
 }
 
+// Formato ultracompacto para telas mobile
+function formatShortModelName(modelId?: string): string {
+  if (!modelId) return '3.8 Flash';
+  return modelId
+    .replace('gemini-', '')
+    .replace('claude-', '')
+    .replace('gpt-', '')
+    .replace('-high', '')
+    .replace('-medium', '')
+    .replace('-low', '');
+}
+
 // Interface para TypeScript reconhecer a Web Speech API
 interface SpeechRecognitionEvent {
   resultIndex: number;
@@ -395,7 +407,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         {/* POPUP INTELLISENSE DE COMANDOS /SLASH */}
         {isSlashOpen && filteredCommands.length > 0 && (
-          <div className="slash-intellisense-container absolute bottom-full mb-3 left-0 z-50 w-full sm:w-96 rounded-2xl bg-base-100/98 backdrop-blur-xl border border-base-300 shadow-2xl p-2 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="slash-intellisense-container absolute bottom-full mb-3 left-0 z-50 w-full sm:w-96 max-w-[calc(100vw-2rem)] rounded-2xl bg-base-100/98 backdrop-blur-xl border border-base-300 shadow-2xl p-2 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
             <div className="px-2.5 py-1 text-[10px] font-semibold tracking-wider text-base-content/50 uppercase flex items-center justify-between border-b border-base-200 mb-1.5">
               <span className="flex items-center gap-1.5">
                 <CommandIcon className="w-3 h-3 text-primary" />
@@ -454,34 +466,37 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           />
 
           {/* Barra de Ferramentas Inferior do Prompt (Modelo, MCPs, Microfone, Envio) */}
-          <div className="flex items-center justify-between px-3 pb-2.5 pt-1 border-t border-base-300/40">
+          <div className="flex items-center justify-between px-2.5 sm:px-3 pb-2 sm:pb-2.5 pt-1 border-t border-base-300/40 gap-1">
             
             {/* Lado Esquerdo: Botão +, Dropdown do Modelo e Botão MCPs */}
-            <div className="flex items-center gap-1.5 model-dropdown-container relative">
+            <div className="flex items-center gap-1 sm:gap-1.5 model-dropdown-container relative flex-1 min-w-0">
               <button
                 type="button"
-                className="btn btn-ghost btn-xs btn-circle text-base-content/50 hover:text-base-content transition-colors"
+                className="btn btn-ghost btn-xs btn-circle text-base-content/50 hover:text-base-content transition-colors shrink-0"
                 title="Opções adicionais / contexto"
               >
                 <Plus className="w-4 h-4" />
               </button>
 
-              {/* Botão Seletor de Modelo (estilo idêntico ao Antigravity IDE) */}
+              {/* Botão Seletor de Modelo */}
               <button
                 type="button"
                 onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-sky-400 hover:text-sky-300 hover:bg-base-300/50 text-xs font-medium transition-all group select-none"
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-sky-400 hover:text-sky-300 hover:bg-base-300/50 text-xs font-medium transition-all group select-none shrink-0"
                 title="Clique para trocar o modelo diretamente aqui"
               >
-                <span>{formatModelName(currentModel)}</span>
-                <ChevronUp className={`w-3.5 h-3.5 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180 text-sky-300' : 'text-sky-400/80 group-hover:text-sky-300'}`} />
+                <span>
+                  <span className="hidden sm:inline">{formatModelName(currentModel)}</span>
+                  <span className="sm:hidden">{formatShortModelName(currentModel)}</span>
+                </span>
+                <ChevronUp className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180 text-sky-300' : 'text-sky-400/80 group-hover:text-sky-300'}`} />
               </button>
 
               {/* Botão MCPs de Acesso Rápido */}
               <button
                 type="button"
                 onClick={onOpenMcpModal}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-base-content/60 hover:text-primary hover:bg-base-300/50 transition-all ml-1"
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-base-content/60 hover:text-primary hover:bg-base-300/50 transition-all shrink-0"
                 title="Visualizar servidores MCP integrados"
               >
                 <Boxes className="w-3.5 h-3.5 text-emerald-400" />
@@ -490,7 +505,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
               {/* Menu Popover Suspenso dos Modelos (abre para cima) */}
               {isModelMenuOpen && (
-                <div className="absolute bottom-full mb-2 left-0 z-50 w-64 max-h-72 overflow-y-auto rounded-xl bg-base-100/98 backdrop-blur-md border border-base-300 shadow-2xl p-1.5 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
+                <div className="absolute bottom-full mb-2 left-0 z-50 w-64 max-w-[calc(100vw-3rem)] max-h-72 overflow-y-auto rounded-xl bg-base-100/98 backdrop-blur-md border border-base-300 shadow-2xl p-1.5 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
                   <div className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-base-content/50 uppercase border-b border-base-200 mb-1">
                     Selecione o Modelo
                   </div>

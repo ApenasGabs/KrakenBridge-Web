@@ -186,7 +186,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
       </div>
 
       {/* Conteúdo da mensagem */}
-      <div className={`chat-bubble max-w-2xl text-left ${isUser ? 'chat-bubble-primary' : 'bg-base-200 text-base-content border border-base-300/80 shadow-sm'}`}>
+      <div className={`chat-bubble max-w-[92vw] sm:max-w-2xl text-left ${isUser ? 'chat-bubble-primary' : 'bg-base-200 text-base-content border border-base-300/80 shadow-sm'}`}>
         
         {/* Acordeão de Raciocínio (Thinking) */}
         {message.thinking && (

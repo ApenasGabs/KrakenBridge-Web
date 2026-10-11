@@ -81,7 +81,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-6"
+        className="flex-1 overflow-y-auto px-2.5 sm:px-4 py-3 sm:py-6"
       >
         <div className="max-w-4xl mx-auto">
           {messages.length === 0 ? (

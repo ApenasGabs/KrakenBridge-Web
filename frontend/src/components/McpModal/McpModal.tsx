@@ -58,7 +58,7 @@ export const McpModal: React.FC<McpModalProps> = ({ isOpen, onClose }) => {
 
   return (
     <div className="modal modal-open z-50">
-      <div className="modal-box max-w-2xl bg-base-100 border border-base-300 shadow-2xl p-6">
+      <div className="modal-box w-11/12 max-w-2xl bg-base-100 border border-base-300 shadow-2xl p-4 sm:p-6">
         
         {/* Header do Modal */}
         <div className="flex items-center justify-between pb-3 border-b border-base-300">

@@ -14,6 +14,7 @@ import { Header } from './components/Navbar/Header';
 import { OptionsBar } from './components/OptionsBar/OptionsBar';
 import { ChatView } from './components/ChatView/ChatView';
 import { IdeView } from './components/IdeView/IdeView';
+import { HubView } from './components/HubView/HubView';
 import { AuthModal } from './components/AuthModal/AuthModal';
 import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 import { McpModal } from './components/McpModal/McpModal';
@@ -26,8 +27,8 @@ export const App: React.FC = () => {
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Layout & Abas
-  const [activeTab, setActiveTab] = useState<'chat' | 'ide'>('chat');
+  // Layout & Abas (Inicia no Hub de Topologia por padrão)
+  const [activeTab, setActiveTab] = useState<'hub' | 'chat' | 'ide'>('hub');
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
@@ -139,6 +140,7 @@ export const App: React.FC = () => {
 
   // Carregar mensagens da conversa ativa
   const selectConversation = useCallback(async (id: string) => {
+    setActiveTab('chat');
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -169,6 +171,7 @@ export const App: React.FC = () => {
   }, []);
 
   const handleNewChat = useCallback(() => {
+    setActiveTab('chat');
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -178,6 +181,11 @@ export const App: React.FC = () => {
     setPrompt('');
     setIsLoading(false);
   }, []);
+
+  const handleNewChatInProject = useCallback((subproject: string) => {
+    handleNewChat();
+    setOptions(prev => ({ ...prev, subproject: subproject === 'Geral' ? '' : subproject }));
+  }, [handleNewChat]);
 
   const handleDeleteConversation = useCallback(async (id: string) => {
     try {
@@ -443,8 +451,17 @@ export const App: React.FC = () => {
           isOpen={isOptionsOpen}
         />
 
-        {/* Visão de Chat vs Visão de IDE */}
-        {activeTab === 'chat' ? (
+        {/* Visão de Malha (Hub) vs Visão de Chat vs Visão de IDE */}
+        {activeTab === 'hub' ? (
+          <HubView
+            conversations={conversations}
+            projects={projects}
+            workspaceDir={workspaceDir}
+            onSelectConversation={selectConversation}
+            onNewChatInProject={handleNewChatInProject}
+            onNewChat={handleNewChat}
+          />
+        ) : activeTab === 'chat' ? (
           <ChatView
             messages={messages}
             prompt={prompt}

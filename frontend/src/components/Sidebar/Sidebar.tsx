@@ -90,9 +90,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <aside className={`
         fixed lg:static top-0 left-0 z-40
-        h-full bg-base-100 border-r border-base-300
+        h-[100dvh] lg:h-full bg-base-100 border-r border-base-300
         flex flex-col transition-all duration-300 ease-in-out shrink-0
-        ${isOpen ? 'w-80 translate-x-0' : '-translate-x-full lg:w-0 lg:border-none lg:overflow-hidden'}
+        ${isOpen ? 'w-[85vw] sm:w-80 max-w-80 translate-x-0 shadow-2xl lg:shadow-none' : '-translate-x-full lg:w-0 lg:border-none lg:overflow-hidden'}
       `}>
         {/* Cabeçalho da Sidebar */}
         <div className="p-4 border-b border-base-300 flex items-center justify-between">
