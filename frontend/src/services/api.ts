@@ -1,7 +1,7 @@
 import type { AuthStatus, ChatOptions, ConversationSession, McpServer, ModelsConfig, ProjectWorkspace, QuotaStats, ToolCall, TurnTokens } from '../types';
 
 export interface SSECallbacks {
-  onSessionStart?: (data: { conversation_id: string; reqId: string }) => void;
+  onSessionStart?: (data: { conversation_id: string; reqId: string; subproject?: string }) => void;
   onTextDelta?: (delta: string) => void;
   onThinkingDelta?: (delta: string) => void;
   onToolUpdate?: (tool: ToolCall) => void;
@@ -123,6 +123,15 @@ export const api = {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title })
+    });
+    return res.json();
+  },
+
+  async updateConversation(id: string, data: { title?: string; subproject?: string }): Promise<{ session: ConversationSession }> {
+    const res = await fetch(`/api/conversations/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
     });
     return res.json();
   },

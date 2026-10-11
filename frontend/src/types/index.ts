@@ -30,6 +30,14 @@ export interface ChatMessage {
   isStreaming?: boolean;
 }
 
+export interface QueuedMessage {
+  id: string;
+  text: string;
+  timestamp: string;
+  model?: string;
+  subproject?: string;
+}
+
 export interface ConversationSession {
   id: string;
   title: string;

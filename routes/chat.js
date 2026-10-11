@@ -121,8 +121,23 @@ chatRouter.post('/', async (req, res) => {
   const agyConvId = existingSession?.agyConvId || null;
   const reqId = randomUUID();
 
+  // Determinação inteligente do subprojeto / workspace
+  let activeSubproject = subproject || existingSession?.subproject || '';
+  if (!activeSubproject) {
+    try {
+      const availableProjects = await historyService.getAvailableProjects();
+      const detected = historyService.detectProject(prompt, availableProjects);
+      if (detected) {
+        activeSubproject = detected;
+        console.log(`[KrakenBridge] Subprojeto auto-detectado a partir do prompt: "${activeSubproject}"`);
+      }
+    } catch (e) {
+      console.warn('[KrakenBridge] Falha ao auto-detectar subprojeto:', e.message);
+    }
+  }
+
   // Configuração do diretório de trabalho
-  const workDir = subproject ? path.join(WORKSPACE_DIR, subproject) : WORKSPACE_DIR;
+  const workDir = activeSubproject ? path.join(WORKSPACE_DIR, activeSubproject) : WORKSPACE_DIR;
 
   // Salvar mensagem do usuário no histórico
   await historyService.addMessage(conversationId, {
@@ -130,7 +145,7 @@ chatRouter.post('/', async (req, res) => {
     role: 'user',
     text: prompt,
     timestamp: new Date().toISOString()
-  }, { agent, model, effort, mode, subproject, agyConvId });
+  }, { agent, model, effort, mode, subproject: activeSubproject, agyConvId });
 
   // Criar entrada inicial do assistente para permitir persistência contínua
   const assistantMsgId = randomUUID();
@@ -191,8 +206,8 @@ chatRouter.post('/', async (req, res) => {
     }
   };
 
-  // Enviar evento de início com os IDs
-  safeWrite(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId })}\n\n`);
+  // Enviar evento de início com os IDs e subprojeto resolvido
+  safeWrite(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId, subproject: activeSubproject })}\n\n`);
 
   // Keep-alive heartbeat para conexões de longa duração
   const pingInterval = setInterval(() => {

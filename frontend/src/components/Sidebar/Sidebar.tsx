@@ -160,6 +160,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <div className="flex items-center gap-2.5 min-w-0 flex-1">
                         <MessageSquare className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-base-content/40'}`} />
                         <span className="truncate">{item.title || 'Conversa sem título'}</span>
+                        {item.subproject && (
+                          <span className="badge badge-ghost badge-xs text-[9px] opacity-70 shrink-0 font-mono border-base-300">
+                            {item.subproject}
+                          </span>
+                        )}
                         {item.isRunning && (
                           <span className="relative flex h-2 w-2 shrink-0 ml-1" title="Executando em segundo plano">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>

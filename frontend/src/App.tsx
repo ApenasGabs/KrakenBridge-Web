@@ -6,7 +6,8 @@ import type {
   ProjectWorkspace, 
   SessionUsage, 
   AuthStatus,
-  ModelsConfig 
+  ModelsConfig,
+  QueuedMessage
 } from './types';
 import { api } from './services/api';
 import { Sidebar } from './components/Sidebar/Sidebar';
@@ -156,9 +157,11 @@ export const App: React.FC = () => {
           return m;
         }));
         setIsLoading(!!session.isRunning);
-        if (session.model) {
-          setOptions(prev => ({ ...prev, model: session.model || prev.model }));
-        }
+        setOptions(prev => ({
+          ...prev,
+          model: session.model || prev.model,
+          subproject: session.subproject || ''
+        }));
       } else {
         setMessages([]);
         setIsLoading(false);
@@ -187,6 +190,18 @@ export const App: React.FC = () => {
     setOptions(prev => ({ ...prev, subproject: subproject === 'Geral' ? '' : subproject }));
   }, [handleNewChat]);
 
+  const handleSubprojectChange = useCallback(async (newSubproject: string) => {
+    setOptions(prev => ({ ...prev, subproject: newSubproject }));
+    if (activeConvId) {
+      try {
+        await api.updateConversation(activeConvId, { subproject: newSubproject });
+        setConversations(prev => prev.map(c => c.id === activeConvId ? { ...c, subproject: newSubproject } : c));
+      } catch (e) {
+        console.warn('Erro ao atualizar subprojeto da conversa:', e);
+      }
+    }
+  }, [activeConvId]);
+
   const handleDeleteConversation = useCallback(async (id: string) => {
     try {
       await api.deleteConversation(id);
@@ -199,53 +214,28 @@ export const App: React.FC = () => {
     }
   }, [activeConvId, handleNewChat]);
 
-  // Polling para sincronizar mensagens se a conversa ativa estiver rodando em segundo plano
+  // Fila de Mensagens Pendentes
+  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([]);
+  const messageQueueRef = useRef<QueuedMessage[]>([]);
   useEffect(() => {
-    if (!activeConvId || !isLoading || abortControllerRef.current) return;
+    messageQueueRef.current = messageQueue;
+  }, [messageQueue]);
 
-    const interval = setInterval(async () => {
-      try {
-        const session = await api.getConversation(activeConvId);
-        if (session) {
-          if (session.messages) {
-            setMessages(session.messages.map((m, idx, arr) => {
-              if (session.isRunning && idx === arr.length - 1 && m.role === 'assistant') {
-                return { ...m, isStreaming: true };
-              }
-              return m;
-            }));
-          }
-          if (!session.isRunning) {
-            setIsLoading(false);
-            loadConversations();
-          }
-        }
-      } catch (e) {
-        console.warn('Erro no polling da conversa:', e);
-      }
-    }, 1500);
+  const handleRemoveQueueItem = useCallback((id: string) => {
+    setMessageQueue(prev => prev.filter(m => m.id !== id));
+  }, []);
 
-    return () => clearInterval(interval);
-  }, [activeConvId, isLoading, loadConversations]);
+  const handleEditQueueItem = useCallback((msg: QueuedMessage) => {
+    setMessageQueue(prev => prev.filter(m => m.id !== msg.id));
+    setPrompt(msg.text);
+  }, []);
 
-  // Polling da lista de conversas caso alguma esteja rodando em segundo plano
-  useEffect(() => {
-    const hasRunning = conversations.some(c => c.isRunning);
-    if (!hasRunning) return;
+  const handleClearQueue = useCallback(() => {
+    setMessageQueue([]);
+  }, []);
 
-    const interval = setInterval(() => {
-      loadConversations();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [conversations, loadConversations]);
-
-  // Enviar Mensagem com SSE Streaming
-  const handleSubmitMessage = async () => {
-    if (!prompt.trim() || isLoading) return;
-
-    const userText = prompt.trim();
-    setPrompt('');
+  // Executar Turno do Assistente com SSE Streaming
+  const executeTurn = useCallback(async (userText: string) => {
     setIsLoading(true);
 
     const userMessage: ChatMessage = {
@@ -283,8 +273,11 @@ export const App: React.FC = () => {
           onSessionStart: (data) => {
             if (!activeConvId) {
               setActiveConvId(data.conversation_id);
-              loadConversations();
             }
+            if (data.subproject) {
+              setOptions(prev => ({ ...prev, subproject: data.subproject || prev.subproject }));
+            }
+            loadConversations();
           },
           onTextDelta: (delta) => {
             setMessages(prev => prev.map(msg => {
@@ -354,6 +347,15 @@ export const App: React.FC = () => {
             }));
             setIsLoading(false);
             loadConversations();
+
+            // Auto-dispatch da próxima mensagem enfileirada
+            if (messageQueueRef.current.length > 0) {
+              const [nextMsg, ...remaining] = messageQueueRef.current;
+              setMessageQueue(remaining);
+              setTimeout(() => {
+                executeTurn(nextMsg.text);
+              }, 400);
+            }
           },
           onError: (err) => {
             abortControllerRef.current = null;
@@ -375,7 +377,6 @@ export const App: React.FC = () => {
     } catch (err: unknown) {
       abortControllerRef.current = null;
       if (err instanceof Error && err.name === 'AbortError') {
-        // Usuário apenas mudou de aba ou tela localmente, processo segue em segundo plano
         return;
       }
       console.error('Falha no streaming SSE:', err);
@@ -387,7 +388,79 @@ export const App: React.FC = () => {
         return msg;
       }));
     }
-  };
+  }, [activeConvId, options, loadConversations]);
+
+  // Polling para sincronizar mensagens se a conversa ativa estiver rodando em segundo plano
+  useEffect(() => {
+    if (!activeConvId || !isLoading || abortControllerRef.current) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const session = await api.getConversation(activeConvId);
+        if (session) {
+          if (session.messages) {
+            setMessages(session.messages.map((m, idx, arr) => {
+              if (session.isRunning && idx === arr.length - 1 && m.role === 'assistant') {
+                return { ...m, isStreaming: true };
+              }
+              return m;
+            }));
+          }
+          if (!session.isRunning) {
+            setIsLoading(false);
+            loadConversations();
+            // Auto-dispatch se houver item pendente na fila
+            if (messageQueueRef.current.length > 0) {
+              const [nextMsg, ...remaining] = messageQueueRef.current;
+              setMessageQueue(remaining);
+              setTimeout(() => {
+                executeTurn(nextMsg.text);
+              }, 400);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Erro no polling da conversa:', e);
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [activeConvId, isLoading, loadConversations, executeTurn]);
+
+  // Polling da lista de conversas caso alguma esteja rodando em segundo plano
+  useEffect(() => {
+    const hasRunning = conversations.some(c => c.isRunning);
+    if (!hasRunning) return;
+
+    const interval = setInterval(() => {
+      loadConversations();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [conversations, loadConversations]);
+
+  // Enviar Mensagem (ou Enfileirar se o agente estiver ativo)
+  const handleSubmitMessage = useCallback(() => {
+    const userText = prompt.trim();
+    if (!userText) return;
+
+    if (isLoading) {
+      // Adiciona à fila de mensagens
+      const queuedItem: QueuedMessage = {
+        id: `queue-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        text: userText,
+        timestamp: new Date().toISOString(),
+        model: options.model,
+        subproject: options.subproject
+      };
+      setMessageQueue(prev => [...prev, queuedItem]);
+      setPrompt('');
+      return;
+    }
+
+    setPrompt('');
+    executeTurn(userText);
+  }, [prompt, isLoading, options, executeTurn]);
 
   const handleStop = async () => {
     if (abortControllerRef.current) {
@@ -474,6 +547,13 @@ export const App: React.FC = () => {
             availableModels={availableModels}
             onModelChange={(model) => handleUpdateOptions({ ...options, model })}
             onOpenMcpModal={() => setIsMcpModalOpen(true)}
+            messageQueue={messageQueue}
+            onRemoveQueueItem={handleRemoveQueueItem}
+            onEditQueueItem={handleEditQueueItem}
+            onClearQueue={handleClearQueue}
+            projects={projects}
+            subproject={options.subproject}
+            onSubprojectChange={handleSubprojectChange}
           />
         ) : (
           <IdeView

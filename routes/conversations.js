@@ -42,11 +42,13 @@ conversationsRouter.get('/:id', async (req, res) => {
   res.json({ session });
 });
 
-// Renomear conversa
+// Renomear ou atualizar conversa (título e/ou subprojeto)
 conversationsRouter.patch('/:id', async (req, res) => {
-  const { title } = req.body;
-  if (!title) return res.status(400).json({ error: 'Título é obrigatório' });
-  const updated = await historyService.rename(req.params.id, title);
+  const { title, subproject } = req.body;
+  if (!title && subproject === undefined) {
+    return res.status(400).json({ error: 'Nenhum campo fornecido para atualização (title ou subproject)' });
+  }
+  const updated = await historyService.update(req.params.id, { title, subproject });
   if (!updated) return res.status(404).json({ error: 'Conversa não encontrada' });
   res.json({ session: updated });
 });

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChatMessage, ModelOption } from '../../types';
+import type { ChatMessage, ModelOption, ProjectWorkspace, QueuedMessage } from '../../types';
 import { MessageItem } from './MessageItem';
 import { ChatInput } from './ChatInput';
-import { Bot, Sparkles, Terminal, Code2, ArrowDown } from 'lucide-react';
+import { MessageQueueBanner } from './MessageQueueBanner';
+import { Bot, Sparkles, Terminal, Code2, ArrowDown, FolderGit2, ChevronDown, Check } from 'lucide-react';
 
 interface ChatViewProps {
   messages: ChatMessage[];
@@ -16,6 +17,15 @@ interface ChatViewProps {
   availableModels?: (string | ModelOption)[];
   onModelChange?: (model: string) => void;
   onOpenMcpModal?: () => void;
+  // Fila de mensagens
+  messageQueue?: QueuedMessage[];
+  onRemoveQueueItem?: (id: string) => void;
+  onEditQueueItem?: (msg: QueuedMessage) => void;
+  onClearQueue?: () => void;
+  // Subprojeto / Workspace
+  projects?: ProjectWorkspace[];
+  subproject?: string;
+  onSubprojectChange?: (subproject: string) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -29,10 +39,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
   currentModel,
   availableModels,
   onModelChange,
-  onOpenMcpModal
+  onOpenMcpModal,
+  messageQueue = [],
+  onRemoveQueueItem,
+  onEditQueueItem,
+  onClearQueue,
+  projects = [],
+  subproject = '',
+  onSubprojectChange
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     if (scrollRef.current) {
@@ -77,6 +95,84 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-200/30 relative">
+      {/* Barra Superior de Contexto do Projeto */}
+      <div className="px-3 py-1.5 border-b border-base-300/60 bg-base-100/60 backdrop-blur-sm flex items-center justify-between z-10">
+        <div className="flex items-center gap-2 relative">
+          <div className="flex items-center gap-1.5 text-xs text-base-content/60">
+            <FolderGit2 className="w-3.5 h-3.5 text-primary" />
+            <span className="hidden sm:inline">Projeto Ativo:</span>
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+              className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-base-200 hover:bg-base-300/70 border border-base-300 text-xs font-medium text-base-content transition-all"
+              title="Clique para vincular esta conversa a outro projeto"
+            >
+              <span className="max-w-[160px] sm:max-w-xs truncate">
+                {subproject ? subproject : 'Geral (/workspace)'}
+              </span>
+              <ChevronDown className={`w-3 h-3 text-base-content/50 transition-transform ${isProjectDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isProjectDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setIsProjectDropdownOpen(false)} 
+                />
+                <div className="absolute top-full mt-1 left-0 z-50 w-56 max-h-64 overflow-y-auto rounded-xl bg-base-100 border border-base-300 shadow-xl p-1 text-xs">
+                  <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-base-content/50 border-b border-base-200 mb-1">
+                    Vincular a Projeto
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSubprojectChange?.('');
+                      setIsProjectDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                      !subproject ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-base-200 text-base-content'
+                    }`}
+                  >
+                    <span className="truncate">Geral (/workspace)</span>
+                    {!subproject && <Check className="w-3.5 h-3.5 text-primary" />}
+                  </button>
+                  {projects.map((proj) => {
+                    const isSelected = subproject === proj.name;
+                    return (
+                      <button
+                        key={proj.name}
+                        type="button"
+                        onClick={() => {
+                          onSubprojectChange?.(proj.name);
+                          setIsProjectDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                          isSelected ? 'bg-primary/10 text-primary font-semibold' : 'hover:bg-base-200 text-base-content'
+                        }`}
+                      >
+                        <span className="truncate">{proj.name}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-primary" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Indicador de Fila se houver mensagens pendentes */}
+        {messageQueue.length > 0 && (
+          <div className="flex items-center gap-1 text-[11px] font-medium text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/20">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
+            <span>{messageQueue.length} na fila</span>
+          </div>
+        )}
+      </div>
+
       {/* Área de Mensagens com Scroll */}
       <div 
         ref={scrollRef}
@@ -136,7 +232,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </button>
       )}
 
-      {/* Input de Envio de Mensagem com Seletor de Modelo e Microfone */}
+      {/* Banner da Fila de Mensagens Pendentes */}
+      {messageQueue.length > 0 && onRemoveQueueItem && onEditQueueItem && onClearQueue && (
+        <MessageQueueBanner
+          queue={messageQueue}
+          onRemove={onRemoveQueueItem}
+          onEdit={onEditQueueItem}
+          onClear={onClearQueue}
+        />
+      )}
+
+      {/* Input de Envio de Mensagem com Seletor de Modelo, MCPs e Microfone */}
       <ChatInput
         prompt={prompt}
         onChange={onPromptChange}
@@ -147,6 +253,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         availableModels={availableModels}
         onModelChange={onModelChange}
         onOpenMcpModal={onOpenMcpModal}
+        queuedCount={messageQueue.length}
       />
     </div>
   );

@@ -17,7 +17,8 @@ import {
   Globe,
   BrainCircuit,
   Users,
-  BookOpen
+  BookOpen,
+  ListPlus
 } from 'lucide-react';
 
 interface ChatInputProps {
@@ -31,6 +32,7 @@ interface ChatInputProps {
   availableModels?: (string | ModelOption)[];
   onModelChange?: (model: string) => void;
   onOpenMcpModal?: () => void;
+  queuedCount?: number;
 }
 
 // Catálogo oficial de comandos de barra do Antigravity
@@ -306,7 +308,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isLoading && prompt.trim() && !disabled) {
+      if (prompt.trim() && !disabled) {
         if (isListening) stopListening();
         onSubmit();
       }
@@ -461,7 +463,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={disabled}
-            placeholder={isListening ? "Ouvindo sua voz em português... Fale seu comando..." : "Digite sua mensagem ou comando (/plan, /goal, /mcp... Shift+Enter para quebra de linha)"}
+            placeholder={
+              isListening 
+                ? "Ouvindo sua voz em português... Fale seu comando..." 
+                : isLoading 
+                  ? "Agente em execução... Digite para enfileirar mensagem (Enter)" 
+                  : "Digite sua mensagem ou comando (/plan, /goal, /mcp... Shift+Enter para quebra de linha)"
+            }
             className="w-full bg-transparent border-0 outline-none resize-none px-4 pt-3 pb-1 text-sm leading-relaxed text-base-content placeholder:text-base-content/40 max-h-48 overflow-y-auto"
           />
 
@@ -557,16 +565,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 )}
               </button>
 
-              {/* Botão de Envio Circular Azul / Parar */}
+              {/* Botão de Envio / Enfileirar / Parar */}
               {isLoading ? (
-                <button
-                  type="button"
-                  onClick={onStop}
-                  className="btn btn-error btn-xs btn-circle shadow-sm"
-                  title="Interromper geração"
-                >
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {prompt.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isListening) stopListening();
+                        onSubmit();
+                      }}
+                      className="btn btn-info btn-xs gap-1 shadow-sm px-2.5 h-7"
+                      title="Adicionar à fila de mensagens (Enter)"
+                    >
+                      <ListPlus className="w-3.5 h-3.5" />
+                      <span className="text-[11px] font-medium hidden sm:inline">Enfileirar</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={onStop}
+                    className="btn btn-error btn-xs btn-circle shadow-sm"
+                    title="Interromper geração ativa"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                  </button>
+                </div>
               ) : (
                 <button
                   type="button"
