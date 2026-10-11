@@ -4,6 +4,7 @@ import path from 'path';
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const QUOTA_FILE = path.join(DATA_DIR, 'quota_history.json');
 const STATE_FILE = path.join(DATA_DIR, 'quota_state.json');
+const TOKEN_PATH = process.env.AGY_TOKEN_PATH || '/root/.gemini/antigravity-cli/antigravity-oauth-token';
 
 // Formata intervalo de tempo restante no estilo oficial do Antigravity
 function formatRefreshTime(ms, isFiveHour = false) {
@@ -36,13 +37,12 @@ class QuotaService {
     this.initialized = false;
 
     // Estado oficial dos limites Antigravity
-    // Inicializado com os valores reais da conta do usuário conforme captura de tela
     this.state = {
       gemini: {
         weeklyRemaining: 57,
-        weeklyResetAt: Date.now() + (47 * 60 * 60 * 1000), // ~1 dia, 23 horas
+        weeklyResetAt: Date.now() + (47 * 60 * 60 * 1000),
         fiveHourRemaining: 85,
-        fiveHourResetAt: Date.now() + ((4 * 60 + 32) * 60 * 1000) // ~4 horas, 32 minutos
+        fiveHourResetAt: Date.now() + ((4 * 60 + 32) * 60 * 1000)
       },
       claudeGpt: {
         weeklyRemaining: 100,
@@ -165,13 +165,12 @@ class QuotaService {
     this.records.push(record);
     await this.persistHistory();
 
-    // Desconta levemente da cota correspondente
-    // Em média, um turno com ~10k tokens consome ~1% da janela de 5h e ~0.2% da semanal
+    // Desconta proporcionalmente da cota correspondente
     const normalizedModel = (model || '').toLowerCase();
     const isClaudeOrGpt = normalizedModel.includes('claude') || normalizedModel.includes('gpt');
     const targetGroup = isClaudeOrGpt ? this.state.claudeGpt : this.state.gemini;
 
-    const fiveHourDeduction = Math.max(0.5, Math.min(5, Math.round((total / 15000) * 10) / 10));
+    const fiveHourDeduction = Math.max(0.2, Math.min(5, Math.round((total / 15000) * 10) / 10));
     const weeklyDeduction = Math.max(0.1, Math.min(2, Math.round((total / 60000) * 10) / 10));
 
     targetGroup.fiveHourRemaining = Math.max(0, Math.round((targetGroup.fiveHourRemaining - fiveHourDeduction) * 10) / 10);
@@ -234,7 +233,7 @@ class QuotaService {
       ? 'You have used some of your weekly limit.'
       : null;
 
-    // Agregações de tokens (para quem quiser acompanhar métricas adicionais)
+    // Agregações de tokens
     const oneHourAgo = now - (60 * 60 * 1000);
     const oneDayAgo = now - (24 * 60 * 60 * 1000);
     const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);

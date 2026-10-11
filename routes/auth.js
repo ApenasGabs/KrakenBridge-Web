@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
+import { accountService } from '../services/accountService.js';
 
 export const authRouter = Router();
 
@@ -17,35 +18,18 @@ let currentAuthSession = null;
 async function getAntigravityAuthInfo() {
   try {
     const raw = await fs.readFile(TOKEN_PATH, 'utf8');
-    const parsed = JSON.parse(raw);
-    let email = null;
-    let name = null;
-
-    if (parsed.id_token) {
-      try {
-        const payload = JSON.parse(Buffer.from(parsed.id_token.split('.')[1], 'base64').toString('utf8'));
-        email = payload.email || null;
-        name = payload.name || null;
-      } catch (e) {}
+    const info = accountService.extractAccountInfo(raw);
+    if (info && info.hasToken) {
+      return {
+        authenticated: true,
+        email: info.email,
+        name: info.name,
+        picture: info.picture,
+        expiry: info.expiry
+      };
     }
-
-    if (!email) {
-      const matchEmail = raw.match(/"email"\s*:\s*"([^"]+)"/);
-      if (matchEmail) email = matchEmail[1];
-      const matchName = raw.match(/"name"\s*:\s*"([^"]+)"/);
-      if (matchName) name = matchName[1];
-    }
-
-    const hasToken = !!(parsed.token?.access_token || parsed.token?.refresh_token);
-    return {
-      authenticated: hasToken,
-      email,
-      name,
-      expiry: parsed.token?.expiry || null
-    };
-  } catch {
-    return { authenticated: false, email: null, name: null };
-  }
+  } catch {}
+  return { authenticated: false, email: null, name: null, picture: null };
 }
 
 // Endpoint de Status de Autenticação dos Agentes
@@ -61,12 +45,12 @@ authRouter.get('/status', async (req, res) => {
       check.stderr.on('data', d => output += d.toString());
       check.on('close', (code) => {
         const isAuth = code === 0 && !output.includes('Please sign in');
-        resolve({ authenticated: isAuth, email: null, name: null });
+        resolve({ authenticated: isAuth, email: null, name: null, picture: null });
       });
-      check.on('error', () => resolve({ authenticated: false, email: null, name: null }));
+      check.on('error', () => resolve({ authenticated: false, email: null, name: null, picture: null }));
       setTimeout(() => { 
         try { check.kill(); } catch (e) {}
-        resolve({ authenticated: false, email: null, name: null }); 
+        resolve({ authenticated: false, email: null, name: null, picture: null }); 
       }, 6000);
     });
   }
@@ -77,6 +61,7 @@ authRouter.get('/status', async (req, res) => {
     authenticated: isAuth,
     email: agyInfo.email,
     name: agyInfo.name,
+    picture: agyInfo.picture,
     hasApiKey: !!process.env.GEMINI_API_KEY,
     isKeyValid: isAuth,
     antigravity: agyInfo,
@@ -85,12 +70,46 @@ authRouter.get('/status', async (req, res) => {
   });
 });
 
+// Endpoint para Listar Contas Conectadas
+authRouter.get('/accounts', async (req, res) => {
+  try {
+    const data = await accountService.listAccounts();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para Alternar Conta Ativa (1 clique)
+authRouter.post('/accounts/switch', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email não informado.' });
+
+    const switched = await accountService.switchAccount(email);
+    res.json({ success: true, account: switched, message: `Conta alternada para ${email} com sucesso!` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint para Remover uma Conta Salva
+authRouter.delete('/accounts/:email', async (req, res) => {
+  try {
+    const { email } = req.params;
+    const result = await accountService.removeAccount(email);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Endpoint para Iniciar Fluxo de Autenticação Google Antigravity
 authRouter.post('/antigravity/start', async (req, res) => {
   const { force } = req.body || {};
   const currentAuth = await getAntigravityAuthInfo();
 
-  // Se já está autenticado e o usuário não pediu para forçar re-login
+  // Se já está autenticado e o usuário não pediu para forçar re-login / nova conta
   if (currentAuth.authenticated && !force) {
     return res.json({
       status: 'already_authenticated',
@@ -107,10 +126,14 @@ authRouter.post('/antigravity/start', async (req, res) => {
     currentAuthSession = null;
   }
 
-  // Se pediu force=true, renomeia o token para backup para gerar nova URL
+  // Se pediu force=true para conectar nova conta, preserva a atual no store e faz backup do token principal
   if (force) {
     try {
-      await fs.rename(TOKEN_PATH, `${TOKEN_PATH}.bak_${Date.now()}`);
+      const currentRaw = await fs.readFile(TOKEN_PATH, 'utf8').catch(() => null);
+      if (currentRaw) {
+        await accountService.saveTokenData(currentRaw, false);
+        await fs.rename(TOKEN_PATH, `${TOKEN_PATH}.bak_${Date.now()}`);
+      }
     } catch (e) {}
   }
 
@@ -191,28 +214,42 @@ authRouter.post('/antigravity/submit-code', (req, res) => {
 
   const child = currentAuthSession.process;
   let responseSent = false;
+  let lastOutput = '';
 
-  const onData = (data) => {
-    const text = data.toString();
-    if (text.includes('error') || text.includes('failed')) {
-      if (!responseSent) {
-        responseSent = true;
-        res.status(400).json({ status: 'error', error: text });
-      }
-    }
-  };
+  child.stdout.on('data', (d) => { lastOutput += d.toString(); });
+  child.stderr.on('data', (d) => { lastOutput += d.toString(); });
 
-  child.stdout.on('data', onData);
-  child.stderr.on('data', onData);
-
-  child.on('close', (exitCode) => {
+  child.on('close', async (exitCode) => {
     currentAuthSession = null;
-    if (!responseSent) {
-      responseSent = true;
-      res.json({
-        status: exitCode === 0 ? 'success' : 'completed',
+    if (responseSent) return;
+    responseSent = true;
+
+    // Verificar se o arquivo do token foi criado ou atualizado
+    try {
+      const rawToken = await fs.readFile(TOKEN_PATH, 'utf8');
+      const saved = await accountService.saveTokenData(rawToken, true);
+
+      return res.json({
+        success: true,
+        status: 'success',
         code: exitCode,
-        message: exitCode === 0 ? 'Google Antigravity autenticado com sucesso!' : 'Código processado.'
+        email: saved?.email,
+        name: saved?.name,
+        message: 'Google Antigravity autenticado com sucesso!'
+      });
+    } catch (e) {
+      if (exitCode === 0) {
+        return res.json({
+          success: true,
+          status: 'success',
+          code: 0,
+          message: 'Código processado com sucesso.'
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        status: 'error',
+        error: lastOutput || 'Falha ao processar código de autenticação.'
       });
     }
   });

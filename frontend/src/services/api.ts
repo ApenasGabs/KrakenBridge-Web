@@ -1,4 +1,4 @@
-import type { AuthStatus, ChatOptions, ConversationSession, McpServer, ModelsConfig, ProjectWorkspace, QuotaStats, ToolCall, TurnTokens } from '../types';
+import type { AccountInfo, AuthStatus, ChatOptions, ConversationSession, McpServer, ModelsConfig, ProjectWorkspace, QuotaStats, ToolCall, TurnTokens } from '../types';
 
 export interface SSECallbacks {
   onSessionStart?: (data: { conversation_id: string; reqId: string; subproject?: string }) => void;
@@ -66,6 +66,28 @@ export const api = {
 
   async getAuthStatus(): Promise<AuthStatus> {
     const res = await fetch('/api/auth/status');
+    return res.json();
+  },
+
+  async getAccounts(): Promise<{ activeEmail: string | null; accounts: AccountInfo[] }> {
+    const res = await fetch('/api/auth/accounts');
+    if (!res.ok) return { activeEmail: null, accounts: [] };
+    return res.json();
+  },
+
+  async switchAccount(email: string): Promise<{ success: boolean; account?: AccountInfo; message?: string }> {
+    const res = await fetch('/api/auth/accounts/switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    return res.json();
+  },
+
+  async removeAccount(email: string): Promise<{ success: boolean; wasActive?: boolean }> {
+    const res = await fetch(`/api/auth/accounts/${encodeURIComponent(email)}`, {
+      method: 'DELETE'
+    });
     return res.json();
   },
 

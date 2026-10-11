@@ -53,9 +53,20 @@ export interface ConversationSession {
   isRunning?: boolean;
 }
 
+export interface AccountInfo {
+  email: string;
+  name?: string;
+  picture?: string;
+  expiry?: string;
+  updatedAt?: string;
+  isActive: boolean;
+}
+
 export interface AuthStatus {
   authenticated: boolean;
   email?: string;
+  name?: string;
+  picture?: string;
   hasApiKey: boolean;
   isKeyValid: boolean;
   type?: string;

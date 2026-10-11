@@ -173,25 +173,29 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden lg:inline">Opções</span>
         </button>
 
-        {/* Botão de Autenticação */}
+        {/* Botão de Autenticação / Contas */}
         <button
           onClick={onOpenAuth}
-          className={`btn btn-sm btn-square sm:btn-auto px-2 gap-1.5 text-xs ${
+          className={`btn btn-sm btn-square sm:btn-auto px-2 gap-1.5 text-xs max-w-[180px] ${
             isAuthOk 
               ? 'btn-ghost text-success hover:bg-success/10' 
               : 'btn-outline btn-warning'
           }`}
-          title="Gerenciar Autenticação Google / API Key"
+          title="Gerenciar Contas Conectadas e Autenticação Google"
         >
-          <KeyRound className="w-3.5 h-3.5" />
+          {authStatus?.picture ? (
+            <img src={authStatus.picture} alt="" className="w-4 h-4 rounded-full inline shrink-0" />
+          ) : (
+            <KeyRound className="w-3.5 h-3.5 shrink-0" />
+          )}
           {isAuthOk ? (
-            <span className="hidden lg:inline flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3 inline text-success" />
-              Autenticado
+            <span className="hidden lg:inline flex items-center gap-1 truncate font-mono text-[11px]">
+              <CheckCircle2 className="w-3 h-3 inline text-success shrink-0" />
+              <span className="truncate">{authStatus?.email ? authStatus.email.split('@')[0] : 'Conectado'}</span>
             </span>
           ) : (
             <span className="hidden lg:inline flex items-center gap-1">
-              <AlertCircle className="w-3 h-3 inline text-warning" />
+              <AlertCircle className="w-3 h-3 inline text-warning shrink-0" />
               Conectar
             </span>
           )}
