@@ -1,13 +1,18 @@
 import { Router } from 'express';
 import { historyService } from '../services/historyService.js';
 import { randomUUID } from 'crypto';
+import { activeSessions } from './chat.js';
 
 export const conversationsRouter = Router();
 
 // Listar todas as conversas
 conversationsRouter.get('/', async (req, res) => {
   const list = await historyService.list();
-  res.json({ conversations: list });
+  const enriched = list.map(item => ({
+    ...item,
+    isRunning: activeSessions.has(item.id)
+  }));
+  res.json({ conversations: enriched });
 });
 
 // Criar nova conversa
@@ -33,6 +38,7 @@ conversationsRouter.get('/:id', async (req, res) => {
   if (!session) {
     return res.status(404).json({ error: 'Conversa não encontrada' });
   }
+  session.isRunning = activeSessions.has(req.params.id);
   res.json({ session });
 });
 
@@ -47,6 +53,13 @@ conversationsRouter.patch('/:id', async (req, res) => {
 
 // Excluir conversa
 conversationsRouter.delete('/:id', async (req, res) => {
+  if (activeSessions.has(req.params.id)) {
+    const session = activeSessions.get(req.params.id);
+    try {
+      session.child.kill('SIGTERM');
+    } catch {}
+    activeSessions.delete(req.params.id);
+  }
   const success = await historyService.delete(req.params.id);
   if (!success) return res.status(404).json({ error: 'Conversa não encontrada ou já excluída' });
   res.json({ success: true, id: req.params.id });

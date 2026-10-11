@@ -106,6 +106,31 @@ export const historyService = {
     return this.save(session);
   },
 
+  async updateLastAssistantMessage(id, messageData) {
+    let session = await this.get(id);
+    if (!session) return null;
+    const msgs = session.messages || [];
+    const lastIdx = msgs.length - 1;
+
+    if (lastIdx >= 0 && msgs[lastIdx].role === 'assistant') {
+      msgs[lastIdx] = {
+        ...msgs[lastIdx],
+        ...messageData,
+        timestamp: msgs[lastIdx].timestamp || new Date().toISOString()
+      };
+    } else {
+      msgs.push({
+        id: randomUUID(),
+        role: 'assistant',
+        ...messageData,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    session.messages = msgs;
+    return this.save(session);
+  },
+
   async delete(id) {
     await ensureDir();
     const filePath = path.join(SESSIONS_DIR, `${id}.json`);

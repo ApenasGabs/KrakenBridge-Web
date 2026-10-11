@@ -10,8 +10,9 @@ export const chatRouter = Router();
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
 
-// Mapa de processos ativos por reqId
+// Mapa de processos e sessões ativas
 const activeProcesses = new Map();
+export const activeSessions = new Map();
 
 // Construtor flexível de argumentos para os drivers CLI dos agentes
 const AGENT_DRIVERS = {
@@ -109,6 +110,12 @@ chatRouter.post('/', async (req, res) => {
     return res.status(400).json({ error: 'Prompt é obrigatório' });
   }
 
+  if (clientConvId && activeSessions.has(clientConvId)) {
+    return res.status(409).json({ 
+      error: 'Esta conversa já possui uma tarefa em execução. Aguarde a conclusão ou clique em Parar.' 
+    });
+  }
+
   const existingSession = clientConvId ? await historyService.get(clientConvId) : null;
   const conversationId = clientConvId || randomUUID();
   const agyConvId = existingSession?.agyConvId || null;
@@ -124,6 +131,18 @@ chatRouter.post('/', async (req, res) => {
     text: prompt,
     timestamp: new Date().toISOString()
   }, { agent, model, effort, mode, subproject, agyConvId });
+
+  // Criar entrada inicial do assistente para permitir persistência contínua
+  const assistantMsgId = randomUUID();
+  await historyService.updateLastAssistantMessage(conversationId, {
+    id: assistantMsgId,
+    role: 'assistant',
+    text: '',
+    agent,
+    model,
+    toolCalls: [],
+    timestamp: new Date().toISOString()
+  });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -152,27 +171,65 @@ chatRouter.post('/', async (req, res) => {
   });
 
   activeProcesses.set(reqId, child);
+  activeSessions.set(conversationId, {
+    reqId,
+    child,
+    res,
+    startTime: Date.now()
+  });
+
+  // Função para envio seguro de SSE (não quebra caso o cliente desconecte)
+  const safeWrite = (chunk) => {
+    try {
+      const sess = activeSessions.get(conversationId);
+      const targetRes = sess?.res || res;
+      if (targetRes && !targetRes.writableEnded && !targetRes.destroyed) {
+        targetRes.write(chunk);
+      }
+    } catch {
+      // Conexão encerrada pelo cliente, ignorar
+    }
+  };
 
   // Enviar evento de início com os IDs
-  res.write(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId })}\n\n`);
+  safeWrite(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId })}\n\n`);
 
-  // Keep-alive heartbeat para conexões de longa duração (execução de comandos / tools)
+  // Keep-alive heartbeat para conexões de longa duração
   const pingInterval = setInterval(() => {
-    if (!res.writableEnded) {
-      res.write(': ping\n\n');
-    }
+    safeWrite(': ping\n\n');
   }, 15000);
 
   let accumulatedText = '';
+  let thinkingText = '';
   let toolCalls = [];
   let lastUsage = null;
+  let saveTimeout = null;
+
+  // Persistência contínua com debounce
+  const scheduleSave = () => {
+    if (saveTimeout) return;
+    saveTimeout = setTimeout(async () => {
+      saveTimeout = null;
+      try {
+        await historyService.updateLastAssistantMessage(conversationId, {
+          text: accumulatedText,
+          thinking: thinkingText,
+          agent,
+          model,
+          toolCalls
+        });
+      } catch (err) {
+        console.warn('[KrakenBridge] Erro no auto-save do histórico:', err.message);
+      }
+    }, 400);
+  };
 
   // Monitora stdout bruto para detectar solicitações de autenticação inline
   child.stdout.on('data', (data) => {
     const text = data.toString();
     const match = text.match(/(https:\/\/accounts\.google\.com\/o\/oauth2\/auth[^\s\r\n]+)/);
     if (match) {
-      res.write(`data: ${JSON.stringify({ event: 'auth_required', authUrl: match[1], reqId })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ event: 'auth_required', authUrl: match[1], reqId })}\n\n`);
     }
   });
 
@@ -193,8 +250,14 @@ chatRouter.post('/', async (req, res) => {
       // Coleta respostas para persistência no histórico
       if (parsed.event === 'step_update' && parsed.step_update) {
         const su = parsed.step_update;
-        if (su.step_type === 'agent_response' && su.text_delta) {
-          accumulatedText += su.text_delta;
+        if (su.step_type === 'agent_response') {
+          if (su.text_delta) {
+            accumulatedText += su.text_delta;
+          }
+          if (su.thinking_delta) {
+            thinkingText += su.thinking_delta;
+          }
+          scheduleSave();
         }
         if (su.usage) {
           lastUsage = su.usage;
@@ -229,6 +292,7 @@ chatRouter.post('/', async (req, res) => {
               state: su.state
             });
           }
+          scheduleSave();
         }
       } else if (parsed.event === 'result') {
         if (parsed.result?.response && !accumulatedText) {
@@ -237,13 +301,15 @@ chatRouter.post('/', async (req, res) => {
         if (parsed.result?.usage) {
           lastUsage = parsed.result.usage;
         }
+        scheduleSave();
       }
 
-      res.write(`data: ${JSON.stringify(parsed)}\n\n`);
+      safeWrite(`data: ${JSON.stringify(parsed)}\n\n`);
     } catch {
       // Linhas não-JSON (saída terminal direta do Claude ou Aider)
       accumulatedText += trimmed + '\n';
-      res.write(`data: ${JSON.stringify({ event: 'raw', text: trimmed })}\n\n`);
+      scheduleSave();
+      safeWrite(`data: ${JSON.stringify({ event: 'raw', text: trimmed })}\n\n`);
     }
   });
 
@@ -252,26 +318,32 @@ chatRouter.post('/', async (req, res) => {
     const text = data.toString();
     const match = text.match(/(https:\/\/accounts\.google\.com\/o\/oauth2\/auth[^\s\r\n]+)/);
     if (match) {
-      res.write(`data: ${JSON.stringify({ event: 'auth_required', authUrl: match[1], reqId })}\n\n`);
+      safeWrite(`data: ${JSON.stringify({ event: 'auth_required', authUrl: match[1], reqId })}\n\n`);
     }
-    res.write(`data: ${JSON.stringify({ event: 'stderr', text })}\n\n`);
+    safeWrite(`data: ${JSON.stringify({ event: 'stderr', text })}\n\n`);
   });
 
   child.on('close', async (code) => {
     clearInterval(pingInterval);
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
     activeProcesses.delete(reqId);
+    activeSessions.delete(conversationId);
 
-    // Salvar resposta do assistente no histórico
-    if (accumulatedText.trim()) {
-      await historyService.addMessage(conversationId, {
-        id: randomUUID(),
-        role: 'assistant',
+    // Salvar estado final do assistente no histórico
+    try {
+      await historyService.updateLastAssistantMessage(conversationId, {
         text: accumulatedText,
+        thinking: thinkingText,
         agent,
         model,
         toolCalls,
-        timestamp: new Date().toISOString()
+        tokens: lastUsage
       });
+    } catch (err) {
+      console.warn('[KrakenBridge] Erro ao finalizar gravação do histórico:', err.message);
     }
 
     // Salvar métricas de consumo de tokens para a cota horária e semanal
@@ -290,25 +362,50 @@ chatRouter.post('/', async (req, res) => {
       }
     }
 
-    res.write(`data: ${JSON.stringify({ event: 'done', code, conversation_id: conversationId })}\n\n`);
-    res.end();
+    safeWrite(`data: ${JSON.stringify({ event: 'done', code, conversation_id: conversationId })}\n\n`);
+    try {
+      if (res && !res.writableEnded && !res.destroyed) {
+        res.end();
+      }
+    } catch {}
   });
 
-  child.on('error', (err) => {
+  child.on('error', async (err) => {
     clearInterval(pingInterval);
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
     activeProcesses.delete(reqId);
-    res.write(`data: ${JSON.stringify({ event: 'error', error: err.message })}\n\n`);
-    res.end();
+    activeSessions.delete(conversationId);
+
+    try {
+      await historyService.updateLastAssistantMessage(conversationId, {
+        text: (accumulatedText ? accumulatedText + '\n\n' : '') + `⚠️ Erro de execução: ${err.message}`,
+        thinking: thinkingText,
+        agent,
+        model,
+        toolCalls
+      });
+    } catch {}
+
+    safeWrite(`data: ${JSON.stringify({ event: 'error', error: err.message })}\n\n`);
+    try {
+      if (res && !res.writableEnded && !res.destroyed) {
+        res.end();
+      }
+    } catch {}
   });
 
-  // Cancelar se a conexão for encerrada pelo cliente
+  // Quando o cliente desconecta (fecha aba, muda de tela ou recarrega a página)
+  // O processo NÃO é finalizado: ele continua executando em background até o fim!
   res.on('close', () => {
     clearInterval(pingInterval);
-    if (!res.writableEnded && activeProcesses.has(reqId)) {
-      const proc = activeProcesses.get(reqId);
-      proc.kill('SIGTERM');
-      activeProcesses.delete(reqId);
+    const session = activeSessions.get(conversationId);
+    if (session && session.res === res) {
+      session.res = null;
     }
+    console.log(`[KrakenBridge] SSE desconectado pelo cliente para conv: ${conversationId} (processo ${child.pid} segue rodando em segundo plano)`);
   });
 });
 
@@ -326,17 +423,41 @@ chatRouter.post('/submit-auth', (req, res) => {
   res.json({ status: 'submitted' });
 });
 
-// Interromper geração ativa
+// Interromper geração ativa (específica de uma conversa ou todas)
 chatRouter.post('/stop', (req, res) => {
+  const { conversationId } = req.body || {};
   let count = 0;
-  for (const [id, proc] of activeProcesses.entries()) {
+
+  if (conversationId && activeSessions.has(conversationId)) {
+    const session = activeSessions.get(conversationId);
     try {
-      proc.kill('SIGTERM');
+      session.child.kill('SIGTERM');
       count++;
     } catch (e) {
-      console.error(`Erro ao finalizar processo ${id}:`, e);
+      console.error(`Erro ao finalizar processo da conversa ${conversationId}:`, e);
     }
+    activeSessions.delete(conversationId);
+    activeProcesses.delete(session.reqId);
+  } else {
+    for (const [convId, session] of activeSessions.entries()) {
+      try {
+        session.child.kill('SIGTERM');
+        count++;
+      } catch (e) {
+        console.error(`Erro ao finalizar processo da conversa ${convId}:`, e);
+      }
+    }
+    for (const [id, proc] of activeProcesses.entries()) {
+      try {
+        proc.kill('SIGTERM');
+        count++;
+      } catch (e) {
+        console.error(`Erro ao finalizar processo ${id}:`, e);
+      }
+    }
+    activeProcesses.clear();
+    activeSessions.clear();
   }
-  activeProcesses.clear();
+
   res.json({ status: 'stopped', terminated: count });
 });

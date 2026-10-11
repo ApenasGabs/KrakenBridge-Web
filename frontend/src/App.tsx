@@ -139,25 +139,40 @@ export const App: React.FC = () => {
 
   // Carregar mensagens da conversa ativa
   const selectConversation = useCallback(async (id: string) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setActiveConvId(id);
-    setIsLoading(false);
     try {
       const session = await api.getConversation(id);
       if (session && session.messages) {
-        setMessages(session.messages);
+        setMessages(session.messages.map((m, idx, arr) => {
+          if (session.isRunning && idx === arr.length - 1 && m.role === 'assistant') {
+            return { ...m, isStreaming: true };
+          }
+          return m;
+        }));
+        setIsLoading(!!session.isRunning);
         if (session.model) {
           setOptions(prev => ({ ...prev, model: session.model || prev.model }));
         }
       } else {
         setMessages([]);
+        setIsLoading(false);
       }
     } catch (err) {
       console.error('Erro ao buscar conversa:', err);
       setMessages([]);
+      setIsLoading(false);
     }
   }, []);
 
   const handleNewChat = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setActiveConvId(null);
     setMessages([]);
     setPrompt('');
@@ -175,6 +190,47 @@ export const App: React.FC = () => {
       console.error('Erro ao excluir conversa:', err);
     }
   }, [activeConvId, handleNewChat]);
+
+  // Polling para sincronizar mensagens se a conversa ativa estiver rodando em segundo plano
+  useEffect(() => {
+    if (!activeConvId || !isLoading || abortControllerRef.current) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const session = await api.getConversation(activeConvId);
+        if (session) {
+          if (session.messages) {
+            setMessages(session.messages.map((m, idx, arr) => {
+              if (session.isRunning && idx === arr.length - 1 && m.role === 'assistant') {
+                return { ...m, isStreaming: true };
+              }
+              return m;
+            }));
+          }
+          if (!session.isRunning) {
+            setIsLoading(false);
+            loadConversations();
+          }
+        }
+      } catch (e) {
+        console.warn('Erro no polling da conversa:', e);
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [activeConvId, isLoading, loadConversations]);
+
+  // Polling da lista de conversas caso alguma esteja rodando em segundo plano
+  useEffect(() => {
+    const hasRunning = conversations.some(c => c.isRunning);
+    if (!hasRunning) return;
+
+    const interval = setInterval(() => {
+      loadConversations();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [conversations, loadConversations]);
 
   // Enviar Mensagem com SSE Streaming
   const handleSubmitMessage = async () => {
@@ -281,6 +337,7 @@ export const App: React.FC = () => {
             }));
           },
           onDone: () => {
+            abortControllerRef.current = null;
             setMessages(prev => prev.map(msg => {
               if (msg.id === streamingId) {
                 return { ...msg, isStreaming: false };
@@ -291,6 +348,7 @@ export const App: React.FC = () => {
             loadConversations();
           },
           onError: (err) => {
+            abortControllerRef.current = null;
             setMessages(prev => prev.map(msg => {
               if (msg.id === streamingId) {
                 return {
@@ -307,9 +365,12 @@ export const App: React.FC = () => {
         abortControllerRef.current.signal
       );
     } catch (err: unknown) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('Falha no streaming SSE:', err);
+      abortControllerRef.current = null;
+      if (err instanceof Error && err.name === 'AbortError') {
+        // Usuário apenas mudou de aba ou tela localmente, processo segue em segundo plano
+        return;
       }
+      console.error('Falha no streaming SSE:', err);
       setIsLoading(false);
       setMessages(prev => prev.map(msg => {
         if (msg.id === streamingId) {
@@ -326,7 +387,7 @@ export const App: React.FC = () => {
       abortControllerRef.current = null;
     }
     try {
-      await api.stopChat();
+      await api.stopChat(activeConvId || undefined);
     } catch (e) {
       console.warn('Erro ao interromper chat:', e);
     }
@@ -337,6 +398,7 @@ export const App: React.FC = () => {
       }
       return msg;
     }));
+    loadConversations();
   };
 
   return (

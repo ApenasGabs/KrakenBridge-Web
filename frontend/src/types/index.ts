@@ -42,6 +42,7 @@ export interface ConversationSession {
   agyConvId?: string;
   messages?: ChatMessage[];
   lastMessageSnippet?: string;
+  isRunning?: boolean;
 }
 
 export interface AuthStatus {

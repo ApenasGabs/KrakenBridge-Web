@@ -141,8 +141,12 @@ export const api = {
     return res.json();
   },
 
-  async stopChat(): Promise<{ status: string; terminated: number }> {
-    const res = await fetch('/api/chat/stop', { method: 'POST' });
+  async stopChat(conversationId?: string): Promise<{ status: string; terminated: number }> {
+    const res = await fetch('/api/chat/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversationId })
+    });
     return res.json();
   },
 
