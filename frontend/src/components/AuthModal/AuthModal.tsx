@@ -239,10 +239,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         )}
 
         {/* Abas do Modal */}
-        <div className="tabs tabs-boxed bg-base-200/80 p-0.5 mb-4 text-xs">
+        <div className="tabs tabs-boxed bg-base-200/80 p-0.5 mb-4 text-xs flex overflow-x-auto whitespace-nowrap">
           <button
             onClick={() => setActiveTab('accounts')}
-            className={`tab tab-sm flex-1 gap-1.5 ${activeTab === 'accounts' ? 'tab-active font-medium' : ''}`}
+            className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'accounts' ? 'tab-active font-medium' : ''}`}
           >
             <Users className="w-3.5 h-3.5" />
             <span>Contas Salvas</span>
@@ -252,20 +252,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
           <button
             onClick={() => setActiveTab('google')}
-            className={`tab tab-sm flex-1 gap-1.5 ${activeTab === 'google' ? 'tab-active font-medium' : ''}`}
+            className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'google' ? 'tab-active font-medium' : ''}`}
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span>Conectar Nova</span>
           </button>
           <button
             onClick={() => setActiveTab('apikey')}
-            className={`tab tab-sm flex-1 ${activeTab === 'apikey' ? 'tab-active font-medium' : ''}`}
+            className={`tab tab-sm flex-1 min-w-[80px] ${activeTab === 'apikey' ? 'tab-active font-medium' : ''}`}
           >
             API Key
           </button>
           <button
             onClick={() => setActiveTab('ide')}
-            className={`tab tab-sm flex-1 ${activeTab === 'ide' ? 'tab-active font-medium' : ''}`}
+            className={`tab tab-sm flex-1 min-w-[80px] ${activeTab === 'ide' ? 'tab-active font-medium' : ''}`}
           >
             Dicas IDE
           </button>
@@ -275,7 +275,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {activeTab === 'accounts' && (
           <div className="space-y-3 text-xs">
             <div className="flex items-center justify-between text-base-content/70">
-              <span>Alternar entre contas Google com 1 clique:</span>
+              <span>Alternar contas Google com 1 toque:</span>
               <button
                 onClick={() => handleStartGoogleAuth(true)}
                 disabled={loading}
@@ -298,14 +298,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <button
                   onClick={() => handleStartGoogleAuth(true)}
                   disabled={loading}
-                  className="btn btn-primary btn-xs gap-1"
+                  className="btn btn-primary btn-sm gap-1"
                 >
                   <PlusCircle className="w-3.5 h-3.5" />
                   Conectar Conta Google
                 </button>
               </div>
             ) : (
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                 {accounts.map((acc) => {
                   const isCurrent = acc.isActive || (status?.email && acc.email.toLowerCase() === status.email.toLowerCase());
                   const isSwitching = switchingEmail === acc.email;
@@ -314,28 +314,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   return (
                     <div
                       key={acc.email}
-                      className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                      onClick={() => !isCurrent && !isSwitching && !isDeleting && handleSwitchAccount(acc.email)}
+                      className={`p-3 sm:p-3.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
                         isCurrent 
-                          ? 'bg-primary/10 border-primary/40 shadow-sm' 
-                          : 'bg-base-200/40 border-base-300 hover:bg-base-200/70'
+                          ? 'bg-primary/10 border-primary/40 shadow-sm cursor-default' 
+                          : 'bg-base-200/40 border-base-300 hover:bg-base-200/80 hover:border-primary/50 cursor-pointer active:scale-[0.99]'
                       }`}
+                      title={!isCurrent ? `Toque para alternar para ${acc.email}` : undefined}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex items-center gap-3 min-w-0">
                         {acc.picture ? (
                           <img 
                             src={acc.picture} 
                             alt={acc.name || acc.email} 
-                            className="w-8 h-8 rounded-full border border-base-300 shrink-0 object-cover" 
+                            className="w-9 h-9 rounded-full border border-base-300 shrink-0 object-cover" 
                           />
                         ) : (
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
                             isCurrent ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content/70'
                           }`}>
                             {(acc.name || acc.email)[0].toUpperCase()}
                           </div>
                         )}
                         <div className="min-w-0">
-                          <div className="font-semibold text-base-content truncate flex items-center gap-1.5">
+                          <div className="font-semibold text-sm text-base-content truncate flex items-center gap-1.5">
                             <span>{acc.name || acc.email.split('@')[0]}</span>
                             {isCurrent && (
                               <span className="badge badge-xs badge-primary font-mono text-[10px]">Ativa</span>
@@ -347,17 +349,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0">
                         {isCurrent ? (
-                          <div className="flex items-center gap-1 text-success font-medium text-[11px] px-2 py-1 bg-success/10 rounded-md">
-                            <UserCheck className="w-3.5 h-3.5" />
-                            <span>Em Uso</span>
+                          <div className="flex items-center gap-1 text-success font-medium text-xs px-2.5 py-1.5 bg-success/10 rounded-lg">
+                            <UserCheck className="w-4 h-4" />
+                            <span className="hidden sm:inline">Em Uso</span>
                           </div>
                         ) : (
                           <button
-                            onClick={() => handleSwitchAccount(acc.email)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSwitchAccount(acc.email);
+                            }}
                             disabled={isSwitching || isDeleting}
-                            className="btn btn-outline btn-primary btn-xs gap-1"
+                            className="btn btn-outline btn-primary btn-sm px-3 gap-1 font-medium min-h-[36px]"
                             title="Tornar esta conta a ativa no Antigravity CLI"
                           >
                             {isSwitching ? (
@@ -369,12 +374,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         )}
 
                         <button
-                          onClick={() => handleRemoveAccount(acc.email)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveAccount(acc.email);
+                          }}
                           disabled={isSwitching || isDeleting}
-                          className="btn btn-ghost btn-xs text-error/70 hover:text-error hover:bg-error/10 btn-square"
+                          className="btn btn-ghost btn-sm text-error/70 hover:text-error hover:bg-error/10 btn-square min-h-[36px] min-w-[36px]"
                           title="Remover conta"
                         >
-                          {isDeleting ? <span className="loading loading-spinner loading-xs" /> : <Trash2 className="w-3.5 h-3.5" />}
+                          {isDeleting ? <span className="loading loading-spinner loading-xs" /> : <Trash2 className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>

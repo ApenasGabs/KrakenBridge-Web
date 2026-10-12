@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { ConversationSession, ProjectWorkspace } from '../../types';
+import type { ConversationSession, ProjectWorkspace, AuthStatus } from '../../types';
 import { 
   Plus, 
   Search, 
@@ -7,7 +7,8 @@ import {
   MessageSquare, 
   FolderGit2, 
   Clock, 
-  X
+  X,
+  KeyRound
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -21,6 +22,8 @@ interface SidebarProps {
   onSelectProject: (proj: string) => void;
   isOpen: boolean;
   onClose: () => void;
+  authStatus?: AuthStatus | null;
+  onOpenAuth?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,7 +36,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedProject,
   onSelectProject,
   isOpen,
-  onClose
+  onClose,
+  authStatus,
+  onOpenAuth
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -211,6 +216,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </select>
         </div>
+
+        {/* Gerenciador de Conta no Rodapé da Sidebar (Acesso rápido no Mobile) */}
+        {onOpenAuth && (
+          <div className="p-3 border-t border-base-300 bg-base-200/60">
+            <div 
+              onClick={() => { onOpenAuth(); if (window.innerWidth < 1024) onClose(); }}
+              className="p-2 rounded-xl bg-base-100 border border-base-300 hover:border-primary/50 transition-all cursor-pointer flex items-center justify-between gap-2 group shadow-sm active:scale-95"
+              title="Clique para alternar ou gerenciar contas do Google"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                {authStatus?.picture ? (
+                  <img src={authStatus.picture} alt="" className="w-7 h-7 rounded-full shrink-0 border border-base-300" />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                    <KeyRound className="w-3.5 h-3.5" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-base-content truncate flex items-center gap-1">
+                    <span>{authStatus?.email ? authStatus.email.split('@')[0] : 'Conta Google'}</span>
+                    <span className="badge badge-xs badge-success">Online</span>
+                  </div>
+                  <div className="text-[10px] text-base-content/50 font-mono truncate">
+                    {authStatus?.email || 'Nenhuma conta'}
+                  </div>
+                </div>
+              </div>
+              <button 
+                className="btn btn-xs btn-outline btn-primary shrink-0 group-hover:btn-active text-[10px] px-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenAuth();
+                  if (window.innerWidth < 1024) onClose();
+                }}
+              >
+                Trocar
+              </button>
+            </div>
+          </div>
+        )}
       </aside>
     </>
   );

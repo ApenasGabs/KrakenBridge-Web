@@ -496,6 +496,8 @@ export const App: React.FC = () => {
         onSelectProject={(subproject) => setOptions(prev => ({ ...prev, subproject }))}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        authStatus={authStatus}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
       />
 
       {/* Conteúdo Principal */}

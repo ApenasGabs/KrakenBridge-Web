@@ -207,12 +207,34 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Lado Direito Mobile: Tokens + Menu Dropdown [...] + Tema */}
-      <div className="flex md:hidden items-center gap-1 shrink-0">
+      {/* Lado Direito Mobile: Conta/Auth + Tokens + Tema + Menu Dropdown [...] */}
+      <div className="flex md:hidden items-center gap-1.5 shrink-0">
+        {/* Botão de Conta / Auth Direto no Mobile com excelente área de toque */}
+        <button
+          onClick={onOpenAuth}
+          className={`btn btn-sm px-2 gap-1.5 rounded-xl border transition-all ${
+            isAuthOk 
+              ? 'btn-ghost bg-success/10 border-success/30 text-success hover:bg-success/20' 
+              : 'btn-warning btn-outline'
+          }`}
+          title="Gerenciar Contas e Trocar de Conta"
+        >
+          {authStatus?.picture ? (
+            <img src={authStatus.picture} alt="" className="w-4 h-4 rounded-full shrink-0" />
+          ) : (
+            <KeyRound className="w-3.5 h-3.5 shrink-0" />
+          )}
+          {authStatus?.email && (
+            <span className="font-mono text-[10px] max-w-[70px] truncate sm:inline hidden">
+              {authStatus.email.split('@')[0]}
+            </span>
+          )}
+        </button>
+
         {/* Tokens Compacto */}
         <button 
           onClick={onToggleQuota}
-          className="btn btn-ghost btn-xs px-1.5 gap-1 font-mono text-[11px]"
+          className="btn btn-ghost btn-sm px-1.5 gap-1 font-mono text-[11px]"
           title="Ver cotas"
         >
           <Coins className="w-3.5 h-3.5 text-warning" />
@@ -233,8 +255,21 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <ul 
             tabIndex={0} 
-            className="dropdown-content menu z-50 p-2 shadow-2xl bg-base-100/98 backdrop-blur-md rounded-2xl w-52 border border-base-300 text-xs space-y-1 mt-2"
+            className="dropdown-content menu z-50 p-2 shadow-2xl bg-base-100/98 backdrop-blur-md rounded-2xl w-56 border border-base-300 text-xs space-y-1 mt-2"
           >
+            <li>
+              <button onClick={() => { onOpenAuth(); setIsMobileMenuOpen(false); }} className="flex items-center justify-between py-2.5 font-medium text-primary">
+                <span className="flex items-center gap-2">
+                  <KeyRound className="w-4 h-4 text-warning" />
+                  Trocar de Conta / Auth
+                </span>
+                {isAuthOk ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                ) : (
+                  <AlertCircle className="w-3.5 h-3.5 text-warning" />
+                )}
+              </button>
+            </li>
             <li>
               <button onClick={() => { onOpenMcp?.(); setIsMobileMenuOpen(false); }} className="flex items-center justify-between py-2">
                 <span className="flex items-center gap-2">
@@ -250,19 +285,6 @@ export const Header: React.FC<HeaderProps> = ({
               <button onClick={() => { onToggleOptions(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 py-2">
                 <SlidersHorizontal className="w-4 h-4 text-primary" />
                 Parâmetros do Agente
-              </button>
-            </li>
-            <li>
-              <button onClick={() => { onOpenAuth(); setIsMobileMenuOpen(false); }} className="flex items-center justify-between py-2">
-                <span className="flex items-center gap-2">
-                  <KeyRound className="w-4 h-4 text-warning" />
-                  Autenticação
-                </span>
-                {isAuthOk ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-                ) : (
-                  <AlertCircle className="w-3.5 h-3.5 text-warning" />
-                )}
               </button>
             </li>
             <li>
