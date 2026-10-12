@@ -13,7 +13,18 @@ quotaRouter.get('/', async (req, res) => {
   }
 });
 
-// POST /api/quota/sync - Permite calibrar / sincronizar os percentuais com a conta oficial
+// POST /api/quota/refresh - Força consulta oficial ao vivo no Google via CLI
+quotaRouter.post('/refresh', async (req, res) => {
+  try {
+    await quotaService.fetchLiveQuotaFromGoogle(true);
+    const stats = await quotaService.getStats();
+    res.json({ ok: true, stats });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/quota/sync - Permite calibrar manualmente se desejado
 quotaRouter.post('/sync', async (req, res) => {
   try {
     const { gemini, claudeGpt } = req.body;

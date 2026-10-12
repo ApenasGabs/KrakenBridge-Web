@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import { accountService } from '../services/accountService.js';
+import { quotaService } from '../services/quotaService.js';
 
 export const authRouter = Router();
 
@@ -87,6 +88,8 @@ authRouter.post('/accounts/switch', async (req, res) => {
     if (!email) return res.status(400).json({ error: 'Email não informado.' });
 
     const switched = await accountService.switchAccount(email);
+    // Dispara atualização oficial ao vivo das cotas para a nova conta ativa
+    quotaService.fetchLiveQuotaFromGoogle(true).catch(() => {});
     res.json({ success: true, account: switched, message: `Conta alternada para ${email} com sucesso!` });
   } catch (err) {
     res.status(500).json({ error: err.message });

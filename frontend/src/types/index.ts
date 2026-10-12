@@ -133,6 +133,8 @@ export interface QuotaWindowStats {
 }
 
 export interface QuotaStats {
+  source?: string;
+  lastOfficialSync?: string;
   gemini: QuotaModelGroup;
   claudeGpt: QuotaModelGroup;
   tokens?: {

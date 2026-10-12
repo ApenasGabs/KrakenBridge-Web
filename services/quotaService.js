@@ -1,10 +1,13 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { exec } from 'child_process';
+import util from 'util';
+
+const execPromise = util.promisify(exec);
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const QUOTA_FILE = path.join(DATA_DIR, 'quota_history.json');
 const STATE_FILE = path.join(DATA_DIR, 'quota_state.json');
-const TOKEN_PATH = process.env.AGY_TOKEN_PATH || '/root/.gemini/antigravity-cli/antigravity-oauth-token';
 
 // Formata intervalo de tempo restante no estilo oficial do Antigravity
 function formatRefreshTime(ms, isFiveHour = false) {
@@ -35,14 +38,16 @@ class QuotaService {
   constructor() {
     this.records = [];
     this.initialized = false;
+    this.lastAgyFetch = 0;
+    this.isFetchingFromAgy = false;
 
     // Estado oficial dos limites Antigravity
     this.state = {
       gemini: {
-        weeklyRemaining: 57,
-        weeklyResetAt: Date.now() + (47 * 60 * 60 * 1000),
-        fiveHourRemaining: 85,
-        fiveHourResetAt: Date.now() + ((4 * 60 + 32) * 60 * 1000)
+        weeklyRemaining: 100,
+        weeklyResetAt: null,
+        fiveHourRemaining: 100,
+        fiveHourResetAt: null
       },
       claudeGpt: {
         weeklyRemaining: 100,
@@ -50,6 +55,7 @@ class QuotaService {
         fiveHourRemaining: 100,
         fiveHourResetAt: null
       },
+      source: 'live',
       lastUpdated: new Date().toISOString()
     };
   }
@@ -69,7 +75,7 @@ class QuotaService {
         this.records = [];
       }
 
-      // Carregar estado persistido das cotas (5h e semanal por família de modelo)
+      // Carregar estado persistido
       const existsState = await fs.access(STATE_FILE).then(() => true).catch(() => false);
       if (existsState) {
         const rawState = await fs.readFile(STATE_FILE, 'utf8');
@@ -77,15 +83,17 @@ class QuotaService {
         this.state = {
           gemini: { ...this.state.gemini, ...(parsedState.gemini || {}) },
           claudeGpt: { ...this.state.claudeGpt, ...(parsedState.claudeGpt || {}) },
+          source: parsedState.source || 'live',
           lastUpdated: parsedState.lastUpdated || new Date().toISOString()
         };
-      } else {
-        await this.persistState();
       }
     } catch (e) {
       console.warn('[QuotaService] Erro ao carregar cotas:', e.message);
     }
     this.initialized = true;
+
+    // Tentar consulta oficial em background ao inicializar
+    this.fetchLiveQuotaFromGoogle().catch(() => {});
   }
 
   async persistHistory() {
@@ -110,41 +118,69 @@ class QuotaService {
   }
 
   /**
-   * Sincroniza / recalibra os valores das cotas manualmente pelo usuário ou por telemetria
+   * Consulta a cota 100% oficial e global diretamente pelo CLI agy via /usage
    */
-  async syncQuota({ gemini, claudeGpt }) {
-    await this.init();
-
-    if (gemini) {
-      if (typeof gemini.weeklyRemaining === 'number') {
-        this.state.gemini.weeklyRemaining = Math.max(0, Math.min(100, Math.round(gemini.weeklyRemaining)));
-      }
-      if (typeof gemini.fiveHourRemaining === 'number') {
-        this.state.gemini.fiveHourRemaining = Math.max(0, Math.min(100, Math.round(gemini.fiveHourRemaining)));
-      }
-      if (gemini.weeklyHoursRemaining !== undefined) {
-        this.state.gemini.weeklyResetAt = Date.now() + (Number(gemini.weeklyHoursRemaining) * 3600 * 1000);
-      }
-      if (gemini.fiveHourMinutesRemaining !== undefined) {
-        this.state.gemini.fiveHourResetAt = Date.now() + (Number(gemini.fiveHourMinutesRemaining) * 60 * 1000);
-      }
+  async fetchLiveQuotaFromGoogle(force = false) {
+    const now = Date.now();
+    // Cache de 30 segundos para não onerar o CLI agy desnecessariamente em refresh contínuo
+    if (!force && now - this.lastAgyFetch < 30000) {
+      return this.state;
     }
 
-    if (claudeGpt) {
-      if (typeof claudeGpt.weeklyRemaining === 'number') {
-        this.state.claudeGpt.weeklyRemaining = Math.max(0, Math.min(100, Math.round(claudeGpt.weeklyRemaining)));
+    if (this.isFetchingFromAgy) return this.state;
+    this.isFetchingFromAgy = true;
+
+    try {
+      const { stdout } = await execPromise('agy --print "/usage" --output-format json', {
+        env: { ...process.env, HOME: '/root' },
+        timeout: 15000
+      });
+
+      const parsed = JSON.parse(stdout.trim());
+      const groups = parsed?.command?.data?.groups || [];
+
+      for (const group of groups) {
+        const groupName = (group.name || '').toLowerCase();
+        const buckets = group.buckets || [];
+
+        let target = null;
+        if (groupName.includes('gemini')) {
+          target = this.state.gemini;
+        } else if (groupName.includes('claude') || groupName.includes('gpt')) {
+          target = this.state.claudeGpt;
+        }
+
+        if (target) {
+          for (const b of buckets) {
+            const fraction = typeof b.remaining_fraction === 'number' ? b.remaining_fraction : 1;
+            const percent = Math.round(fraction * 100);
+            const resetAt = b.reset_time ? new Date(b.reset_time).getTime() : null;
+
+            if (b.window === 'weekly' || (b.id && b.id.includes('weekly'))) {
+              target.weeklyRemaining = percent;
+              target.weeklyResetAt = resetAt;
+            } else if (b.window === '5h' || (b.id && b.id.includes('5h'))) {
+              target.fiveHourRemaining = percent;
+              target.fiveHourResetAt = resetAt;
+            }
+          }
+        }
       }
-      if (typeof claudeGpt.fiveHourRemaining === 'number') {
-        this.state.claudeGpt.fiveHourRemaining = Math.max(0, Math.min(100, Math.round(claudeGpt.fiveHourRemaining)));
-      }
+
+      this.state.source = 'live_google';
+      this.lastAgyFetch = Date.now();
+      await this.persistState();
+    } catch (err) {
+      console.warn('[QuotaService] Consulta oficial ao vivo pelo agy falhou ou demorou:', err.message);
+    } finally {
+      this.isFetchingFromAgy = false;
     }
 
-    await this.persistState();
-    return this.getStats();
+    return this.state;
   }
 
   /**
-   * Registra o consumo de um turno e desconta da cota correspondente
+   * Registra o consumo de um turno
    */
   async recordUsage({ model = 'gemini-3.8-flash-high', agent = 'antigravity', input_tokens = 0, output_tokens = 0, thinking_tokens = 0, total_tokens = 0, timestamp }) {
     await this.init();
@@ -165,26 +201,11 @@ class QuotaService {
     this.records.push(record);
     await this.persistHistory();
 
-    // Desconta proporcionalmente da cota correspondente
-    const normalizedModel = (model || '').toLowerCase();
-    const isClaudeOrGpt = normalizedModel.includes('claude') || normalizedModel.includes('gpt');
-    const targetGroup = isClaudeOrGpt ? this.state.claudeGpt : this.state.gemini;
+    // Dispara atualização ao vivo em background após o turno terminar
+    setTimeout(() => {
+      this.fetchLiveQuotaFromGoogle(true).catch(() => {});
+    }, 1500);
 
-    const fiveHourDeduction = Math.max(0.2, Math.min(5, Math.round((total / 15000) * 10) / 10));
-    const weeklyDeduction = Math.max(0.1, Math.min(2, Math.round((total / 60000) * 10) / 10));
-
-    targetGroup.fiveHourRemaining = Math.max(0, Math.round((targetGroup.fiveHourRemaining - fiveHourDeduction) * 10) / 10);
-    targetGroup.weeklyRemaining = Math.max(0, Math.round((targetGroup.weeklyRemaining - weeklyDeduction) * 10) / 10);
-
-    // Se estiver gastando e não tinha reset agendado, agenda nova janela de 5h
-    if (!targetGroup.fiveHourResetAt || Date.now() >= targetGroup.fiveHourResetAt) {
-      targetGroup.fiveHourResetAt = Date.now() + (5 * 60 * 60 * 1000);
-    }
-    if (!targetGroup.weeklyResetAt || Date.now() >= targetGroup.weeklyResetAt) {
-      targetGroup.weeklyResetAt = Date.now() + (7 * 24 * 60 * 60 * 1000);
-    }
-
-    await this.persistState();
     return record;
   }
 
@@ -194,25 +215,32 @@ class QuotaService {
   async getStats() {
     await this.init();
 
+    // Tenta atualizar do Google ao vivo se estiver stale
+    if (Date.now() - this.lastAgyFetch > 60000) {
+      await this.fetchLiveQuotaFromGoogle(false);
+    }
+
     const now = Date.now();
 
-    // Recuperação temporal para Gemini
+    // Tempos restantes
     let gemini5hTimeRemaining = 0;
     if (this.state.gemini.fiveHourResetAt) {
       gemini5hTimeRemaining = Math.max(0, this.state.gemini.fiveHourResetAt - now);
-      if (gemini5hTimeRemaining === 0 && this.state.gemini.fiveHourRemaining < 100) {
-        this.state.gemini.fiveHourRemaining = 100;
-        this.state.gemini.fiveHourResetAt = null;
-      }
     }
 
     let geminiWeeklyTimeRemaining = 0;
     if (this.state.gemini.weeklyResetAt) {
       geminiWeeklyTimeRemaining = Math.max(0, this.state.gemini.weeklyResetAt - now);
-      if (geminiWeeklyTimeRemaining === 0 && this.state.gemini.weeklyRemaining < 100) {
-        this.state.gemini.weeklyRemaining = 100;
-        this.state.gemini.weeklyResetAt = null;
-      }
+    }
+
+    let claude5hTimeRemaining = 0;
+    if (this.state.claudeGpt.fiveHourResetAt) {
+      claude5hTimeRemaining = Math.max(0, this.state.claudeGpt.fiveHourResetAt - now);
+    }
+
+    let claudeWeeklyTimeRemaining = 0;
+    if (this.state.claudeGpt.weeklyResetAt) {
+      claudeWeeklyTimeRemaining = Math.max(0, this.state.claudeGpt.weeklyResetAt - now);
     }
 
     // Mensagens oficiais idênticas às da interface do Google Antigravity
@@ -224,13 +252,12 @@ class QuotaService {
       ? `You have used some of your weekly limit, it will fully refresh in ${formatRefreshTime(geminiWeeklyTimeRemaining, false)}.`
       : null;
 
-    // Claude e GPT
-    const claude5hMessage = this.state.claudeGpt.fiveHourRemaining < 100
-      ? 'You have used some of your 5-hour limit.'
+    const claude5hMessage = this.state.claudeGpt.fiveHourRemaining < 100 && claude5hTimeRemaining > 0
+      ? `You have used some of your 5-hour limit, it will fully refresh in ${formatRefreshTime(claude5hTimeRemaining, true)}.`
       : null;
 
-    const claudeWeeklyMessage = this.state.claudeGpt.weeklyRemaining < 100
-      ? 'You have used some of your weekly limit.'
+    const claudeWeeklyMessage = this.state.claudeGpt.weeklyRemaining < 100 && claudeWeeklyTimeRemaining > 0
+      ? `You have used some of your weekly limit, it will fully refresh in ${formatRefreshTime(claudeWeeklyTimeRemaining, false)}.`
       : null;
 
     // Agregações de tokens
@@ -310,6 +337,8 @@ class QuotaService {
           resetAt: this.state.claudeGpt.fiveHourResetAt
         }
       },
+      source: 'official_google',
+      lastFetchedAt: this.lastAgyFetch ? new Date(this.lastAgyFetch).toISOString() : this.state.lastUpdated,
       tokens: {
         hourly,
         daily,

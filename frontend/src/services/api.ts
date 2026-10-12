@@ -36,6 +36,16 @@ export const api = {
     return res.json();
   },
 
+  async refreshQuota(): Promise<{ ok: boolean; stats: QuotaStats }> {
+    const res = await fetch('/api/quota/refresh', {
+      method: 'POST'
+    });
+    if (!res.ok) {
+      throw new Error(`Erro ao consultar cota ao vivo (${res.status})`);
+    }
+    return res.json();
+  },
+
   async syncQuota(data: {
     gemini?: { weeklyRemaining?: number; fiveHourRemaining?: number; weeklyHoursRemaining?: number; fiveHourMinutesRemaining?: number };
     claudeGpt?: { weeklyRemaining?: number; fiveHourRemaining?: number };

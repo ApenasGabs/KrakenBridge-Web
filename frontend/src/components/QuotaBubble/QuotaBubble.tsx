@@ -96,6 +96,29 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
     }
   }, []);
 
+  const handleLiveRefresh = async () => {
+    try {
+      setLoading(true);
+      const res = await api.refreshQuota();
+      if (res?.stats) {
+        setStats(res.stats);
+        if (res.stats.gemini) {
+          setGeminiWeekly(res.stats.gemini.weekly.remaining);
+          setGemini5h(res.stats.gemini.fiveHour.remaining);
+        }
+        if (res.stats.claudeGpt) {
+          setClaudeWeekly(res.stats.claudeGpt.weekly.remaining);
+          setClaude5h(res.stats.claudeGpt.fiveHour.remaining);
+        }
+      }
+    } catch (err) {
+      console.warn('Falha ao atualizar cota ao vivo:', err);
+      await fetchStats();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (isVisible) {
       fetchStats();
@@ -188,6 +211,11 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
           <span className="text-xs font-semibold tracking-wide text-neutral-300">
             Antigravity Quotas
           </span>
+          {stats?.source === 'official_google' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-800/60 font-medium">
+              Google Oficial
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -199,9 +227,9 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
             <SlidersHorizontal className="w-3.5 h-3.5" />
           </button>
           <button 
-            onClick={fetchStats}
+            onClick={handleLiveRefresh}
             className={`p-1 rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 transition-colors ${loading ? 'animate-spin' : ''}`}
-            title="Atualizar cota"
+            title="Consultar cota oficial do Google agora"
           >
             <RotateCw className="w-3.5 h-3.5" />
           </button>
