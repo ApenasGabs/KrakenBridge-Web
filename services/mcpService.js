@@ -6,53 +6,111 @@ import path from 'path';
 const execAsync = promisify(exec);
 const CONFIG_PATH = process.env.MCP_CONFIG_PATH || '/root/.gemini/config/mcp_config.json';
 
+function extractAuthCodeOrToken(input) {
+  if (!input || typeof input !== 'string') return '';
+  const trimmed = input.trim();
+
+  // Caso 1: Usuário colou uma URL completa (ex: de redirecionamento ou callback)
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    try {
+      const url = new URL(trimmed);
+      const code = url.searchParams.get('code') || url.searchParams.get('token') || url.searchParams.get('access_token');
+      if (code) return code.trim();
+    } catch {
+      // Fallback via regex
+      const match = trimmed.match(/[?&](?:code|token|access_token)=([^&#\s]+)/);
+      if (match) return decodeURIComponent(match[1]).trim();
+    }
+  }
+
+  // Caso 2: Se foi colado no formato "Bearer <token>"
+  if (trimmed.toLowerCase().startsWith('bearer ')) {
+    return trimmed.slice(7).trim();
+  }
+
+  // Caso 3: Token puro ou PIN
+  return trimmed;
+}
+
 class McpService {
+  async readConfig() {
+    try {
+      const exists = await fs.access(CONFIG_PATH).then(() => true).catch(() => false);
+      if (exists) {
+        const raw = await fs.readFile(CONFIG_PATH, 'utf8');
+        return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn('[McpService] Erro ao ler mcp_config.json:', e.message);
+    }
+    return { mcpServers: {} };
+  }
+
+  async writeConfig(config) {
+    try {
+      const dir = path.dirname(CONFIG_PATH);
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+      return true;
+    } catch (e) {
+      console.error('[McpService] Erro ao salvar mcp_config.json:', e.message);
+      throw e;
+    }
+  }
+
   async list() {
+    let servers = [];
+
+    // Fallback: ler mcp_config.json diretamente para extrair detalhes ricos de autenticação
+    const config = await this.readConfig();
+    const mcpServers = config.mcpServers || {};
+
     try {
       // Tentar via 'agy mcp list'
       const { stdout } = await execAsync('agy mcp list');
       const lines = stdout.trim().split('\n');
       
       if (lines.length > 1 && lines[0].includes('NAME')) {
-        const servers = [];
         for (let i = 1; i < lines.length; i++) {
           const line = lines[i].trim();
           if (!line) continue;
           const parts = line.split(/\s+/);
           if (parts.length >= 4) {
+            const name = parts[0];
+            const conf = mcpServers[name] || {};
+            const isHttp = parts[1] === 'http' || !!conf.serverUrl || !!conf.url;
+            const hasAuth = !!(conf.headers?.Authorization || conf.env?.SUPABASE_ACCESS_TOKEN || conf.token);
+
             servers.push({
-              name: parts[0],
+              name,
               type: parts[1],
               status: parts[2] === 'enabled' ? 'enabled' : 'disabled',
-              commandOrUrl: parts.slice(3).join(' ')
+              commandOrUrl: parts.slice(3).join(' '),
+              authStatus: hasAuth ? 'authenticated' : (isHttp ? 'unauthenticated' : 'none')
             });
           }
         }
-        if (servers.length > 0) return servers;
       }
     } catch {
-      // Fallback para leitura direta do mcp_config.json
+      // Falha no agy mcp list, continua com config
     }
 
-    // Fallback: ler mcp_config.json
-    try {
-      const exists = await fs.access(CONFIG_PATH).then(() => true).catch(() => false);
-      if (exists) {
-        const raw = await fs.readFile(CONFIG_PATH, 'utf8');
-        const json = JSON.parse(raw);
-        const mcpServers = json.mcpServers || {};
-        return Object.entries(mcpServers).map(([name, conf]) => ({
+    if (servers.length === 0) {
+      servers = Object.entries(mcpServers).map(([name, conf]) => {
+        const isHttp = !!(conf.serverUrl || conf.url);
+        const hasAuth = !!(conf.headers?.Authorization || conf.env?.SUPABASE_ACCESS_TOKEN || conf.token);
+
+        return {
           name,
-          type: conf.serverUrl || conf.url ? 'http' : 'stdio',
+          type: isHttp ? 'http' : 'stdio',
           status: 'enabled',
-          commandOrUrl: conf.serverUrl || conf.url || (conf.command ? `${conf.command} ${(conf.args || []).join(' ')}` : '')
-        }));
-      }
-    } catch (e) {
-      console.warn('[McpService] Erro ao ler mcp_config.json:', e.message);
+          commandOrUrl: conf.serverUrl || conf.url || (conf.command ? `${conf.command} ${(conf.args || []).join(' ')}` : ''),
+          authStatus: hasAuth ? 'authenticated' : (isHttp ? 'unauthenticated' : 'none')
+        };
+      });
     }
 
-    return [];
+    return servers;
   }
 
   async toggle(name, enable) {
@@ -64,6 +122,70 @@ class McpService {
       console.warn(`[McpService] Falha ao executar agy mcp ${action}:`, e.message);
       return { success: false, error: e.message };
     }
+  }
+
+  async getAuthUrl(name) {
+    const config = await this.readConfig();
+    const conf = config.mcpServers?.[name] || {};
+    const serverUrl = conf.serverUrl || conf.url || '';
+
+    if (name.toLowerCase() === 'supabase' || serverUrl.includes('supabase.com')) {
+      return {
+        server: name,
+        type: 'supabase',
+        authUrl: 'https://supabase.com/dashboard/account/tokens',
+        instructions: 'Gere um Personal Access Token (PAT) no painel do Supabase com o botão "Generate new token" ou informe o código de autorização OAuth.'
+      };
+    }
+
+    if (name.toLowerCase() === 'github' || serverUrl.includes('github.com')) {
+      return {
+        server: name,
+        type: 'github',
+        authUrl: 'https://github.com/settings/tokens',
+        instructions: 'Gere um Personal Access Token no GitHub com escopo de repositório ou informe o código.'
+      };
+    }
+
+    return {
+      server: name,
+      type: 'generic',
+      authUrl: serverUrl || null,
+      instructions: 'Informe a chave de API, Bearer Token ou código de autorização para conectar este servidor MCP.'
+    };
+  }
+
+  async exchangeCode(name, rawInput) {
+    if (!name) throw new Error('Nome do servidor é obrigatório');
+    const token = extractAuthCodeOrToken(rawInput);
+    if (!token) throw new Error('Código ou token de autenticação não foi informado ou é inválido');
+
+    const config = await this.readConfig();
+    if (!config.mcpServers) config.mcpServers = {};
+    if (!config.mcpServers[name]) {
+      config.mcpServers[name] = {};
+    }
+
+    const serverConf = config.mcpServers[name];
+
+    // Configurar headers Authorization Bearer
+    if (!serverConf.headers) serverConf.headers = {};
+    serverConf.headers['Authorization'] = `Bearer ${token}`;
+
+    // Para o Supabase, também injetar variável de ambiente caso o MCP use env
+    if (name.toLowerCase() === 'supabase' || (serverConf.serverUrl && serverConf.serverUrl.includes('supabase'))) {
+      if (!serverConf.env) serverConf.env = {};
+      serverConf.env['SUPABASE_ACCESS_TOKEN'] = token;
+    }
+
+    await this.writeConfig(config);
+
+    return {
+      success: true,
+      server: name,
+      authStatus: 'authenticated',
+      message: `Servidor MCP "${name}" autenticado com sucesso!`
+    };
   }
 }
 

@@ -10,7 +10,11 @@ import {
   CheckCircle, 
   PowerOff, 
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Key,
+  AlertCircle,
+  Check,
+  ShieldCheck
 } from 'lucide-react';
 
 interface McpModalProps {
@@ -22,6 +26,14 @@ export const McpModal: React.FC<McpModalProps> = ({ isOpen, onClose }) => {
   const [servers, setServers] = useState<McpServer[]>([]);
   const [loading, setLoading] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
+
+  // Estados de Autenticação OAuth / PIN / Token
+  const [authServer, setAuthServer] = useState<McpServer | null>(null);
+  const [authData, setAuthData] = useState<{ authUrl?: string; instructions?: string; type?: string } | null>(null);
+  const [authInput, setAuthInput] = useState('');
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authSuccess, setAuthSuccess] = useState<string | null>(null);
 
   const fetchServers = useCallback(async () => {
     try {
@@ -54,11 +66,60 @@ export const McpModal: React.FC<McpModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
+  const handleOpenAuth = async (server: McpServer) => {
+    setAuthServer(server);
+    setAuthInput('');
+    setAuthError(null);
+    setAuthSuccess(null);
+    try {
+      const data = await api.getMcpAuthUrl(server.name);
+      setAuthData(data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Falha ao buscar URL de autenticação';
+      setAuthError(msg);
+    }
+  };
+
+  const handleCloseAuth = () => {
+    setAuthServer(null);
+    setAuthData(null);
+    setAuthInput('');
+    setAuthError(null);
+    setAuthSuccess(null);
+  };
+
+  const handleSubmitAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!authServer || !authInput.trim()) return;
+
+    setAuthSubmitting(true);
+    setAuthError(null);
+    setAuthSuccess(null);
+
+    try {
+      const res = await api.exchangeMcpCode(authServer.name, authInput.trim());
+      if (res.success) {
+        setAuthSuccess(res.message || 'Servidor autenticado com sucesso!');
+        await fetchServers();
+        setTimeout(() => {
+          handleCloseAuth();
+        }, 1200);
+      } else {
+        setAuthError(res.error || 'Falha ao validar autenticação com o servidor.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro de comunicação ao salvar token';
+      setAuthError(msg);
+    } finally {
+      setAuthSubmitting(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="modal modal-open z-50">
-      <div className="modal-box w-11/12 max-w-2xl bg-base-100 border border-base-300 shadow-2xl p-4 sm:p-6">
+      <div className="modal-box w-11/12 max-w-2xl bg-base-100 border border-base-300 shadow-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header do Modal */}
         <div className="flex items-center justify-between pb-3 border-b border-base-300">
@@ -72,7 +133,7 @@ export const McpModal: React.FC<McpModalProps> = ({ isOpen, onClose }) => {
                 <span className="badge badge-primary badge-sm font-mono">{servers.length}</span>
               </h3>
               <p className="text-xs text-base-content/60">
-                Extensões de ferramentas e contexto integradas ao Antigravity
+                Ferramentas externas integradas aos agentes (banco de dados, estoque, APIs)
               </p>
             </div>
           </div>
@@ -94,6 +155,103 @@ export const McpModal: React.FC<McpModalProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
+        {/* Modal / Card Inline de Autenticação Manual via PIN / Token */}
+        {authServer && (
+          <div className="my-4 p-4 rounded-2xl bg-base-200/90 border border-primary/40 shadow-inner space-y-3 animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-base-300">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-warning/10 text-warning">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-xs text-base-content flex items-center gap-1.5">
+                    Autenticar MCP: <span className="font-mono text-primary">{authServer.name}</span>
+                  </h4>
+                  <p className="text-[11px] text-base-content/60">
+                    Vincule suas credenciais para evitar o erro Unauthorized no servidor remoto.
+                  </p>
+                </div>
+              </div>
+              <button onClick={handleCloseAuth} className="btn btn-ghost btn-xs btn-circle text-base-content/50 hover:text-base-content">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {authError && (
+              <div className="alert alert-error text-xs py-2 px-3 flex items-center gap-2 rounded-xl">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{authError}</span>
+              </div>
+            )}
+
+            {authSuccess && (
+              <div className="alert alert-success text-xs py-2 px-3 flex items-center gap-2 rounded-xl">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span>{authSuccess}</span>
+              </div>
+            )}
+
+            <div className="space-y-2 text-xs">
+              <p className="text-base-content/80 text-[11px] leading-relaxed">
+                {authData?.instructions || 'Gere o token de acesso no painel do provedor ou informe o código de autorização.'}
+              </p>
+
+              {authData?.authUrl && (
+                <div className="pt-1">
+                  <a
+                    href={authData.authUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-sm btn-outline btn-primary gap-1.5 text-xs normal-case w-full sm:w-auto"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>1. Abrir Painel de Tokens / Login em Nova Aba</span>
+                  </a>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmitAuth} className="space-y-3 pt-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-base-content/70 mb-1">
+                    2. Cole o PIN, Token (ex: sbp_...) ou a URL completa redirecionada:
+                  </label>
+                  <input
+                    type="text"
+                    value={authInput}
+                    onChange={(e) => setAuthInput(e.target.value)}
+                    placeholder="Cole aqui o token de acesso ou o código da barra de endereços..."
+                    className="input input-sm input-bordered w-full font-mono text-xs bg-base-100"
+                    autoFocus
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleCloseAuth}
+                    className="btn btn-xs btn-ghost"
+                    disabled={authSubmitting}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-xs btn-primary gap-1 font-semibold"
+                    disabled={authSubmitting || !authInput.trim()}
+                  >
+                    {authSubmitting ? (
+                      <RotateCw className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Check className="w-3 h-3" />
+                    )}
+                    <span>Salvar e Conectar</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Lista de Servidores MCP */}
         <div className="py-4 space-y-3 max-h-96 overflow-y-auto">
           {servers.length === 0 ? (
@@ -103,7 +261,9 @@ export const McpModal: React.FC<McpModalProps> = ({ isOpen, onClose }) => {
           ) : (
             servers.map((server) => {
               const isEnabled = server.status === 'enabled';
-              const isHttp = server.type === 'http';
+              const isHttp = server.type === 'http' || !!(server.commandOrUrl && server.commandOrUrl.startsWith('http'));
+              const isAuth = server.authStatus === 'authenticated';
+              const needsAuth = server.authStatus === 'unauthenticated' || (!isAuth && (server.name.toLowerCase() === 'supabase' || isHttp));
 
               return (
                 <div
@@ -125,11 +285,38 @@ export const McpModal: React.FC<McpModalProps> = ({ isOpen, onClose }) => {
                           <span className="badge badge-xs badge-outline font-mono">
                             {server.type}
                           </span>
+                          {isAuth && (
+                            <span className="badge badge-xs badge-success gap-1 text-[10px]">
+                              <Key className="w-2.5 h-2.5" /> Conectado
+                            </span>
+                          )}
+                          {needsAuth && (
+                            <span className="badge badge-xs badge-warning gap-1 text-[10px]">
+                              Requer Token / Login
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
+                      {/* Botão de Autenticação / Troca de Token */}
+                      {(isHttp || needsAuth || isAuth) && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenAuth(server)}
+                          className={`btn btn-xs gap-1 text-[11px] font-medium ${
+                            isAuth 
+                              ? 'btn-ghost text-base-content/60 hover:text-base-content' 
+                              : 'btn-warning btn-outline'
+                          }`}
+                          title="Configurar chave de acesso / token deste servidor MCP"
+                        >
+                          <Key className="w-3 h-3" />
+                          <span>{isAuth ? 'Trocar Token' : 'Autenticar'}</span>
+                        </button>
+                      )}
+
                       <span className={`text-[11px] font-medium flex items-center gap-1 ${isEnabled ? 'text-success' : 'text-base-content/40'}`}>
                         {isEnabled ? <CheckCircle className="w-3 h-3" /> : <PowerOff className="w-3 h-3" />}
                         {isEnabled ? 'Ativo' : 'Desativado'}

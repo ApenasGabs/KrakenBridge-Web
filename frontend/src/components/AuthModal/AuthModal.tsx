@@ -129,12 +129,55 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  const fallbackCopy = (text: string) => {
+    try {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      textArea.style.left = "-999999px";
+      textArea.style.top = "-999999px";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const copyUrl = () => {
+    if (!authUrl) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(authUrl).catch(() => {
+        fallbackCopy(authUrl);
+      });
+    } else {
+      fallbackCopy(authUrl);
+    }
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
   const handleSubmitGoogleCode = async () => {
-    if (!authCode.trim()) return;
+    let cleanCode = authCode.trim();
+    // Remove aspas acidentais no início ou final
+    cleanCode = cleanCode.replace(/^['"]|['"]$/g, '').trim();
+
+    // Se o usuário colou a URL inteira retornada pelo Google
+    if (cleanCode.includes('code=')) {
+      const match = cleanCode.match(/[?&]code=([^&]+)/);
+      if (match) {
+        cleanCode = decodeURIComponent(match[1]);
+      }
+    }
+
+    if (!cleanCode) return;
     setLoading(true);
     setMessage(null);
     try {
-      const res = await api.submitAntigravityCode(authCode.trim());
+      const res = await api.submitAntigravityCode(cleanCode);
       if (res.success) {
         setMessage({ text: 'Nova conta conectada e ativada com sucesso via Google OAuth!', type: 'success' });
         setAuthUrl('');
@@ -171,14 +214,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setMessage({ text: msg, type: 'error' });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const copyUrl = () => {
-    if (authUrl) {
-      navigator.clipboard.writeText(authUrl);
-      setCopiedUrl(true);
-      setTimeout(() => setCopiedUrl(false), 2000);
     }
   };
 

@@ -103,7 +103,8 @@ chatRouter.post('/', async (req, res) => {
     sandbox,
     skipPermissions,
     disableSlashCommands,
-    subproject
+    subproject,
+    chatMode = 'agent'
   } = req.body;
 
   if (!prompt || typeof prompt !== 'string') {
@@ -119,6 +120,7 @@ chatRouter.post('/', async (req, res) => {
   const existingSession = clientConvId ? await historyService.get(clientConvId) : null;
   const conversationId = clientConvId || randomUUID();
   const agyConvId = existingSession?.agyConvId || null;
+  const activeChatMode = chatMode || existingSession?.chatMode || 'agent';
   const reqId = randomUUID();
 
   // Determinação inteligente do subprojeto / workspace
@@ -145,7 +147,7 @@ chatRouter.post('/', async (req, res) => {
     role: 'user',
     text: prompt,
     timestamp: new Date().toISOString()
-  }, { agent, model, effort, mode, subproject: activeSubproject, agyConvId });
+  }, { agent, model, effort, mode, chatMode: activeChatMode, subproject: activeSubproject, agyConvId });
 
   // Criar entrada inicial do assistente para permitir persistência contínua
   const assistantMsgId = randomUUID();
@@ -164,9 +166,20 @@ chatRouter.post('/', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
+  // Diretiva para Modo Chat: focar em conversa e MCPs, sem modificar arquivos locais
+  const CHAT_MODE_DIRECTIVE = `[DIRETIVA_DO_SISTEMA - MODO CHAT]:
+Você está operando em MODO CHAT/CONSULTA.
+1. Responda dúvidas, converse, pesquise e use plenamente todas as ferramentas e servidores MCP (ex: meuestoque, supabase, github, etc.) e ferramentas de leitura.
+2. NÃO faça edições, criações nem remoções de arquivos no workspace local do projeto.
+3. NÃO execute comandos de escrita de código ou destrutivos no terminal local.\n\n`;
+
+  const effectivePrompt = (activeChatMode === 'chat')
+    ? `${CHAT_MODE_DIRECTIVE}${prompt}`
+    : prompt;
+
   const driver = AGENT_DRIVERS[agent] || AGENT_DRIVERS.antigravity;
   const args = driver.buildArgs({
-    prompt,
+    prompt: effectivePrompt,
     conversationId,
     agyConvId,
     continueSession,
@@ -207,7 +220,7 @@ chatRouter.post('/', async (req, res) => {
   };
 
   // Enviar evento de início com os IDs e subprojeto resolvido
-  safeWrite(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId, subproject: activeSubproject })}\n\n`);
+  safeWrite(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId, subproject: activeSubproject, chatMode: activeChatMode })}\n\n`);
 
   // Keep-alive heartbeat para conexões de longa duração
   const pingInterval = setInterval(() => {

@@ -26,6 +26,9 @@ interface ChatViewProps {
   projects?: ProjectWorkspace[];
   subproject?: string;
   onSubprojectChange?: (subproject: string) => void;
+  // Modo de Operação
+  chatMode?: 'agent' | 'chat';
+  onChatModeChange?: (mode: 'agent' | 'chat') => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -46,7 +49,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onClearQueue,
   projects = [],
   subproject = '',
-  onSubprojectChange
+  onSubprojectChange,
+  chatMode = 'agent',
+  onChatModeChange
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -254,6 +259,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onModelChange={onModelChange}
         onOpenMcpModal={onOpenMcpModal}
         queuedCount={messageQueue.length}
+        chatMode={chatMode}
+        onChatModeChange={onChatModeChange}
       />
     </div>
   );

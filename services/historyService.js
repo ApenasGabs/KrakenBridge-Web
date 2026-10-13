@@ -2,8 +2,13 @@ import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
 
+import { execSync } from 'child_process';
+import readline from 'readline';
+
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
+const BRAIN_DIR = process.env.BRAIN_DIR || '/root/.gemini/antigravity-cli/brain';
+const AGY_DB_PATH = process.env.AGY_DB_PATH || '/root/.gemini/antigravity-cli/conversation_summaries.db';
 
 // Garante que o diretório de dados existe
 async function ensureDir() {
@@ -12,6 +17,123 @@ async function ensureDir() {
   } catch (err) {
     console.error('[HistoryService] Erro ao criar diretório de sessões:', err.message);
   }
+}
+
+let lastAgySync = 0;
+
+/**
+ * Sincroniza automaticamente conversas nativas do Antigravity CLI para a interface web
+ */
+async function syncAntigravityConversations() {
+  const now = Date.now();
+  if (now - lastAgySync < 15000) return; // Debounce de 15s
+  lastAgySync = now;
+
+  try {
+    const raw = execSync(`sqlite3 -json "${AGY_DB_PATH}" "SELECT conversation_id, title, preview, last_modified_time, workspace_uris FROM conversation_summaries ORDER BY last_modified_time ASC;"`, { encoding: 'utf8', timeout: 3000 });
+    const summaries = JSON.parse(raw || '[]');
+
+    for (const sum of summaries) {
+      const convId = sum.conversation_id;
+      const targetFile = path.join(SESSIONS_DIR, `${convId}.json`);
+
+      let exists = false;
+      try {
+        await fs.access(targetFile);
+        exists = true;
+      } catch {}
+
+      if (exists) continue; // Já sincronizado
+
+      let subproject = '';
+      try {
+        const uris = JSON.parse(sum.workspace_uris || '[]');
+        if (uris.length > 0) {
+          const match = uris[0].match(/file:\/\/\/(?:workspace\/|DATA\/Projetos\/)([^/]+)/);
+          if (match) subproject = match[1];
+        }
+      } catch {}
+
+      const transcriptFile = path.join(BRAIN_DIR, convId, '.system_generated', 'logs', 'transcript.jsonl');
+      const messages = [];
+
+      try {
+        await fs.access(transcriptFile);
+        const fileStream = (await import('fs')).createReadStream(transcriptFile);
+        const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+        let currentAssistant = null;
+
+        for await (const line of rl) {
+          if (!line.trim()) continue;
+          try {
+            const entry = JSON.parse(line);
+            if (entry.type === 'USER_INPUT' && entry.content) {
+              if (currentAssistant) {
+                messages.push(currentAssistant);
+                currentAssistant = null;
+              }
+              let userText = entry.content;
+              const match = userText.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
+              if (match) userText = match[1].trim();
+              messages.push({
+                id: `step-${entry.step_index}`,
+                role: 'user',
+                text: userText,
+                timestamp: entry.created_at || sum.last_modified_time
+              });
+            } else if (entry.type === 'PLANNER_RESPONSE') {
+              if (!currentAssistant) {
+                currentAssistant = {
+                  id: `step-${entry.step_index}`,
+                  role: 'assistant',
+                  text: '',
+                  thinking: '',
+                  toolCalls: [],
+                  timestamp: entry.created_at || sum.last_modified_time
+                };
+              }
+              if (entry.content) {
+                currentAssistant.text += (currentAssistant.text ? '\n\n' : '') + entry.content;
+              }
+              if (entry.thinking) {
+                currentAssistant.thinking += (currentAssistant.thinking ? '\n\n' : '') + entry.thinking;
+              }
+              if (Array.isArray(entry.tool_calls)) {
+                for (const tc of entry.tool_calls) {
+                  let cmd = '';
+                  if (tc.args) {
+                    cmd = tc.args.CommandLine || (tc.args.toolAction ? `${tc.args.toolAction}: ${tc.args.toolSummary || ''}` : '') || tc.args.AbsolutePath || tc.args.TargetFile || '';
+                  }
+                  currentAssistant.toolCalls.push({
+                    name: tc.name || 'tool',
+                    command: typeof cmd === 'string' ? cmd.replace(/^["']|["']$/g, '') : '',
+                    state: 'done'
+                  });
+                }
+              }
+            }
+          } catch {}
+        }
+        if (currentAssistant) messages.push(currentAssistant);
+      } catch {}
+
+      const sessionData = {
+        id: convId,
+        agyConvId: convId,
+        title: sum.title || sum.preview || 'Conversa Antigravity',
+        agent: 'antigravity',
+        model: 'gemini-3.8-flash-high',
+        effort: 'high',
+        mode: 'default',
+        subproject,
+        createdAt: sum.last_modified_time,
+        updatedAt: sum.last_modified_time,
+        messages
+      };
+
+      await fs.writeFile(targetFile, JSON.stringify(sessionData, null, 2), 'utf8');
+    }
+  } catch {}
 }
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
@@ -90,6 +212,7 @@ export const historyService = {
 
   async list() {
     await ensureDir();
+    await syncAntigravityConversations().catch(() => {});
     try {
       const files = await fs.readdir(SESSIONS_DIR);
       const jsonFiles = files.filter(f => f.endsWith('.json'));
@@ -123,6 +246,7 @@ export const historyService = {
             model: data.model || '',
             effort: data.effort || 'high',
             mode: data.mode || 'default',
+            chatMode: data.chatMode || 'agent',
             subproject: subproject,
             agyConvId: data.agyConvId || null,
             createdAt: data.createdAt,
@@ -169,6 +293,7 @@ export const historyService = {
       model: session.model || (existing && existing.model) || '',
       effort: session.effort || (existing && existing.effort) || 'high',
       mode: session.mode || (existing && existing.mode) || 'default',
+      chatMode: session.chatMode || (existing && existing.chatMode) || 'agent',
       subproject: session.subproject || (existing && existing.subproject) || '',
       createdAt: (existing && existing.createdAt) || now,
       updatedAt: now,
@@ -189,6 +314,8 @@ export const historyService = {
         ...sessionMeta,
         messages: []
       };
+    } else if (sessionMeta.chatMode) {
+      session.chatMode = sessionMeta.chatMode;
     }
     session.messages.push(message);
     if (session.messages.length === 1 && message.role === 'user' && (!session.title || session.title === 'Nova Conversa')) {

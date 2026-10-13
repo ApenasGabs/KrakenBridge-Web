@@ -1,5 +1,5 @@
 import type { ChatOptions, ModelOption } from '../../types';
-import { Cpu, Zap, Shield, ShieldAlert, Sparkles, Activity } from 'lucide-react';
+import { Cpu, Zap, Shield, ShieldAlert, Sparkles, Activity, MessageSquare } from 'lucide-react';
 
 interface OptionsBarProps {
   options: ChatOptions;
@@ -87,6 +87,22 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             <option value="default">Padrão</option>
             <option value="accept-edits">Auto-Aceitar Edições (accept-edits)</option>
             <option value="plan">Modo Planejamento (plan)</option>
+          </select>
+        </div>
+
+        {/* Postura de Interação: Agente vs Chat */}
+        <div className="flex items-center gap-2">
+          <label className="font-semibold flex items-center gap-1.5 text-base-content/70">
+            <MessageSquare className="w-3.5 h-3.5 text-secondary" />
+            Interação:
+          </label>
+          <select
+            value={options.chatMode || 'agent'}
+            onChange={(e) => update({ chatMode: e.target.value as 'agent' | 'chat' })}
+            className="select select-bordered select-xs bg-base-100 font-medium"
+          >
+            <option value="agent">⚡ Modo Agente (Código & Terminal)</option>
+            <option value="chat">💬 Modo Chat (Apenas Leitura & MCPs)</option>
           </select>
         </div>
 

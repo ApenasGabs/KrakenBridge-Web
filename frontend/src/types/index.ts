@@ -48,6 +48,7 @@ export interface ConversationSession {
   model?: string;
   subproject?: string;
   agyConvId?: string;
+  chatMode?: 'agent' | 'chat';
   messages?: ChatMessage[];
   lastMessageSnippet?: string;
   isRunning?: boolean;
@@ -93,6 +94,7 @@ export interface ChatOptions {
   skipPermissions: boolean;
   disableSlashCommands: boolean;
   subproject: string;
+  chatMode?: 'agent' | 'chat';
   showQuotaBubble?: boolean;
 }
 
@@ -161,6 +163,7 @@ export interface McpServer {
   type: string;
   status: 'enabled' | 'disabled';
   commandOrUrl?: string;
+  authStatus?: 'authenticated' | 'unauthenticated' | 'none';
 }
 
 export interface SlashCommand {
