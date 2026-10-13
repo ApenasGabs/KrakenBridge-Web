@@ -17,7 +17,46 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+import crypto from 'crypto';
 import fs from 'fs';
+
+// Validador de Segurança do PIN
+function getValidAuthToken() {
+  const configuredPin = (process.env.KRAKEN_PIN || '').trim();
+  if (!configuredPin) return null;
+  const secret = process.env.APP_SECRET || configuredPin;
+  return crypto.createHmac('sha256', secret).update(`kraken_auth_${configuredPin}`).digest('hex');
+}
+
+// Middleware de autenticação de PIN para APIs críticas
+const pinAuthMiddleware = (req, res, next) => {
+  const configuredPin = (process.env.KRAKEN_PIN || '').trim();
+  // Se não houver KRAKEN_PIN configurado, acesso liberado
+  if (!configuredPin) return next();
+
+  const fullPath = (req.baseUrl || '') + (req.path || '');
+  if (
+    fullPath.endsWith('/health') ||
+    fullPath.endsWith('/auth/pin/status') ||
+    fullPath.endsWith('/auth/pin/verify')
+  ) {
+    return next();
+  }
+
+  // Verifica token via cabeçalho Authorization ou query param
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim() || req.query.token;
+  const expectedToken = getValidAuthToken();
+
+  if (token && expectedToken && token === expectedToken) {
+    return next();
+  }
+
+  return res.status(401).json({
+    error: 'Acesso não autorizado. Digite o PIN de segurança para continuar.',
+    requirePin: true
+  });
+};
 
 // Servir frontend estático (prioriza build do Vite se existir, senão fallback para public/)
 const distDir = [
@@ -26,38 +65,85 @@ const distDir = [
   path.resolve('public')
 ].find(dir => fs.existsSync(dir)) || path.resolve('public');
 
+// Servir arquivos estáticos na raiz e em /chat
 app.use(express.static(distDir));
+app.use('/chat', express.static(distDir));
 
-// Rotas da API Modular
-app.use('/api/config', configRouter);
-app.use('/api/conversations', conversationsRouter);
-app.use('/api/auth', authRouter);
-app.use('/api/chat', chatRouter);
-app.use('/api/quota', quotaRouter);
-app.use('/api/mcp', mcpRouter);
+// Aplicar middleware de autenticação nas APIs
+app.use('/api', pinAuthMiddleware);
+app.use('/chat/api', pinAuthMiddleware);
 
-// Compatibilidade de rotas diretas
-app.post('/api/stop', (req, res) => res.redirect(307, '/api/chat/stop'));
-app.get('/api/projects', (req, res) => res.redirect('/api/config/projects'));
+// Rotas da API Modular (registradas em /api e /chat/api para suporte a subcaminho)
+const registerRoutes = (prefix) => {
+  app.use(`${prefix}/config`, configRouter);
+  app.use(`${prefix}/conversations`, conversationsRouter);
+  app.use(`${prefix}/auth`, authRouter);
+  app.use(`${prefix}/chat`, chatRouter);
+  app.use(`${prefix}/quota`, quotaRouter);
+  app.use(`${prefix}/mcp`, mcpRouter);
 
-// Health check para contêineres Docker / CasaOS
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    app: 'KrakenBridge Web',
-    uptime: process.uptime(),
-    workspaceDir: WORKSPACE_DIR
+  app.post(`${prefix}/stop`, (req, res) => res.redirect(307, `${prefix}/chat/stop`));
+  app.get(`${prefix}/projects`, (req, res) => res.redirect(`${prefix}/config/projects`));
+
+  app.get(`${prefix}/health`, (req, res) => {
+    res.json({
+      status: 'healthy',
+      app: 'KrakenBridge Web',
+      pinProtected: !!(process.env.KRAKEN_PIN && process.env.KRAKEN_PIN.trim()),
+      uptime: process.uptime(),
+      workspaceDir: WORKSPACE_DIR
+    });
   });
-});
+};
 
-// Redirecionamento SPA para index.html
+registerRoutes('/api');
+registerRoutes('/chat/api');
+
+// Redirecionamento SPA para index.html (tanto para / quanto para /chat/*)
 app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api')) return next();
+  if (req.path.startsWith('/api') || req.path.startsWith('/chat/api')) return next();
   res.sendFile(path.join(distDir, 'index.html'));
 });
 
+// Função para registrar automaticamente o roteamento no ZimaOS Gateway
+const registerZimaosGatewayRoute = async () => {
+  const gatewayCandidates = [
+    'http://127.0.0.1:80/v1/gateway/routes',
+    'http://host.docker.internal:80/v1/gateway/routes',
+    'http://172.17.0.1:80/v1/gateway/routes'
+  ];
+
+  for (const url of gatewayCandidates) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: '/chat',
+          target: `http://127.0.0.1:${PORT}`
+        })
+      });
+      if (response.ok) {
+        console.log(`[KrakenBridge] Rota /chat registrada com sucesso no ZimaOS Gateway (${url})`);
+        return true;
+      }
+    } catch {
+      // Ignora e tenta o próximo candidato
+    }
+  }
+  return false;
+};
+
 app.listen(PORT, '0.0.0.0', () => {
+  const pinSet = !!(process.env.KRAKEN_PIN && process.env.KRAKEN_PIN.trim());
   console.log(`[KrakenBridge] Servidor ativo na porta ${PORT}`);
+  console.log(`[KrakenBridge] Proteção por PIN: ${pinSet ? 'ATIVADA' : 'DESATIVADA'}`);
+  console.log(`[KrakenBridge] Rotas prontas em http://0.0.0.0:${PORT} e http://0.0.0.0:${PORT}/chat`);
   console.log(`[KrakenBridge] Workspace montado em: ${WORKSPACE_DIR}`);
   console.log(`[KrakenBridge] Conexão IDE na porta: ${CODE_SERVER_PORT}`);
+
+  // Registra no Gateway imediatamente e a cada 5 minutos
+  registerZimaosGatewayRoute();
+  setInterval(registerZimaosGatewayRoute, 5 * 60 * 1000);
 });
+

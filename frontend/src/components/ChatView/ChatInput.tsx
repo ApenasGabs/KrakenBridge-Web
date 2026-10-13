@@ -18,7 +18,9 @@ import {
   BrainCircuit,
   Users,
   BookOpen,
-  ListPlus
+  ListPlus,
+  Zap,
+  MessageSquare
 } from 'lucide-react';
 
 interface ChatInputProps {
@@ -33,6 +35,8 @@ interface ChatInputProps {
   onModelChange?: (model: string) => void;
   onOpenMcpModal?: () => void;
   queuedCount?: number;
+  chatMode?: 'agent' | 'chat';
+  onChatModeChange?: (mode: 'agent' | 'chat') => void;
 }
 
 // Catálogo oficial de comandos de barra do Antigravity
@@ -193,7 +197,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   currentModel = 'gemini-3.8-flash-high',
   availableModels = [],
   onModelChange,
-  onOpenMcpModal
+  onOpenMcpModal,
+  queuedCount = 0,
+  chatMode = 'agent',
+  onChatModeChange
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
@@ -468,7 +475,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 ? "Ouvindo sua voz em português... Fale seu comando..." 
                 : isLoading 
                   ? "Agente em execução... Digite para enfileirar mensagem (Enter)" 
-                  : "Digite sua mensagem ou comando (/plan, /goal, /mcp... Shift+Enter para quebra de linha)"
+                  : chatMode === 'chat'
+                    ? "💬 Modo Chat & MCPs ativos (somente conversa e ferramentas, sem alterar arquivos)..."
+                    : "⚡ Modo Agente autônomo (digite mensagem ou comando: /plan, /goal, /mcp...)"
             }
             className="w-full bg-transparent border-0 outline-none resize-none px-4 pt-3 pb-1 text-sm leading-relaxed text-base-content placeholder:text-base-content/40 max-h-48 overflow-y-auto"
           />
@@ -476,7 +485,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           {/* Barra de Ferramentas Inferior do Prompt (Modelo, MCPs, Microfone, Envio) */}
           <div className="flex items-center justify-between px-2.5 sm:px-3 pb-2 sm:pb-2.5 pt-1 border-t border-base-300/40 gap-1">
             
-            {/* Lado Esquerdo: Botão +, Dropdown do Modelo e Botão MCPs */}
+            {/* Lado Esquerdo: Botão +, Dropdown do Modelo, Toggle Agente/Chat e Botão MCPs */}
             <div className="flex items-center gap-1 sm:gap-1.5 model-dropdown-container relative flex-1 min-w-0">
               <button
                 type="button"
@@ -499,6 +508,36 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </span>
                 <ChevronUp className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180 text-sky-300' : 'text-sky-400/80 group-hover:text-sky-300'}`} />
               </button>
+
+              {/* Seletor Rápido de Modo: Agente vs Chat */}
+              <div className="flex items-center bg-base-300/60 p-0.5 rounded-lg border border-base-300/80 shrink-0 select-none">
+                <button
+                  type="button"
+                  onClick={() => onChatModeChange?.('agent')}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all ${
+                    chatMode === 'agent'
+                      ? 'bg-primary text-primary-content shadow-sm'
+                      : 'text-base-content/60 hover:text-base-content'
+                  }`}
+                  title="Modo Agente: Autonomia total para criar/editar código e rodar testes"
+                >
+                  <Zap className="w-3 h-3" />
+                  <span className="hidden md:inline">Agente</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChatModeChange?.('chat')}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all ${
+                    chatMode === 'chat'
+                      ? 'bg-secondary text-secondary-content shadow-sm'
+                      : 'text-base-content/60 hover:text-base-content'
+                  }`}
+                  title="Modo Chat: Conversas e ferramentas MCP sem editar arquivos locais"
+                >
+                  <MessageSquare className="w-3 h-3" />
+                  <span className="hidden md:inline">Chat</span>
+                </button>
+              </div>
 
               {/* Botão MCPs de Acesso Rápido */}
               <button
@@ -579,7 +618,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                       title="Adicionar à fila de mensagens (Enter)"
                     >
                       <ListPlus className="w-3.5 h-3.5" />
-                      <span className="text-[11px] font-medium hidden sm:inline">Enfileirar</span>
+                      <span className="text-[11px] font-medium hidden sm:inline">
+                        Enfileirar{queuedCount > 0 ? ` (${queuedCount})` : ''}
+                      </span>
                     </button>
                   )}
                   <button

@@ -96,6 +96,37 @@ authRouter.post('/accounts/switch', async (req, res) => {
   }
 });
 
+// Endpoint para Validar Status do PIN do App
+authRouter.get('/pin/status', (req, res) => {
+  const pinConfigured = !!(process.env.KRAKEN_PIN && process.env.KRAKEN_PIN.trim());
+  res.json({
+    required: pinConfigured
+  });
+});
+
+// Endpoint para Login com PIN
+authRouter.post('/pin/verify', (req, res) => {
+  const configuredPin = (process.env.KRAKEN_PIN || '').trim();
+  if (!configuredPin) {
+    return res.json({ success: true, message: 'Nenhum PIN configurado.' });
+  }
+
+  const { pin } = req.body || {};
+  if (!pin || pin.trim() !== configuredPin) {
+    return res.status(401).json({ success: false, error: 'PIN incorreto. Tente novamente.' });
+  }
+
+  // Gera token de sessão assinado por hash HMAC
+  const secret = process.env.APP_SECRET || configuredPin;
+  const token = crypto.createHmac('sha256', secret).update(`kraken_auth_${configuredPin}`).digest('hex');
+
+  res.json({
+    success: true,
+    token,
+    message: 'Acesso liberado com sucesso!'
+  });
+});
+
 // Endpoint para Remover uma Conta Salva
 authRouter.delete('/accounts/:email', async (req, res) => {
   try {
@@ -107,12 +138,34 @@ authRouter.delete('/accounts/:email', async (req, res) => {
   }
 });
 
+import crypto from 'crypto';
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const GOOGLE_REDIRECT_URI = 'https://antigravity.google/oauth-callback';
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/cloud-platform',
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/userinfo.profile',
+  'https://www.googleapis.com/auth/cclog',
+  'https://www.googleapis.com/auth/experimentsandconfigs',
+  'https://www.googleapis.com/auth/aicode',
+  'openid'
+].join(' ');
+
+function generatePKCE() {
+  const verifier = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  const state = crypto.randomBytes(16).toString('base64url');
+  return { verifier, challenge, state };
+}
+
 // Endpoint para Iniciar Fluxo de Autenticação Google Antigravity
 authRouter.post('/antigravity/start', async (req, res) => {
   const { force } = req.body || {};
   const currentAuth = await getAntigravityAuthInfo();
 
-  // Se já está autenticado e o usuário não pediu para forçar re-login / nova conta
+  // Se já está autenticado e o usuário não pediu para forçar login de nova conta
   if (currentAuth.authenticated && !force) {
     return res.json({
       status: 'already_authenticated',
@@ -123,141 +176,122 @@ authRouter.post('/antigravity/start', async (req, res) => {
     });
   }
 
-  // Cancelar sessão anterior se houver
-  if (currentAuthSession && currentAuthSession.process) {
-    try { currentAuthSession.process.kill(); } catch (e) {}
-    currentAuthSession = null;
-  }
+  const { verifier, challenge, state } = generatePKCE();
 
-  // Se pediu force=true para conectar nova conta, preserva a atual no store e faz backup do token principal
-  if (force) {
-    try {
-      const currentRaw = await fs.readFile(TOKEN_PATH, 'utf8').catch(() => null);
-      if (currentRaw) {
-        await accountService.saveTokenData(currentRaw, false);
-        await fs.rename(TOKEN_PATH, `${TOKEN_PATH}.bak_${Date.now()}`);
-      }
-    } catch (e) {}
-  }
+  // Monta a URL oficial do Google OAuth com PKCE exato utilizado pelo agy
+  const params = new URLSearchParams({
+    access_type: 'offline',
+    client_id: GOOGLE_CLIENT_ID,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+    prompt: 'consent',
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    response_type: 'code',
+    scope: GOOGLE_SCOPES,
+    state
+  });
 
-  const isLinux = process.platform === 'linux';
-  let child;
-  if (isLinux) {
-    child = spawn('script', ['-qec', 'agy -p "auth-login-check" --output-format stream-json --dangerously-skip-permissions', '/dev/null'], {
-      cwd: WORKSPACE_DIR,
-      env: { ...process.env, HOME: '/root' }
-    });
-  } else {
-    child = spawn('agy', ['-p', 'auth-login-check', '--output-format', 'stream-json', '--dangerously-skip-permissions'], {
-      cwd: WORKSPACE_DIR,
-      env: { ...process.env, HOME: process.env.HOME || '/root' }
-    });
-  }
-
-  let resolved = false;
+  const authUrl = `https://accounts.google.com/o/oauth2/auth?${params.toString()}`;
 
   currentAuthSession = {
-    process: child,
-    authUrl: null,
+    authUrl,
+    verifier,
+    state,
     startedAt: Date.now()
   };
 
-  const checkOutput = (data) => {
-    const text = data.toString();
-    const match = text.match(/(https:\/\/accounts\.google\.com\/o\/oauth2\/auth[^\s\r\n]+)/);
-    if (match && !resolved) {
-      resolved = true;
-      currentAuthSession.authUrl = match[1];
-      return res.json({ status: 'waiting_for_code', authUrl: match[1] });
-    }
-  };
-
-  child.stdout.on('data', checkOutput);
-  child.stderr.on('data', checkOutput);
-
-  child.on('close', (code) => {
-    if (!resolved) {
-      resolved = true;
-      res.status(500).json({ error: 'Processo encerrou sem emitir URL de autenticação.', code });
-    }
+  return res.json({
+    status: 'waiting_for_code',
+    authUrl
   });
-
-  child.on('error', (err) => {
-    if (!resolved) {
-      resolved = true;
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  setTimeout(() => {
-    if (!resolved) {
-      resolved = true;
-      res.status(408).json({ error: 'Tempo limite ao aguardar link de autenticação do Google.' });
-    }
-  }, 15000);
 });
 
 // Endpoint para Submeter Código de Autorização Google Antigravity
-authRouter.post('/antigravity/submit-code', (req, res) => {
+authRouter.post('/antigravity/submit-code', async (req, res) => {
   let { code } = req.body;
   if (!code) {
     return res.status(400).json({ error: 'Código de autorização não fornecido.' });
   }
 
-  // Se o usuário colou a URL inteira retornada pelo Google
+  // Sanitização rigorosa do código colado pelo usuário
+  code = code.trim().replace(/^['"]|['"]$/g, '').trim();
   if (code.includes('code=')) {
     const m = code.match(/[?&]code=([^&]+)/);
     if (m) code = decodeURIComponent(m[1]);
   }
   code = code.trim();
 
-  if (!currentAuthSession || !currentAuthSession.process) {
-    return res.status(400).json({ error: 'Nenhuma sessão de autenticação ativa. Clique em "Iniciar Login" novamente.' });
-  }
+  try {
+    const verifier = currentAuthSession?.verifier;
 
-  const child = currentAuthSession.process;
-  let responseSent = false;
-  let lastOutput = '';
+    // 1. Troca direta de código por tokens no Google OAuth
+    const tokenParams = new URLSearchParams({
+      code,
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      redirect_uri: GOOGLE_REDIRECT_URI,
+      grant_type: 'authorization_code'
+    });
 
-  child.stdout.on('data', (d) => { lastOutput += d.toString(); });
-  child.stderr.on('data', (d) => { lastOutput += d.toString(); });
+    if (verifier) {
+      tokenParams.set('code_verifier', verifier);
+    }
 
-  child.on('close', async (exitCode) => {
-    currentAuthSession = null;
-    if (responseSent) return;
-    responseSent = true;
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenParams.toString()
+    });
 
-    // Verificar se o arquivo do token foi criado ou atualizado
-    try {
-      const rawToken = await fs.readFile(TOKEN_PATH, 'utf8');
-      const saved = await accountService.saveTokenData(rawToken, true);
+    const tokenJson = await tokenRes.json();
 
-      return res.json({
-        success: true,
-        status: 'success',
-        code: exitCode,
-        email: saved?.email,
-        name: saved?.name,
-        message: 'Google Antigravity autenticado com sucesso!'
-      });
-    } catch (e) {
-      if (exitCode === 0) {
-        return res.json({
-          success: true,
-          status: 'success',
-          code: 0,
-          message: 'Código processado com sucesso.'
-        });
-      }
+    if (!tokenRes.ok || tokenJson.error) {
+      const errMsg = tokenJson.error_description || tokenJson.error || 'Código de autorização inválido ou expirado.';
       return res.status(400).json({
         success: false,
         status: 'error',
-        error: lastOutput || 'Falha ao processar código de autenticação.'
+        error: `Google OAuth Error: ${errMsg}`
       });
     }
-  });
 
-  child.stdin.write(code + '\n');
+    // 2. Montar objeto no formato exato esperado pelo Antigravity CLI (agy)
+    const expiresInSec = tokenJson.expires_in || 3600;
+    const expiryDate = new Date(Date.now() + expiresInSec * 1000).toISOString();
+
+    const agyTokenStructure = {
+      token: {
+        access_token: tokenJson.access_token,
+        token_type: tokenJson.token_type || 'Bearer',
+        refresh_token: tokenJson.refresh_token || '',
+        expiry: expiryDate
+      },
+      auth_method: 'consumer',
+      id_token: tokenJson.id_token || ''
+    };
+
+    // 3. Salvar no store multi-contas e definir como ativa
+    const saved = await accountService.saveTokenData(agyTokenStructure, true);
+
+    // 4. Disparar atualização ao vivo da cota para a nova conta
+    quotaService.fetchLiveQuotaFromGoogle(true).catch(() => {});
+
+    currentAuthSession = null;
+
+    return res.json({
+      success: true,
+      status: 'success',
+      email: saved?.email,
+      name: saved?.name,
+      message: `Conta ${saved?.email || 'Google'} autenticada e ativada com sucesso!`
+    });
+  } catch (err) {
+    console.error('[Auth] Erro ao trocar código OAuth:', err);
+    return res.status(500).json({
+      success: false,
+      status: 'error',
+      error: `Erro ao comunicar com Google OAuth: ${err.message}`
+    });
+  }
 });
 
 // Endpoint para Salvar Chaves de API (Claude / OpenAI / Gemini)

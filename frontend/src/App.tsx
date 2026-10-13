@@ -19,6 +19,7 @@ import { HubView } from './components/HubView/HubView';
 import { AuthModal } from './components/AuthModal/AuthModal';
 import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 import { McpModal } from './components/McpModal/McpModal';
+import { PinModal } from './components/PinModal/PinModal';
 
 export const App: React.FC = () => {
   // Estado das Conversas
@@ -27,6 +28,9 @@ export const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Segurança por PIN
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Layout & Abas (Inicia no Hub de Topologia por padrão)
   const [activeTab, setActiveTab] = useState<'hub' | 'chat' | 'ide'>('hub');
@@ -53,6 +57,7 @@ export const App: React.FC = () => {
       model: 'gemini-3.8-flash-high',
       effort: 'default',
       mode: 'default',
+      chatMode: 'agent',
       sandbox: false,
       skipPermissions: true,
       disableSlashCommands: false,
@@ -98,46 +103,53 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    const initApp = async () => {
-      try {
-        const [configData, projectsData, modelsData] = await Promise.all([
-          api.getConfig().catch(() => ({ workspaceDir: '/workspace', codeServerPort: 8089 })),
-          api.getProjects().catch((): { projects: ProjectWorkspace[] } => ({ projects: [] })),
-          api.getModels().catch((): ModelsConfig => ({}))
-        ]);
-
-        if (configData.codeServerPort) setCodeServerPort(configData.codeServerPort);
-        if (configData.workspaceDir) setWorkspaceDir(configData.workspaceDir);
-        if (projectsData.projects) setProjects(projectsData.projects);
-        
-        const agyList: string[] = [];
-        if (modelsData && modelsData.antigravity && Array.isArray(modelsData.antigravity)) {
-          agyList.push(...modelsData.antigravity.map((m: { id: string }) => m.id));
-        } else if (Array.isArray(modelsData.models)) {
-          agyList.push(...modelsData.models);
-        }
-
-        if (agyList.length > 0) {
-          setAvailableModels(agyList);
-          setOptions(prev => ({
-            ...prev,
-            model: agyList.includes(prev.model) ? prev.model : agyList[0]
-          }));
-        }
-
-        await Promise.all([
-          refreshAuthStatus(), 
-          loadConversations(),
-          api.getMcpServers().then(servers => setMcpCount(servers.length)).catch(() => {})
-        ]);
-      } catch (err) {
-        console.error('Erro na inicialização do app:', err);
+  const checkPinAndInit = useCallback(async () => {
+    try {
+      const pinStatus = await api.getPinStatus().catch(() => ({ required: false }));
+      if (pinStatus.required && !api.getStoredPinToken()) {
+        setIsPinModalOpen(true);
+        return;
       }
-    };
+      setIsPinModalOpen(false);
 
-    initApp();
+      const [configData, projectsData, modelsData] = await Promise.all([
+        api.getConfig().catch(() => ({ workspaceDir: '/workspace', codeServerPort: 8089 })),
+        api.getProjects().catch((): { projects: ProjectWorkspace[] } => ({ projects: [] })),
+        api.getModels().catch((): ModelsConfig => ({}))
+      ]);
+
+      if (configData.codeServerPort) setCodeServerPort(configData.codeServerPort);
+      if (configData.workspaceDir) setWorkspaceDir(configData.workspaceDir);
+      if (projectsData.projects) setProjects(projectsData.projects);
+      
+      const agyList: string[] = [];
+      if (modelsData && modelsData.antigravity && Array.isArray(modelsData.antigravity)) {
+        agyList.push(...modelsData.antigravity.map((m: { id: string }) => m.id));
+      } else if (Array.isArray(modelsData.models)) {
+        agyList.push(...modelsData.models);
+      }
+
+      if (agyList.length > 0) {
+        setAvailableModels(agyList);
+        setOptions(prev => ({
+          ...prev,
+          model: agyList.includes(prev.model) ? prev.model : agyList[0]
+        }));
+      }
+
+      await Promise.all([
+        refreshAuthStatus(), 
+        loadConversations(),
+        api.getMcpServers().then(servers => setMcpCount(servers.length)).catch(() => {})
+      ]);
+    } catch (err) {
+      console.error('Erro na inicialização do app:', err);
+    }
   }, [refreshAuthStatus, loadConversations]);
+
+  useEffect(() => {
+    checkPinAndInit();
+  }, [checkPinAndInit]);
 
   // Carregar mensagens da conversa ativa
   const selectConversation = useCallback(async (id: string) => {
@@ -160,7 +172,8 @@ export const App: React.FC = () => {
         setOptions(prev => ({
           ...prev,
           model: session.model || prev.model,
-          subproject: session.subproject || ''
+          subproject: session.subproject || '',
+          chatMode: session.chatMode || prev.chatMode || 'agent'
         }));
       } else {
         setMessages([]);
@@ -556,6 +569,8 @@ export const App: React.FC = () => {
             projects={projects}
             subproject={options.subproject}
             onSubprojectChange={handleSubprojectChange}
+            chatMode={options.chatMode || 'agent'}
+            onChatModeChange={(chatMode) => handleUpdateOptions({ ...options, chatMode })}
           />
         ) : (
           <IdeView
@@ -584,6 +599,12 @@ export const App: React.FC = () => {
         onClose={() => setIsAuthModalOpen(false)}
         status={authStatus}
         onRefreshStatus={refreshAuthStatus}
+      />
+
+      {/* Modal de Bloqueio por PIN */}
+      <PinModal
+        isOpen={isPinModalOpen}
+        onSuccess={() => checkPinAndInit()}
       />
     </div>
   );
