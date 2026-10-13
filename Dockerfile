@@ -1,3 +1,12 @@
+# Stage 1: Build do Frontend React (Vite + TypeScript + DaisyUI)
+FROM node:22-bookworm-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build
+
+# Stage 2: Imagem de Produção Final
 FROM node:22-bookworm-slim
 
 # Instalar dependências essenciais de desenvolvimento e Git
@@ -18,16 +27,21 @@ RUN git config --global --add safe.directory "*"
 # Diretório da aplicação
 WORKDIR /app
 
-# Copiar manifesto de dependências
+# Copiar manifesto de dependências do backend
 COPY package.json ./
 
-# Instalar dependências de produção
+# Instalar dependências de produção do Node
 RUN npm install --omit=dev
 
-# Copiar código-fonte
+# Copiar código do backend e rotas modulares
 COPY server.js ./
+COPY routes ./routes
+COPY services ./services
 COPY public ./public
 COPY entrypoint.sh ./
+
+# Copiar bundle de produção gerado pelo Vite
+COPY --from=frontend-builder /app/frontend/dist ./dist
 
 RUN chmod +x entrypoint.sh
 
