@@ -190,6 +190,41 @@ export const api = {
     return res.json();
   },
 
+  async getGithubStatus(): Promise<{ authenticated: boolean; username?: string; hasToken?: boolean }> {
+    const res = await fetch(`${getApiBase()}/auth/github/status`, { headers: authHeaders() });
+    return res.json();
+  },
+
+  async startGithubDeviceFlow(): Promise<{ success: boolean; userCode?: string; verificationUri?: string; interval?: number; error?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/github/device/start`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+    return res.json();
+  },
+
+  async pollGithubDevice(): Promise<{ status: string; username?: string; error?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/github/device/poll`, { headers: authHeaders() });
+    return res.json();
+  },
+
+  async saveGithubToken(token: string): Promise<{ success: boolean; username?: string; error?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/github/token`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ token })
+    });
+    return res.json();
+  },
+
+  async logoutGithub(): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/github/logout`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+    return res.json();
+  },
+
   async getConversations(): Promise<ConversationSession[]> {
     const res = await fetch(`${getApiBase()}/conversations`, { headers: authHeaders() });
     const data = await res.json();

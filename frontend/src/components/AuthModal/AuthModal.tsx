@@ -15,7 +15,8 @@ import {
   UserCheck,
   PlusCircle,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  GitPullRequest
 } from 'lucide-react';
 
 interface AuthModalProps {
@@ -31,7 +32,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   status,
   onRefreshStatus
 }) => {
-  const [activeTab, setActiveTab] = useState<'accounts' | 'google' | 'apikey' | 'ide'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'google' | 'github' | 'apikey' | 'ide'>('accounts');
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [switchingEmail, setSwitchingEmail] = useState<string | null>(null);
@@ -43,6 +44,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
+
+  // Estados do GitHub
+  const [ghUserCode, setGhUserCode] = useState('');
+  const [ghVerifyUri, setGhVerifyUri] = useState('https://github.com/login/device');
+  const [ghPolling, setGhPolling] = useState(false);
+  const [ghPatInput, setGhPatInput] = useState('');
+  const [ghCopiedCode, setGhCopiedCode] = useState(false);
 
   const loadAccountsList = async () => {
     setLoadingAccounts(true);
@@ -217,6 +225,110 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  // Iniciar Device Code Flow do GitHub
+  const handleStartGithubDevice = async () => {
+    setLoading(true);
+    setMessage(null);
+    setGhUserCode('');
+    try {
+      const res = await api.startGithubDeviceFlow();
+      if (res.success && res.userCode) {
+        setGhUserCode(res.userCode);
+        setGhVerifyUri(res.verificationUri || 'https://github.com/login/device');
+        setGhPolling(true);
+        setMessage({
+          text: `Código gerado! Acesse ${res.verificationUri || 'github.com/login/device'} e digite o código abaixo.`,
+          type: 'info'
+        });
+      } else {
+        setMessage({ text: res.error || 'Falha ao iniciar login com GitHub.', type: 'error' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao conectar ao GitHub.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Polling automático enquanto ghPolling estiver ativo
+  useEffect(() => {
+    if (!ghPolling) return;
+    const interval = setInterval(async () => {
+      try {
+        const poll = await api.pollGithubDevice();
+        if (poll.status === 'success') {
+          setGhPolling(false);
+          setMessage({
+            text: `GitHub CLI conectado com sucesso para @${poll.username || 'seu usuário'}!`,
+            type: 'success'
+          });
+          onRefreshStatus();
+        } else if (poll.status === 'expired' || poll.status === 'denied' || poll.status === 'error') {
+          setGhPolling(false);
+          setMessage({ text: poll.error || 'Autenticação expirada ou recusada.', type: 'error' });
+        }
+      } catch {
+        // Ignora erros temporários no polling
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [ghPolling, onRefreshStatus]);
+
+  // Salvar Token PAT do GitHub
+  const handleSaveGithubToken = async () => {
+    if (!ghPatInput.trim()) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await api.saveGithubToken(ghPatInput.trim());
+      if (res.success) {
+        setMessage({
+          text: `GitHub autenticado como @${res.username || 'usuário'} com sucesso!`,
+          type: 'success'
+        });
+        setGhPatInput('');
+        onRefreshStatus();
+      } else {
+        setMessage({ text: res.error || 'Erro ao validar token do GitHub.', type: 'error' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar token do GitHub.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Desconectar GitHub
+  const handleLogoutGithub = async () => {
+    if (!window.confirm('Deseja realmente desconectar a conta do GitHub CLI?')) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      await api.logoutGithub();
+      setMessage({ text: 'GitHub CLI desconectado.', type: 'info' });
+      onRefreshStatus();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao desconectar GitHub.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyGithubCode = () => {
+    if (!ghUserCode) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(ghUserCode).catch(() => fallbackCopy(ghUserCode));
+    } else {
+      fallbackCopy(ghUserCode);
+    }
+    setGhCopiedCode(true);
+    setTimeout(() => setGhCopiedCode(false), 2000);
+  };
+
   return (
     <div className="modal modal-open z-50">
       <div className="modal-box w-11/12 max-w-xl p-4 sm:p-6 bg-base-100 border border-base-300 shadow-2xl rounded-2xl">
@@ -290,7 +402,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'google' ? 'tab-active font-medium' : ''}`}
           >
             <PlusCircle className="w-3.5 h-3.5" />
-            <span>Conectar Nova</span>
+            <span>Google</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('github')}
+            className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'github' ? 'tab-active font-medium' : ''}`}
+          >
+            <GitPullRequest className="w-3.5 h-3.5" />
+            <span>GitHub</span>
+            {status?.github?.authenticated && (
+              <span className="badge badge-xs badge-success">OK</span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('apikey')}
@@ -489,6 +611,130 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Aba GitHub: Device Flow & PAT */}
+        {activeTab === 'github' && (
+          <div className="space-y-4 text-xs">
+            {/* Status atual do GitHub */}
+            <div className="p-3 rounded-xl bg-base-200/50 border border-base-300 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <GitPullRequest className="w-5 h-5 text-base-content" />
+                <div>
+                  <div className="font-semibold text-base-content flex items-center gap-1.5">
+                    <span>GitHub CLI ({status?.github?.authenticated ? `@${status.github.username}` : 'Não conectado'})</span>
+                    {status?.github?.authenticated ? (
+                      <span className="badge badge-xs badge-success">Conectado</span>
+                    ) : (
+                      <span className="badge badge-xs badge-ghost">Pendente</span>
+                    )}
+                  </div>
+                  <p className="text-base-content/60 text-[11px] mt-0.5">
+                    Permite ao Kraken e ao Antigravity criar commits, PRs e gerenciar repositórios via CLI.
+                  </p>
+                </div>
+              </div>
+              {status?.github?.authenticated && (
+                <button
+                  onClick={handleLogoutGithub}
+                  disabled={loading}
+                  className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                >
+                  Desconectar
+                </button>
+              )}
+            </div>
+
+            {/* Opção 1: Device Code (Fluxo 1 clique sem senha nem token manual) */}
+            <div className="p-4 rounded-xl bg-base-200/30 border border-base-300 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-base-content flex items-center gap-1.5">
+                    <span>Opção 1: Conectar via Código (Recomendado)</span>
+                    <span className="badge badge-xs badge-primary">Fácil</span>
+                  </h4>
+                  <p className="text-base-content/60 text-[11px] mt-0.5">
+                    Gere um código de 8 dígitos, confirme no navegador e pronto!
+                  </p>
+                </div>
+                {!ghUserCode && (
+                  <button
+                    onClick={handleStartGithubDevice}
+                    disabled={loading}
+                    className="btn btn-primary btn-xs gap-1.5"
+                  >
+                    <GitPullRequest className="w-3.5 h-3.5" />
+                    {loading ? <span className="loading loading-spinner loading-xs" /> : 'Iniciar Conexão'}
+                  </button>
+                )}
+              </div>
+
+              {ghUserCode && (
+                <div className="mt-3 p-3 bg-base-100 rounded-lg border border-primary/30 space-y-3 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-medium text-base-content/70">Código de Autorização:</span>
+                    {ghPolling && (
+                      <span className="flex items-center gap-1.5 text-[11px] text-info">
+                        <span className="loading loading-spinner loading-xs" />
+                        Aguardando autorização no GitHub...
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between bg-base-200/80 px-4 py-2.5 rounded-lg border border-base-300">
+                    <span className="font-mono text-base font-extrabold tracking-widest text-primary">
+                      {ghUserCode}
+                    </span>
+                    <button
+                      onClick={copyGithubCode}
+                      className="btn btn-ghost btn-xs gap-1 text-base-content/70"
+                    >
+                      {ghCopiedCode ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{ghCopiedCode ? 'Copiado!' : 'Copiar'}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <a
+                      href={ghVerifyUri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-primary btn-sm gap-1.5 w-full justify-center"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Abrir {ghVerifyUri.replace('https://', '')} e Colar Código
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Opção 2: Personal Access Token (PAT) */}
+            <div className="p-4 rounded-xl bg-base-200/30 border border-base-300 space-y-2.5">
+              <h4 className="font-semibold text-base-content">
+                Opção 2: Personal Access Token (PAT)
+              </h4>
+              <p className="text-base-content/60 text-[11px]">
+                Se preferir usar um token próprio, cole um token com permissões <code className="bg-base-200 px-1 py-0.5 rounded font-mono">repo</code> e <code className="bg-base-200 px-1 py-0.5 rounded font-mono">workflow</code>:
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  placeholder="ghp_... ou gho_..."
+                  value={ghPatInput}
+                  onChange={(e) => setGhPatInput(e.target.value)}
+                  className="input input-sm input-bordered flex-1 bg-base-100 font-mono text-xs"
+                />
+                <button
+                  onClick={handleSaveGithubToken}
+                  disabled={loading || !ghPatInput.trim()}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {loading ? <span className="loading loading-spinner loading-xs" /> : 'Salvar Token'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

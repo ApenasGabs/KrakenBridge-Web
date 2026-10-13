@@ -63,6 +63,12 @@ export interface AccountInfo {
   isActive: boolean;
 }
 
+export interface GithubAuthStatus {
+  authenticated: boolean;
+  username?: string;
+  hasToken?: boolean;
+}
+
 export interface AuthStatus {
   authenticated: boolean;
   email?: string;
@@ -71,6 +77,7 @@ export interface AuthStatus {
   hasApiKey: boolean;
   isKeyValid: boolean;
   type?: string;
+  github?: GithubAuthStatus;
 }
 
 export interface ModelOption {

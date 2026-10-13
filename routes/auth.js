@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { accountService } from '../services/accountService.js';
 import { quotaService } from '../services/quotaService.js';
+import { githubAuthService } from '../services/githubAuthService.js';
 
 export const authRouter = Router();
 
@@ -57,6 +58,7 @@ authRouter.get('/status', async (req, res) => {
   }
 
   const isAuth = agyInfo.authenticated || !!process.env.GEMINI_API_KEY;
+  const githubInfo = await githubAuthService.getStatus();
 
   res.json({
     authenticated: isAuth,
@@ -66,6 +68,7 @@ authRouter.get('/status', async (req, res) => {
     hasApiKey: !!process.env.GEMINI_API_KEY,
     isKeyValid: isAuth,
     antigravity: agyInfo,
+    github: githubInfo,
     claude: { hasKey: !!process.env.ANTHROPIC_API_KEY },
     aider: { hasKey: !!process.env.OPENAI_API_KEY }
   });
@@ -339,3 +342,65 @@ authRouter.post('/keys', async (req, res) => {
     aider: !!process.env.OPENAI_API_KEY
   });
 });
+
+// ==========================================
+// ENDPOINTS GITHUB AUTH & CLI CONFIGURATION
+// ==========================================
+
+// Obter status do GitHub CLI
+authRouter.get('/github/status', async (req, res) => {
+  try {
+    const status = await githubAuthService.getStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Iniciar fluxo OAuth Device Code do GitHub
+authRouter.post('/github/device/start', async (req, res) => {
+  try {
+    const data = await githubAuthService.startDeviceFlow();
+    res.json({
+      success: true,
+      userCode: data.userCode,
+      verificationUri: data.verificationUri,
+      interval: data.interval
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Polling do código do dispositivo
+authRouter.get('/github/device/poll', async (req, res) => {
+  try {
+    const result = await githubAuthService.pollToken();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: err.message });
+  }
+});
+
+// Salvar PAT diretamente (opção alternativa)
+authRouter.post('/github/token', async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token) return res.status(400).json({ error: 'Token não informado.' });
+    const result = await githubAuthService.saveToken(token);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Desconectar GitHub CLI
+authRouter.post('/github/logout', async (req, res) => {
+  try {
+    await githubAuthService.logout();
+    res.json({ success: true, message: 'GitHub desconectado com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
