@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { AuthStatus, SessionUsage } from '../../types';
 import ThemeSelector from '../ThemeSelector/ThemeSelector';
 import { 
@@ -12,7 +11,8 @@ import {
   AlertCircle,
   Boxes,
   Activity,
-  MoreVertical
+  MoreVertical,
+  Palette
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -45,7 +45,6 @@ export const Header: React.FC<HeaderProps> = ({
   mcpCount
 }) => {
   const isAuthOk = authStatus?.authenticated || authStatus?.isKeyValid;
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
     <header className="navbar bg-base-100 border-b border-base-300 px-2 sm:px-4 min-h-14 gap-1.5 sm:gap-2 z-20">
@@ -78,42 +77,41 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-status"
             onClick={() => onTabChange('status')}
-            className={`px-2 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'status' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
             }`}
             title="Status Operacional, Métricas de IA e Malha de Agentes"
           >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Status</span>
+            <Activity className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden min-[400px]:inline sm:inline">Status</span>
           </button>
 
           <button
             data-testid="tab-chat"
             onClick={() => onTabChange('chat')}
-            className={`px-2 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'chat' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
             }`}
           >
-            <Bot className="w-3.5 h-3.5" />
-            <span>Chat</span>
+            <Bot className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden min-[400px]:inline sm:inline">Chat</span>
           </button>
 
           <button
             data-testid="tab-ide"
             onClick={() => onTabChange('ide')}
-            className={`px-2 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'ide' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
             }`}
           >
-            <Code2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">IDE</span>
-            <span className="sm:hidden">IDE</span>
+            <Code2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden min-[400px]:inline sm:inline">IDE</span>
           </button>
         </div>
       </div>
@@ -207,64 +205,63 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
-        {/* Seletor de Tema */}
+        {/* Seletor de Tema Desktop */}
         <div className="border-l border-base-300 pl-1 shrink-0">
-          <ThemeSelector />
+          <ThemeSelector drawerId="theme-drawer" />
         </div>
       </div>
 
-      {/* Lado Direito Mobile: Conta/Auth + Tokens + Tema + Menu Dropdown [...] */}
-      <div className="flex md:hidden items-center gap-1.5 shrink-0">
-        {/* Botão de Conta / Auth Direto no Mobile com excelente área de toque */}
+      {/* Lado Direito Mobile: Tokens + Tema + Auth + Menu Dropdown [...] */}
+      <div className="flex md:hidden items-center gap-1 shrink-0">
+        {/* Tokens Compacto */}
+        <button 
+          onClick={onToggleQuota}
+          className="btn btn-ghost btn-xs px-1.5 h-8 gap-1 font-mono text-[11px] rounded-lg"
+          title="Ver cotas e telemetria de tokens"
+        >
+          <Coins className="w-3.5 h-3.5 text-warning shrink-0" />
+          <span>{sessionUsage.sessionTotalTokens > 999 ? `${Math.round(sessionUsage.sessionTotalTokens / 1000)}k` : sessionUsage.sessionTotalTokens}</span>
+        </button>
+
+        {/* Seletor de Tema compacto no Mobile */}
+        <ThemeSelector drawerId="theme-drawer-mobile" compact />
+
+        {/* Botão de Conta / Auth Direto no Mobile */}
         <button
           onClick={onOpenAuth}
-          className={`btn btn-sm px-2 gap-1.5 rounded-xl border transition-all ${
+          className={`btn btn-ghost btn-xs btn-square h-8 w-8 rounded-lg border transition-all ${
             isAuthOk 
-              ? 'btn-ghost bg-success/10 border-success/30 text-success hover:bg-success/20' 
-              : 'btn-warning btn-outline'
+              ? 'bg-success/10 border-success/30 text-success' 
+              : 'border-warning/50 text-warning bg-warning/10'
           }`}
-          title="Gerenciar Contas e Trocar de Conta"
+          title="Gerenciar Contas e Autenticação"
         >
           {authStatus?.picture ? (
             <img src={authStatus.picture} alt="" className="w-4 h-4 rounded-full shrink-0" />
           ) : (
             <KeyRound className="w-3.5 h-3.5 shrink-0" />
           )}
-          {authStatus?.email && (
-            <span className="font-mono text-[10px] max-w-[70px] truncate sm:inline hidden">
-              {authStatus.email.split('@')[0]}
-            </span>
-          )}
         </button>
-
-        {/* Tokens Compacto */}
-        <button 
-          onClick={onToggleQuota}
-          className="btn btn-ghost btn-sm px-1.5 gap-1 font-mono text-[11px]"
-          title="Ver cotas"
-        >
-          <Coins className="w-3.5 h-3.5 text-warning" />
-          <span>{sessionUsage.sessionTotalTokens > 999 ? `${Math.round(sessionUsage.sessionTotalTokens / 1000)}k` : sessionUsage.sessionTotalTokens}</span>
-        </button>
-
-        {/* Seletor de Tema compacto */}
-        <ThemeSelector />
 
         {/* Menu Suspenso de Mais Opções para Mobile */}
         <div className="dropdown dropdown-end">
-          <button 
+          <div 
             tabIndex={0} 
-            className="btn btn-ghost btn-sm btn-square"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            role="button"
+            className="btn btn-ghost btn-xs btn-square h-8 w-8 rounded-lg flex items-center justify-center cursor-pointer"
+            title="Mais opções"
           >
             <MoreVertical className="w-4 h-4" />
-          </button>
+          </div>
           <ul 
             tabIndex={0} 
             className="dropdown-content menu z-50 p-2 shadow-2xl bg-base-100/98 backdrop-blur-md rounded-2xl w-56 border border-base-300 text-xs space-y-1 mt-2"
           >
             <li>
-              <button onClick={() => { onOpenAuth(); setIsMobileMenuOpen(false); }} className="flex items-center justify-between py-2.5 font-medium text-primary">
+              <button 
+                onClick={() => { onOpenAuth(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center justify-between py-2.5 font-medium text-primary"
+              >
                 <span className="flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-warning" />
                   Trocar de Conta / Auth
@@ -277,7 +274,10 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </li>
             <li>
-              <button onClick={() => { onOpenMcp?.(); setIsMobileMenuOpen(false); }} className="flex items-center justify-between py-2">
+              <button 
+                onClick={() => { onOpenMcp?.(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center justify-between py-2"
+              >
                 <span className="flex items-center gap-2">
                   <Boxes className="w-4 h-4 text-emerald-400" />
                   Servidores MCP
@@ -288,16 +288,32 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </li>
             <li>
-              <button onClick={() => { onToggleOptions(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 py-2">
+              <button 
+                onClick={() => { onToggleOptions(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center gap-2 py-2"
+              >
                 <SlidersHorizontal className="w-4 h-4 text-primary" />
                 Parâmetros do Agente
               </button>
             </li>
             <li>
-              <button onClick={() => { onToggleQuota?.(); setIsMobileMenuOpen(false); }} className="flex items-center gap-2 py-2">
-                <Coins className="w-4 h-4 text-warning" />
+              <button 
+                onClick={() => { onToggleQuota?.(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center gap-2 py-2"
+              >
+                <Coins className="w-3.5 h-3.5 text-warning" />
                 Painel de Cotas
               </button>
+            </li>
+            <li>
+              <label
+                htmlFor="theme-drawer-mobile"
+                onClick={() => (document.activeElement as HTMLElement)?.blur()}
+                className="flex items-center gap-2 py-2 cursor-pointer"
+              >
+                <Palette className="w-4 h-4 text-secondary" />
+                <span>Temas da Interface</span>
+              </label>
             </li>
           </ul>
         </div>
