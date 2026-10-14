@@ -17,7 +17,7 @@ conversationsRouter.get('/', async (req, res) => {
 
 // Criar nova conversa
 conversationsRouter.post('/', async (req, res) => {
-  const { title, agent, model, effort, mode, subproject } = req.body;
+  const { title, agent, model, effort, mode, subproject, tags } = req.body;
   const id = randomUUID();
   const session = await historyService.save({
     id,
@@ -27,6 +27,7 @@ conversationsRouter.post('/', async (req, res) => {
     effort: effort || 'high',
     mode: mode || 'default',
     subproject: subproject || '',
+    tags: Array.isArray(tags) ? tags : [],
     messages: []
   });
   res.json({ session });
@@ -42,13 +43,13 @@ conversationsRouter.get('/:id', async (req, res) => {
   res.json({ session });
 });
 
-// Renomear ou atualizar conversa (título e/ou subprojeto)
+// Renomear ou atualizar conversa (título, subprojeto e/ou tags)
 conversationsRouter.patch('/:id', async (req, res) => {
-  const { title, subproject } = req.body;
-  if (!title && subproject === undefined) {
-    return res.status(400).json({ error: 'Nenhum campo fornecido para atualização (title ou subproject)' });
+  const { title, subproject, tags } = req.body;
+  if (!title && subproject === undefined && tags === undefined) {
+    return res.status(400).json({ error: 'Nenhum campo fornecido para atualização (title, subproject ou tags)' });
   }
-  const updated = await historyService.update(req.params.id, { title, subproject });
+  const updated = await historyService.update(req.params.id, { title, subproject, tags });
   if (!updated) return res.status(404).json({ error: 'Conversa não encontrada' });
   res.json({ session: updated });
 });

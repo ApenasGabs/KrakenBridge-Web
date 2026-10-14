@@ -138,6 +138,12 @@ async function syncAntigravityConversations() {
         if (currentAssistant) messages.push(currentAssistant);
       } catch {}
 
+      const tags = extractContextualTags({
+        messages,
+        subproject,
+        title: sum.title || sum.preview
+      });
+
       const sessionData = {
         id: convId,
         agyConvId: convId,
@@ -147,6 +153,7 @@ async function syncAntigravityConversations() {
         effort: 'high',
         mode: 'default',
         subproject,
+        tags,
         createdAt: sum.last_modified_time,
         updatedAt: sum.last_modified_time,
         messages
@@ -227,9 +234,75 @@ function detectProjectFromText(text, projects) {
   return null;
 }
 
+function cleanUserText(text) {
+  if (!text) return '';
+  let clean = text;
+  // Remove diretivas de sistema injetadas para não poluir a análise contextual
+  clean = clean.replace(/\[DIRETIVA_DO_SISTEMA[\s\S]*?\]:?\s*/gi, '');
+  clean = clean.replace(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/i, '$1');
+  return clean;
+}
+
+/**
+ * Analisa dinamicamente o contexto real da conversa (mensagens, chamadas de ferramentas, intenção)
+ * para derivar tags inteligentes que representam o assunto real e não apenas a pasta do arquivo.
+ */
+function extractContextualTags({ messages = [], subproject = '', title = '', toolCalls = [] }) {
+  let combined = (title + ' ' + (subproject || '') + ' ').toLowerCase();
+
+  for (const m of messages) {
+    if (m.role === 'user') {
+      combined += ' ' + cleanUserText(m.text).slice(0, 1000);
+    } else if (m.role === 'assistant') {
+      combined += ' ' + (m.text || '').slice(0, 1000);
+    }
+  }
+
+  for (const tc of toolCalls) {
+    if (tc.name) combined += ' ' + tc.name;
+    if (tc.command) combined += ' ' + tc.command.slice(0, 200);
+    if (tc.parameters) {
+      if (tc.parameters.CommandLine) combined += ' ' + tc.parameters.CommandLine.slice(0, 200);
+      if (tc.parameters.TargetFile) combined += ' ' + tc.parameters.TargetFile;
+    }
+  }
+
+  const tags = new Set();
+
+  // 1. Domínios de Projetos e Negócio
+  if (/(?:^|\W)(?:estoque|produtos|suprimento|compras|invent[aá]rio|barcode|meuestoque|receitas-estoque)(?:$|\W)/i.test(combined)) tags.add('estoque');
+  if (/(?:^|\W)(?:homelab|zimaos|casaos|servidor|zima|nas|portainer)(?:$|\W)/i.test(combined)) tags.add('homelab');
+  if (/(?:^|\W)(?:tfla|sponte|scheduling|agendamento)(?:$|\W)/i.test(combined)) tags.add('tfla');
+  if (/(?:^|\W)(?:crawler|scraper|vagas|scraping|coletor|puppeteer|cheerio|querovagas)(?:$|\W)/i.test(combined)) tags.add('vagas');
+  if (/(?:^|\W)(?:fiis|fundos|dividendos|querofiis)(?:$|\W)/i.test(combined)) tags.add('fiis');
+  if (/(?:^|\W)(?:rea|reverse.?engineer|decompile|decompil|ghidra|apktool)(?:$|\W)/i.test(combined)) tags.add('reverse-eng');
+  if (/(?:^|\W)(?:kraken|auto.evol|pod drain|self.reload|modifi.*si mesm)(?:$|\W)/i.test(combined)) tags.add('auto-evolução');
+  if (/(?:^|\W)(?:bot|telegram|discord|g_abot|gamapper)(?:$|\W)/i.test(combined)) tags.add('bot');
+
+  // 2. Stacks & Tecnologias
+  if (/(?:^|\W)(?:docker|docker-compose|compose\.yml|container|dockerfile|daemon|podman)(?:$|\W)/i.test(combined)) tags.add('docker');
+  if (/(?:^|\W)(?:supabase|postgres|postgresql|drizzle|migration|rls)(?:$|\W)/i.test(combined)) tags.add('supabase');
+  if (/(?:^|\W)(?:react|vite|daisyui|tailwind|frontend|css|component)(?:$|\W)/i.test(combined)) tags.add('frontend');
+  if (/(?:^|\W)(?:express|api|endpoint|rest|backend|rota|router)(?:$|\W)/i.test(combined)) tags.add('api');
+  if (/(?:^|\W)(?:oauth|token|jwt|auth|senha|login|pin\b)(?:$|\W)/i.test(combined)) tags.add('auth');
+  if (/(?:^|\W)(?:mcp|model context protocol|call_mcp)(?:$|\W)/i.test(combined)) tags.add('mcp');
+  if (/(?:^|\W)(?:git\b|commit|pull request|rebase|branch|reposit[oó]rio)(?:$|\W)/i.test(combined)) tags.add('git');
+  if (/(?:^|\W)(?:anytype|runbook|cat[aá]logo)(?:$|\W)/i.test(combined)) tags.add('anytype');
+
+  // 3. Intenção & Natureza da Tarefa
+  if (/(?:^|\W)(?:bug|fix|corrig|erro|falha|exception|problem|consert)(?:$|\W)/i.test(combined)) tags.add('bugfix');
+  if (/(?:^|\W)(?:feature|implement|criad|nova funcionalidade|adicion)(?:$|\W)/i.test(combined)) tags.add('feature');
+  if (/(?:^|\W)(?:refactor|refatora|reorganiz|limpar c[oó]digo|otimiz)(?:$|\W)/i.test(combined)) tags.add('refactor');
+  if (/(?:^|\W)(?:infra|deploy|proxy|nginx|caddy|network|rede)(?:$|\W)/i.test(combined)) tags.add('infra');
+  if (/(?:^|\W)(?:documenta|readme|manual)(?:$|\W)/i.test(combined)) tags.add('docs');
+
+  return Array.from(tags).slice(0, 4);
+}
+
 export const historyService = {
   getAvailableProjects,
   detectProject: detectProjectFromText,
+  extractContextualTags,
 
   async list() {
     await ensureDir();
@@ -245,6 +318,8 @@ export const historyService = {
           const content = await fs.readFile(path.join(SESSIONS_DIR, file), 'utf8');
           const data = JSON.parse(content);
           let subproject = data.subproject || '';
+          let tags = Array.isArray(data.tags) ? data.tags : [];
+          let hasMutated = false;
 
           // Se a sessão não tiver subprojeto definido, tenta auto-detectar pela primeira mensagem
           if (!subproject && Array.isArray(data.messages) && data.messages.length > 0) {
@@ -254,10 +329,28 @@ export const historyService = {
               if (detected) {
                 subproject = detected;
                 data.subproject = detected;
-                // Salvar em background para persistir no arquivo
-                fs.writeFile(path.join(SESSIONS_DIR, file), JSON.stringify(data, null, 2), 'utf8').catch(() => {});
+                hasMutated = true;
               }
             }
+          }
+
+          // Se não houver tags definidas, extrai dinamicamente a partir do contexto da conversa
+          if (tags.length === 0 && Array.isArray(data.messages) && data.messages.length > 0) {
+            const autoTags = extractContextualTags({
+              messages: data.messages,
+              subproject,
+              title: data.title
+            });
+            if (autoTags.length > 0) {
+              tags = autoTags;
+              data.tags = autoTags;
+              hasMutated = true;
+            }
+          }
+
+          if (hasMutated) {
+            // Salvar em background para persistir no arquivo
+            fs.writeFile(path.join(SESSIONS_DIR, file), JSON.stringify(data, null, 2), 'utf8').catch(() => {});
           }
 
           list.push({
@@ -269,6 +362,7 @@ export const historyService = {
             mode: data.mode || 'default',
             chatMode: data.chatMode || 'agent',
             subproject: subproject,
+            tags: tags,
             agyConvId: data.agyConvId || null,
             createdAt: data.createdAt,
             updatedAt: data.updatedAt,
@@ -316,6 +410,7 @@ export const historyService = {
       mode: session.mode || (existing && existing.mode) || 'default',
       chatMode: session.chatMode || (existing && existing.chatMode) || 'agent',
       subproject: session.subproject || (existing && existing.subproject) || '',
+      tags: Array.isArray(session.tags) ? session.tags : (existing && Array.isArray(existing.tags) ? existing.tags : []),
       createdAt: (existing && existing.createdAt) || now,
       updatedAt: now,
       messages: session.messages || (existing && existing.messages) || []
@@ -393,6 +488,13 @@ export const historyService = {
     if (!session) return null;
     if (updates.title !== undefined) session.title = updates.title.trim();
     if (updates.subproject !== undefined) session.subproject = updates.subproject.trim();
+    if (updates.tags !== undefined) {
+      if (Array.isArray(updates.tags)) {
+        session.tags = updates.tags.map(t => String(t).trim().replace(/^#/, '')).filter(Boolean);
+      } else if (typeof updates.tags === 'string') {
+        session.tags = updates.tags.split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean);
+      }
+    }
     return this.save(session);
   },
 

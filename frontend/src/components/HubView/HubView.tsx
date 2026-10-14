@@ -57,6 +57,7 @@ const HubFlowContent: React.FC<HubViewProps> = ({
         return (
           c.title.toLowerCase().includes(term) ||
           (c.subproject && c.subproject.toLowerCase().includes(term)) ||
+          (c.tags && c.tags.some(t => t.toLowerCase().includes(term))) ||
           (c.model && c.model.toLowerCase().includes(term))
         );
       }

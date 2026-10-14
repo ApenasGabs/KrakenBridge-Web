@@ -29,6 +29,8 @@ interface ChatViewProps {
   projects?: ProjectWorkspace[];
   subproject?: string;
   onSubprojectChange?: (subproject: string) => void;
+  // Tags contextuais dinâmicas
+  tags?: string[];
   // Modo de Operação
   chatMode?: 'agent' | 'chat';
   onChatModeChange?: (mode: 'agent' | 'chat') => void;
@@ -56,6 +58,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   projects = [],
   subproject = '',
   onSubprojectChange,
+  tags = [],
   chatMode = 'agent',
   onChatModeChange
 }) => {
@@ -173,6 +176,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
               </>
             )}
           </div>
+
+          {tags && tags.length > 0 && (
+            <div className="flex items-center gap-1 overflow-x-auto max-w-[200px] sm:max-w-xs scrollbar-none py-0.5 ml-1">
+              {tags.map(tag => (
+                <span key={tag} className="badge badge-primary/15 text-primary border-primary/25 badge-xs text-[9.5px] font-mono shrink-0">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Indicador de Fila se houver mensagens pendentes */}

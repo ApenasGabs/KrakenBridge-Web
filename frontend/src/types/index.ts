@@ -50,6 +50,7 @@ export interface ConversationSession {
   agent?: string;
   model?: string;
   subproject?: string;
+  tags?: string[];
   agyConvId?: string;
   chatMode?: 'agent' | 'chat';
   accountEmail?: string;

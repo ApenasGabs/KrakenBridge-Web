@@ -277,6 +277,11 @@ export const App: React.FC = () => {
     updateMessageQueue([]);
   }, [updateMessageQueue]);
 
+  // Conversa ativa selecionada
+  const activeConversation = useMemo(() => {
+    return conversations.find(c => c.id === activeConvId);
+  }, [conversations, activeConvId]);
+
   // Fila filtrada para a conversa ativa atual
   const currentConversationQueue = useMemo(() => {
     return messageQueue.filter(m => !m.conversationId || m.conversationId === activeConvId);
@@ -360,6 +365,9 @@ export const App: React.FC = () => {
             }
             if (data.subproject) {
               setOptions(prev => ({ ...prev, subproject: data.subproject || prev.subproject }));
+            }
+            if (data.tags) {
+              setConversations(prev => prev.map(c => c.id === data.conversation_id ? { ...c, tags: data.tags } : c));
             }
             loadConversations();
           },
@@ -695,6 +703,7 @@ export const App: React.FC = () => {
             projects={projects}
             subproject={options.subproject}
             onSubprojectChange={handleSubprojectChange}
+            tags={activeConversation?.tags || []}
             chatMode={options.chatMode || 'agent'}
             onChatModeChange={(chatMode) => handleUpdateOptions({ ...options, chatMode })}
           />

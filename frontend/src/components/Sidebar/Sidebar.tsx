@@ -47,6 +47,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const term = searchTerm.toLowerCase();
     return conversations.filter(c => 
       c.title.toLowerCase().includes(term) ||
+      (c.subproject && c.subproject.toLowerCase().includes(term)) ||
+      (c.tags && c.tags.some(t => t.toLowerCase().includes(term))) ||
       (c.lastMessageSnippet && c.lastMessageSnippet.toLowerCase().includes(term))
     );
   }, [conversations, searchTerm]);
@@ -162,19 +164,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         }
                       `}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <MessageSquare className={`w-4 h-4 shrink-0 ${isActive ? 'text-primary' : 'text-base-content/40'}`} />
-                        <span className="truncate">{item.title || 'Conversa sem título'}</span>
-                        {item.subproject && (
-                          <span className="badge badge-ghost badge-xs text-[9px] opacity-70 shrink-0 font-mono border-base-300">
-                            {item.subproject}
-                          </span>
-                        )}
-                        {item.isRunning && (
-                          <span className="relative flex h-2 w-2 shrink-0 ml-1" title="Executando em segundo plano">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                          </span>
+                      <div className="flex flex-col min-w-0 flex-1 gap-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-primary' : 'text-base-content/40'}`} />
+                          <span className="truncate">{item.title || 'Conversa sem título'}</span>
+                          {item.isRunning && (
+                            <span className="relative flex h-2 w-2 shrink-0 ml-1" title="Executando em segundo plano">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                            </span>
+                          )}
+                        </div>
+                        {((item.tags && item.tags.length > 0) || item.subproject) && (
+                          <div className="flex items-center gap-1 overflow-x-hidden pl-5 flex-wrap">
+                            {item.subproject && (
+                              <span className="badge badge-ghost badge-xs text-[9px] opacity-70 shrink-0 font-mono border-base-300">
+                                {item.subproject}
+                              </span>
+                            )}
+                            {item.tags?.slice(0, 3).map(tag => (
+                              <span key={tag} className="badge badge-primary/15 text-primary border-primary/25 badge-xs text-[8.5px] font-mono shrink-0">
+                                #{tag}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
                       <button

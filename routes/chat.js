@@ -200,10 +200,14 @@ chatRouter.post('/', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
+  const activeTags = existingSession?.tags || [];
+
   // Diretiva de Identidade (Kraken) e Modo Operacional
   const systemDirective = await identityService.buildSystemDirective({
     conversationId,
-    activeChatMode
+    activeChatMode,
+    subproject: activeSubproject,
+    tags: activeTags
   });
 
   const effectivePrompt = `${systemDirective}${prompt}`;
@@ -264,8 +268,8 @@ chatRouter.post('/', async (req, res) => {
     }
   };
 
-  // Enviar evento de início com os IDs e subprojeto resolvido
-  safeWrite(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId, subproject: activeSubproject, chatMode: activeChatMode })}\n\n`);
+  // Enviar evento de início com os IDs, subprojeto resolvido e tags ativas
+  safeWrite(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId, subproject: activeSubproject, chatMode: activeChatMode, tags: activeTags })}\n\n`);
 
   // Keep-alive heartbeat para conexões de longa duração
   const pingInterval = setInterval(() => {
@@ -479,6 +483,26 @@ chatRouter.post('/', async (req, res) => {
       } catch (err) {
         console.warn('[KrakenBridge] Falha ao registrar cota:', err.message);
       }
+    }
+
+    // Atualização dinâmica de tags contextuais ao término do turno
+    try {
+      const sess = await historyService.get(conversationId);
+      if (sess && Array.isArray(sess.messages) && sess.messages.length > 0) {
+        const dynamicTags = historyService.extractContextualTags({
+          messages: sess.messages,
+          subproject: activeSubproject,
+          title: sess.title,
+          toolCalls
+        });
+        if (dynamicTags && dynamicTags.length > 0) {
+          const merged = Array.from(new Set([...(sess.tags || []), ...dynamicTags]));
+          sess.tags = merged;
+          await historyService.save(sess);
+        }
+      }
+    } catch (tagErr) {
+      console.warn('[KrakenBridge] Aviso ao atualizar tags contextuais:', tagErr.message);
     }
 
     safeWrite(`data: ${JSON.stringify({ event: 'done', code, conversation_id: conversationId })}\n\n`);

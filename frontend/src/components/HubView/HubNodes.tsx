@@ -181,6 +181,16 @@ export const AgentNode = memo(({ data }: { data: AgentNodeData }) => {
         )}
       </div>
 
+      {conv.tags && conv.tags.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap mt-1">
+          {conv.tags.slice(0, 3).map(tag => (
+            <span key={tag} className="badge badge-primary/15 text-primary border-primary/25 badge-xs text-[8.5px] font-mono">
+              #{tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 text-[10px] text-base-content/60 font-mono mt-2 pt-1.5 border-t border-base-200/80">
         <span className="bg-base-200/80 px-1.5 py-0.5 rounded text-sky-400 font-medium truncate max-w-[90px]">
           {shortModel}
