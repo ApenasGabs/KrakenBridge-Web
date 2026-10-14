@@ -279,7 +279,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
               }
             }}
           >
-            {message.text}
+            {message.text || (!message.isStreaming && !isUser ? (message.thinking ? '*(Resposta concluída no acordeão de raciocínio acima)*' : '*(Sem resposta de texto emitida)*') : '')}
           </ReactMarkdown>
 
           {message.isStreaming && (

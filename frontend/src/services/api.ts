@@ -369,10 +369,17 @@ export const api = {
             callbacks.onAuthRequired?.(parsed);
           } else if (parsed.event === 'step_update' && parsed.step_update) {
             const su = parsed.step_update;
-            if (su.step_type === 'agent_response' && su.text_delta) {
-              callbacks.onTextDelta?.(su.text_delta);
-            } else if (su.step_type === 'thinking' && su.text_delta) {
-              callbacks.onThinkingDelta?.(su.text_delta);
+            if (su.step_type === 'agent_response') {
+              if (su.text_delta) {
+                callbacks.onTextDelta?.(su.text_delta);
+              }
+              if (su.thinking_delta) {
+                callbacks.onThinkingDelta?.(su.thinking_delta);
+              }
+            } else if (su.step_type === 'thinking') {
+              if (su.thinking_delta || su.text_delta) {
+                callbacks.onThinkingDelta?.(su.thinking_delta || su.text_delta);
+              }
             } else if (su.step_type === 'tool') {
               const params = su.tool_info?.parameters || {};
               const command = params.CommandLine 

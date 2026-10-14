@@ -200,6 +200,9 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
+  if (typeof res.flushHeaders === 'function') {
+    res.flushHeaders();
+  }
 
   const activeTags = existingSession?.tags || [];
 
@@ -479,6 +482,15 @@ chatRouter.post('/', async (req: Request, res: Response) => {
       }
     }
 
+    // Se nenhum texto foi gerado, mas houve pensamento ou interrupção, não deixa o balão vazio
+    if (!accumulatedText || accumulatedText.trim() === '') {
+      if (thinkingText && thinkingText.trim()) {
+        accumulatedText = thinkingText;
+      } else if (code !== 0 && code !== null) {
+        accumulatedText = `⚠️ A execução foi interrompida (código ${code}) antes de emitir resposta.`;
+      }
+    }
+
     // Salvar estado final do assistente no histórico
     try {
       await historyService.updateLastAssistantMessage(conversationId, {
@@ -570,29 +582,14 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   });
 
   // Quando o cliente desconecta (fecha aba, muda de tela ou recarrega a página)
+  // O processo segue rodando em segundo plano para completar sua tarefa e salvar no histórico.
   res.on('close', () => {
     clearInterval(pingInterval);
     const session = activeSessions.get(conversationId);
     if (session && session.res === res) {
       session.res = null;
     }
-    console.log(`[KrakenBridge] SSE desconectado pelo cliente para conv: ${conversationId} (processo ${child.pid} com salvaguarda de 2m)`);
-
-    // Salvaguarda: se em 2 minutos o cliente não reconectar e o processo continuar rodando, encerra para poupar a CPU/RAM do host
-    setTimeout(() => {
-      const current = activeSessions.get(conversationId);
-      if (current && !current.res && current.child && !current.child.killed && current.child.exitCode === null) {
-        console.log(`[KrakenBridge] Salvaguarda de recursos: encerrando processo órfão ${current.child.pid} da conversa ${conversationId}`);
-        try {
-          current.child.kill('SIGTERM');
-          setTimeout(() => {
-            try {
-              if (!current.child.killed && current.child.exitCode === null) current.child.kill('SIGKILL');
-            } catch {}
-          }, 500);
-        } catch {}
-      }
-    }, 120000);
+    console.log(`[KrakenBridge] SSE desconectado pelo cliente para conv: ${conversationId} (processo ${child.pid} segue em segundo plano até concluir)`);
   });
 });
 
