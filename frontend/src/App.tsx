@@ -16,7 +16,7 @@ import { Header } from './components/Navbar/Header';
 import { OptionsBar } from './components/OptionsBar/OptionsBar';
 import { ChatView } from './components/ChatView/ChatView';
 import { IdeView } from './components/IdeView/IdeView';
-import { HubView } from './components/HubView/HubView';
+import { StatusView } from './components/StatusView/StatusView';
 import { AuthModal } from './components/AuthModal/AuthModal';
 import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 import { McpModal } from './components/McpModal/McpModal';
@@ -37,8 +37,8 @@ export const App: React.FC = () => {
   // Segurança por PIN
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
-  // Layout & Abas (Inicia no Hub de Topologia por padrão)
-  const [activeTab, setActiveTab] = useState<'hub' | 'chat' | 'ide'>('hub');
+  // Layout & Abas (Inicia no Status por padrão)
+  const [activeTab, setActiveTab] = useState<'status' | 'chat' | 'ide'>('status');
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
@@ -662,9 +662,9 @@ export const App: React.FC = () => {
           isOpen={isOptionsOpen}
         />
 
-        {/* Visão de Malha (Hub) vs Visão de Chat vs Visão de IDE */}
-        {activeTab === 'hub' ? (
-          <HubView
+        {/* Visão de Status (Malha & Métricas) vs Visão de Chat vs Visão de IDE */}
+        {activeTab === 'status' ? (
+          <StatusView
             conversations={conversations}
             projects={projects}
             workspaceDir={workspaceDir}

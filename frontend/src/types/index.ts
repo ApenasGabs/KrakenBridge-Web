@@ -146,27 +146,61 @@ export interface QuotaWindowStats {
   percent?: number;
 }
 
+export interface DailyIntensityPoint {
+  day: string;
+  totalTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  thinkingTokens: number;
+  turnsCount: number;
+  intensity: 0 | 1 | 2 | 3 | 4;
+}
+
+export interface StatsAggregates {
+  totalTokensAllTime: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalThinkingTokens: number;
+  totalRecordedTurns: number;
+  totalAgentTimeMs: number;
+  firstEventAt: string | null;
+  activeDays: number;
+}
+
 export interface QuotaStats {
   source?: string;
   lastOfficialSync?: string;
+  lastFetchedAt?: string;
   gemini: QuotaModelGroup;
   claudeGpt: QuotaModelGroup;
+  aggregates?: StatsAggregates;
+  dailyPoints?: DailyIntensityPoint[];
+  bestDay?: { day: string; totalTokens: number } | null;
+  activeDays?: number;
+  recentDaily?: DailyIntensityPoint[];
+  workspaceBreakdown?: Record<string, { totalTokens: number; count: number }>;
   tokens?: {
     hourly: QuotaWindowStats;
     daily: QuotaWindowStats;
     weekly: QuotaWindowStats;
     modelBreakdown: Record<string, { totalTokens: number; count: number }>;
+    workspaceBreakdown?: Record<string, { totalTokens: number; count: number }>;
     recentTurns: Array<{
       id: string;
       timestamp: string;
       agent: string;
       model: string;
+      subproject?: string;
+      durationMs?: number;
       input_tokens: number;
       output_tokens: number;
       thinking_tokens: number;
       total_tokens: number;
     }>;
     totalRecordedTurns: number;
+    dailyPoints?: DailyIntensityPoint[];
+    bestDay?: { day: string; totalTokens: number } | null;
+    aggregates?: StatsAggregates;
   };
 }
 

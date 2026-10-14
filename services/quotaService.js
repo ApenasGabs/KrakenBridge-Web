@@ -182,7 +182,18 @@ class QuotaService {
   /**
    * Registra o consumo de um turno
    */
-  async recordUsage({ model = 'gemini-3.8-flash-high', agent = 'antigravity', input_tokens = 0, output_tokens = 0, thinking_tokens = 0, total_tokens = 0, timestamp }) {
+  async recordUsage({ 
+    model = 'gemini-3.8-flash-high', 
+    agent = 'antigravity', 
+    subproject = '',
+    conversationId = null,
+    durationMs = 0,
+    input_tokens = 0, 
+    output_tokens = 0, 
+    thinking_tokens = 0, 
+    total_tokens = 0, 
+    timestamp 
+  }) {
     await this.init();
 
     const total = Number(total_tokens) || ((Number(input_tokens) || 0) + (Number(output_tokens) || 0) + (Number(thinking_tokens) || 0));
@@ -192,6 +203,9 @@ class QuotaService {
       timestamp: timestamp || new Date().toISOString(),
       agent,
       model,
+      subproject: subproject || 'Geral',
+      conversationId: conversationId || null,
+      durationMs: Number(durationMs) || 0,
       input_tokens: Number(input_tokens) || 0,
       output_tokens: Number(output_tokens) || 0,
       thinking_tokens: Number(thinking_tokens) || 0,
@@ -269,6 +283,29 @@ class QuotaService {
     const daily = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0 };
     const weekly = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0 };
     const modelBreakdown = {};
+    const workspaceBreakdown = {};
+
+    let totalTokensAllTime = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
+    let totalThinkingTokens = 0;
+    let totalAgentTimeMs = 0;
+
+    // Mapa dos últimos 42 dias para o Heatmap (Orca style)
+    const DAY_COUNT = 42;
+    const dailyMap = new Map();
+    for (let i = DAY_COUNT - 1; i >= 0; i--) {
+      const d = new Date(now - i * 86400000);
+      const dayStr = d.toISOString().slice(0, 10);
+      dailyMap.set(dayStr, {
+        day: dayStr,
+        totalTokens: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        thinkingTokens: 0,
+        turnsCount: 0
+      });
+    }
 
     for (const item of this.records) {
       const time = new Date(item.timestamp).getTime();
@@ -276,6 +313,43 @@ class QuotaService {
       const inp = item.input_tokens || 0;
       const out = item.output_tokens || 0;
       const thk = item.thinking_tokens || 0;
+      const dur = item.durationMs || 0;
+      const model = item.model || 'desconhecido';
+      const subproject = item.subproject || 'Geral';
+
+      totalTokensAllTime += tokens;
+      totalInputTokens += inp;
+      totalOutputTokens += out;
+      totalThinkingTokens += thk;
+      totalAgentTimeMs += dur;
+
+      // Agregações por modelo
+      if (!modelBreakdown[model]) {
+        modelBreakdown[model] = { totalTokens: 0, count: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0 };
+      }
+      modelBreakdown[model].totalTokens += tokens;
+      modelBreakdown[model].count += 1;
+      modelBreakdown[model].inputTokens += inp;
+      modelBreakdown[model].outputTokens += out;
+      modelBreakdown[model].thinkingTokens += thk;
+
+      // Agregações por workspace
+      if (!workspaceBreakdown[subproject]) {
+        workspaceBreakdown[subproject] = { totalTokens: 0, count: 0 };
+      }
+      workspaceBreakdown[subproject].totalTokens += tokens;
+      workspaceBreakdown[subproject].count += 1;
+
+      // Mapa diário para o heatmap
+      const dayKey = (item.timestamp || '').slice(0, 10);
+      if (dailyMap.has(dayKey)) {
+        const dEntry = dailyMap.get(dayKey);
+        dEntry.totalTokens += tokens;
+        dEntry.inputTokens += inp;
+        dEntry.outputTokens += out;
+        dEntry.thinkingTokens += thk;
+        dEntry.turnsCount += 1;
+      }
 
       if (time >= sevenDaysAgo) {
         weekly.totalTokens += tokens;
@@ -283,12 +357,6 @@ class QuotaService {
         weekly.outputTokens += out;
         weekly.thinkingTokens += thk;
         weekly.count += 1;
-
-        if (!modelBreakdown[item.model]) {
-          modelBreakdown[item.model] = { totalTokens: 0, count: 0 };
-        }
-        modelBreakdown[item.model].totalTokens += tokens;
-        modelBreakdown[item.model].count += 1;
       }
 
       if (time >= oneDayAgo) {
@@ -308,7 +376,52 @@ class QuotaService {
       }
     }
 
-    const recentTurns = this.records.slice(-10).reverse();
+    // Calcula intensidade (0 a 4) e melhor dia (Best Day)
+    const rawDailyPoints = Array.from(dailyMap.values());
+    let maxDailyTokens = 0;
+    let bestDay = null;
+    let activeDays = 0;
+
+    for (const p of rawDailyPoints) {
+      if (p.totalTokens > maxDailyTokens) {
+        maxDailyTokens = p.totalTokens;
+        bestDay = { day: p.day, totalTokens: p.totalTokens };
+      }
+      if (p.totalTokens > 0) {
+        activeDays += 1;
+      }
+    }
+
+    const dailyPoints = rawDailyPoints.map(p => {
+      let intensity = 0;
+      if (p.totalTokens > 0) {
+        if (maxDailyTokens <= 0) {
+          intensity = 1;
+        } else {
+          const ratio = p.totalTokens / maxDailyTokens;
+          if (ratio >= 0.75) intensity = 4;
+          else if (ratio >= 0.5) intensity = 3;
+          else if (ratio >= 0.25) intensity = 2;
+          else intensity = 1;
+        }
+      }
+      return { ...p, intensity };
+    });
+
+    const recentDaily = dailyPoints.slice(-14);
+    const recentTurns = this.records.slice(-15).reverse();
+    const firstEventAt = this.records.length > 0 ? this.records[0].timestamp : null;
+
+    const aggregates = {
+      totalTokensAllTime,
+      totalInputTokens,
+      totalOutputTokens,
+      totalThinkingTokens,
+      totalRecordedTurns: this.records.length,
+      totalAgentTimeMs,
+      firstEventAt,
+      activeDays
+    };
 
     return {
       gemini: {
@@ -339,13 +452,23 @@ class QuotaService {
       },
       source: 'official_google',
       lastFetchedAt: this.lastAgyFetch ? new Date(this.lastAgyFetch).toISOString() : this.state.lastUpdated,
+      aggregates,
+      dailyPoints,
+      bestDay,
+      activeDays,
+      recentDaily,
+      workspaceBreakdown,
       tokens: {
         hourly,
         daily,
         weekly,
         modelBreakdown,
+        workspaceBreakdown,
         recentTurns,
-        totalRecordedTurns: this.records.length
+        totalRecordedTurns: this.records.length,
+        dailyPoints,
+        bestDay,
+        aggregates
       }
     };
   }

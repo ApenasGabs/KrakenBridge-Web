@@ -236,6 +236,8 @@ chatRouter.post('/', async (req, res) => {
 
   console.log(`[KrakenBridge] Motor: ${agent} | Conta: ${activeAccountEmail || 'padrão'} | Conv: ${conversationId} | Cwd: ${workDir} | Prompt: "${prompt.slice(0, 50)}..."`);
 
+  const executionStartTime = Date.now();
+
   const child = spawn(driver.cmd, args, {
     cwd: workDir,
     env: driver.buildEnv(processEnv)
@@ -246,7 +248,7 @@ chatRouter.post('/', async (req, res) => {
     reqId,
     child,
     res,
-    startTime: Date.now()
+    startTime: executionStartTime
   });
 
   // Função para envio seguro de SSE (não quebra caso o cliente desconecte)
@@ -423,6 +425,9 @@ chatRouter.post('/', async (req, res) => {
         await quotaService.recordUsage({
           model: model || 'gemini-3.8-flash-high',
           agent: agent || 'antigravity',
+          subproject: activeSubproject || 'Geral',
+          conversationId,
+          durationMs: Date.now() - executionStartTime,
           input_tokens: lastUsage.input_tokens,
           output_tokens: lastUsage.output_tokens,
           thinking_tokens: lastUsage.thinking_tokens,

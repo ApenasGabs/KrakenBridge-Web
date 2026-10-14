@@ -11,13 +11,13 @@ import {
   CheckCircle2, 
   AlertCircle,
   Boxes,
-  Network,
+  Activity,
   MoreVertical
 } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'hub' | 'chat' | 'ide';
-  onTabChange: (tab: 'hub' | 'chat' | 'ide') => void;
+  activeTab: 'status' | 'chat' | 'ide';
+  onTabChange: (tab: 'status' | 'chat' | 'ide') => void;
   onToggleSidebar: () => void;
   isOptionsOpen: boolean;
   onToggleOptions: () => void;
@@ -73,20 +73,19 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Tabs Centrais: Malha vs Chat vs IDE */}
+        {/* Tabs Centrais: Status vs Chat vs IDE */}
         <div className="inline-flex items-center bg-base-200/80 rounded-lg p-0.5 ml-0.5 sm:ml-2 shrink-0">
           <button
-            onClick={() => onTabChange('hub')}
+            onClick={() => onTabChange('status')}
             className={`px-2 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
-              activeTab === 'hub' 
+              activeTab === 'status' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
             }`}
-            title="Visão em Malha de Agentes e Projetos"
+            title="Status Operacional, Métricas de IA e Malha de Agentes"
           >
-            <Network className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Malha</span>
-            <span className="sm:hidden">Hub</span>
+            <Activity className="w-3.5 h-3.5" />
+            <span>Status</span>
           </button>
 
           <button
