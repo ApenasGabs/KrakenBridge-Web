@@ -37,7 +37,7 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, onSuccess }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4" data-testid="pin-modal">
       <div className="w-full max-w-sm bg-base-100 border border-base-300 rounded-2xl shadow-2xl p-6 text-center space-y-5 animate-in fade-in zoom-in-95 duration-200">
         <div className="w-14 h-14 bg-primary/10 text-primary mx-auto rounded-2xl flex items-center justify-center">
           <Lock className="w-7 h-7" />
@@ -63,6 +63,7 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, onSuccess }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">
             <input
+              data-testid="pin-input"
               type="password"
               inputMode="numeric"
               placeholder="Digite o PIN (ex: 0000)"
@@ -75,6 +76,7 @@ export const PinModal: React.FC<PinModalProps> = ({ isOpen, onSuccess }) => {
           </div>
 
           <button
+            data-testid="pin-submit-btn"
             type="submit"
             disabled={loading || !pin.trim()}
             className="btn btn-primary w-full gap-2 shadow-lg shadow-primary/20"

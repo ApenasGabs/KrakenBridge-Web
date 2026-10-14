@@ -479,6 +479,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           
           {/* Área de Digitação do Prompt */}
           <textarea
+            data-testid="chat-textarea"
             ref={textareaRef}
             rows={2}
             value={prompt}
@@ -672,6 +673,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
               ) : (
                 <button
+                  data-testid="chat-send-btn"
                   type="button"
                   onClick={() => {
                     if (isListening) stopListening();

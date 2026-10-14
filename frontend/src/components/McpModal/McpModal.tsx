@@ -118,7 +118,7 @@ export const McpModal: React.FC<McpModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="modal modal-open z-50">
+    <div className="modal modal-open z-50" data-testid="mcp-modal">
       <div className="modal-box w-11/12 max-w-2xl bg-base-100 border border-base-300 shadow-2xl p-4 sm:p-6 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header do Modal */}
@@ -147,6 +147,7 @@ export const McpModal: React.FC<McpModalProps> = ({ isOpen, onClose }) => {
               <RotateCw className="w-3.5 h-3.5" />
             </button>
             <button
+              data-testid="mcp-modal-close"
               onClick={onClose}
               className="btn btn-ghost btn-xs btn-circle text-base-content/70 hover:text-error"
             >
