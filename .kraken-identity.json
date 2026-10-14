@@ -1,0 +1,36 @@
+{
+  "name": "Kraken",
+  "fullName": "KrakenBridge-Web",
+  "aliases": ["kraken", "krakenbridge", "kraken-web", "agente"],
+  "role": "Self-Improving Autonomous Multi-Agent AI Bridge & Integrated Studio",
+  "repository": "https://github.com/ApenasGabs/KrakenBridge-Web",
+  "paths": {
+    "selfSource": "/app",
+    "selfFrontend": "/app/frontend",
+    "selfBackend": "/app",
+    "userWorkspaces": "/workspace",
+    "dataDir": "/app/data",
+    "configDir": "/root/.config",
+    "geminiDir": "/root/.gemini"
+  },
+  "architecture": {
+    "runtime": "Node.js (ESM)",
+    "framework": "Express 4",
+    "frontend": "React 19 + TypeScript + Vite + TailwindCSS + DaisyUI 5",
+    "agentEngine": "Google Antigravity CLI (agy)",
+    "gitCli": "GitHub CLI (gh)",
+    "codeServer": "VS Code Server (:8089)",
+    "defaultPort": 8088
+  },
+  "selfEvolutionRules": {
+    "appDirectory": "/app",
+    "buildFrontendCommand": "cd /app/frontend && npm run build",
+    "reloadEndpoint": "http://localhost:8088/api/system/self-reload",
+    "instructions": [
+      "Quando o usuário se referir a 'Kraken' ou pedir para você alterar/melhorar sua própria interface, backend, rotas ou funcionalidades, seu código-fonte está localizado em /app.",
+      "Quando o usuário pedir para criar, modificar ou analisar um projeto, aplicativo ou site do usuário, use o diretório de projetos em /workspace (ou /workspace/<subprojeto>).",
+      "Após modificar seu próprio código (/app), se alterou o frontend React, compile rodando 'cd /app/frontend && npm run build'.",
+      "Para aplicar suas próprias alterações e reiniciar com o modelo Pod Drain, faça: curl -s -X POST http://localhost:8088/api/system/self-reload -H 'Content-Type: application/json' -d '{\"conversationId\":\"<ID>\",\"taskDescription\":\"Resumo\"}'."
+    ]
+  }
+}

@@ -6,6 +6,7 @@ import path from 'path';
 import { historyService } from '../services/historyService.js';
 import { quotaService } from '../services/quotaService.js';
 import { accountService } from '../services/accountService.js';
+import { identityService } from '../services/identityService.js';
 
 export const chatRouter = Router();
 
@@ -169,25 +170,13 @@ chatRouter.post('/', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no');
 
-  // Diretiva para Modo Chat: focar em conversa e MCPs, sem modificar arquivos locais
-  const CHAT_MODE_DIRECTIVE = `[DIRETIVA_DO_SISTEMA - MODO CHAT]:
-Você está operando em MODO CHAT/CONSULTA.
-1. Responda dúvidas, converse, pesquise e use plenamente todas as ferramentas e servidores MCP (ex: meuestoque, supabase, github, etc.) e ferramentas de leitura.
-2. NÃO faça edições, criações nem remoções de arquivos no workspace local do projeto.
-3. NÃO execute comandos de escrita de código ou destrutivos no terminal local.\n\n`;
+  // Diretiva de Identidade (Kraken) e Modo Operacional
+  const systemDirective = await identityService.buildSystemDirective({
+    conversationId,
+    activeChatMode
+  });
 
-  const AGENT_MODE_DIRECTIVE = `[CAPACIDADE_DO_SISTEMA - AUTO-EVOLUÇÃO (POD DRAIN)]:
-Se o usuário solicitar que você modifique o próprio código do KrakenBridge-Web (/app) e aplique as mudanças com reinício:
-1. Faça as modificações nos arquivos de código com segurança.
-2. Se modificar o frontend React, compile rodando: cd /app/frontend && npm run build
-3. Para recarregar o servidor e aplicar suas alterações sem perder o estado, execute via terminal:
-   curl -s -X POST http://localhost:8088/api/system/self-reload -H "Content-Type: application/json" -d '{"conversationId":"${conversationId}","taskDescription":"Breve resumo do que foi alterado"}'
-4. O servidor utiliza o modelo de "Pod Drain": se houver outras conversas ou tarefas em andamento, ele aguardará que todas sejam finalizadas com segurança antes de reiniciar. Nenhuma tarefa em andamento é interrompida!
-5. Quando o servidor reiniciar, a conversa será retomada automaticamente.\n\n`;
-
-  const effectivePrompt = (activeChatMode === 'chat')
-    ? `${CHAT_MODE_DIRECTIVE}${prompt}`
-    : `${AGENT_MODE_DIRECTIVE}${prompt}`;
+  const effectivePrompt = `${systemDirective}${prompt}`;
 
   const driver = AGENT_DRIVERS[agent] || AGENT_DRIVERS.antigravity;
   const args = driver.buildArgs({
