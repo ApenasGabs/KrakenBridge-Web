@@ -70,7 +70,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Polling automático enquanto ghPolling estiver ativo
+  useEffect(() => {
+    if (!ghPolling) return;
+    const interval = setInterval(async () => {
+      try {
+        const poll = await api.pollGithubDevice();
+        if (poll.status === 'success') {
+          setGhPolling(false);
+          setMessage({
+            text: `GitHub CLI conectado com sucesso para @${poll.username || 'seu usuário'}!`,
+            type: 'success'
+          });
+          onRefreshStatus();
+        } else if (poll.status === 'expired' || poll.status === 'denied' || poll.status === 'error') {
+          setGhPolling(false);
+          setMessage({ text: poll.error || 'Autenticação expirada ou recusada.', type: 'error' });
+        }
+      } catch {
+        // Ignora erros temporários no polling
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [ghPolling, onRefreshStatus]);
 
   const handleSwitchAccount = async (email: string) => {
     setSwitchingEmail(email);
@@ -251,30 +274,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  // Polling automático enquanto ghPolling estiver ativo
-  useEffect(() => {
-    if (!ghPolling) return;
-    const interval = setInterval(async () => {
-      try {
-        const poll = await api.pollGithubDevice();
-        if (poll.status === 'success') {
-          setGhPolling(false);
-          setMessage({
-            text: `GitHub CLI conectado com sucesso para @${poll.username || 'seu usuário'}!`,
-            type: 'success'
-          });
-          onRefreshStatus();
-        } else if (poll.status === 'expired' || poll.status === 'denied' || poll.status === 'error') {
-          setGhPolling(false);
-          setMessage({ text: poll.error || 'Autenticação expirada ou recusada.', type: 'error' });
-        }
-      } catch {
-        // Ignora erros temporários no polling
-      }
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [ghPolling, onRefreshStatus]);
 
   // Salvar Token PAT do GitHub
   const handleSaveGithubToken = async () => {
@@ -328,6 +327,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setGhCopiedCode(true);
     setTimeout(() => setGhCopiedCode(false), 2000);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="modal modal-open z-50">
