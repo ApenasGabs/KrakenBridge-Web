@@ -576,7 +576,23 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     if (session && session.res === res) {
       session.res = null;
     }
-    console.log(`[KrakenBridge] SSE desconectado pelo cliente para conv: ${conversationId} (processo ${child.pid} segue rodando em segundo plano)`);
+    console.log(`[KrakenBridge] SSE desconectado pelo cliente para conv: ${conversationId} (processo ${child.pid} com salvaguarda de 2m)`);
+
+    // Salvaguarda: se em 2 minutos o cliente não reconectar e o processo continuar rodando, encerra para poupar a CPU/RAM do host
+    setTimeout(() => {
+      const current = activeSessions.get(conversationId);
+      if (current && !current.res && current.child && !current.child.killed && current.child.exitCode === null) {
+        console.log(`[KrakenBridge] Salvaguarda de recursos: encerrando processo órfão ${current.child.pid} da conversa ${conversationId}`);
+        try {
+          current.child.kill('SIGTERM');
+          setTimeout(() => {
+            try {
+              if (!current.child.killed && current.child.exitCode === null) current.child.kill('SIGKILL');
+            } catch {}
+          }, 500);
+        } catch {}
+      }
+    }, 120000);
   });
 });
 

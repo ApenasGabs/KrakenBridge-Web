@@ -41,8 +41,30 @@ async function syncAntigravityConversations(): Promise<void> {
   lastAgySync = now;
 
   try {
-    const raw = execSync(`sqlite3 -json "${AGY_DB_PATH}" "SELECT conversation_id, title, preview, last_modified_time, workspace_uris FROM conversation_summaries ORDER BY last_modified_time ASC;"`, { encoding: 'utf8', timeout: 3000 });
-    const summaries = JSON.parse(raw || '[]') as AgyDbSummary[];
+    let summaries: AgyDbSummary[] = [];
+    try {
+      // Usar sqlite3 embutido nativo do Node 22 (DatabaseSync) sem spawning de shell
+      // @ts-ignore
+      const { DatabaseSync } = await import('node:sqlite');
+      const db = new DatabaseSync(AGY_DB_PATH, { open: true, readOnly: true });
+      const rows = db.prepare('SELECT conversation_id, title, preview, last_modified_time, workspace_uris FROM conversation_summaries ORDER BY last_modified_time ASC;').all() as any[];
+      summaries = rows.map((r: any) => ({
+        conversation_id: String(r.conversation_id),
+        title: r.title ? String(r.title) : undefined,
+        preview: r.preview ? String(r.preview) : undefined,
+        last_modified_time: r.last_modified_time,
+        workspace_uris: r.workspace_uris ? String(r.workspace_uris) : undefined
+      }));
+      db.close();
+    } catch {
+      // Fallback silencioso caso sqlite3 CLI esteja presente ou falhe sem poluir stderr
+      try {
+        const raw = execSync(`sqlite3 -json "${AGY_DB_PATH}" "SELECT conversation_id, title, preview, last_modified_time, workspace_uris FROM conversation_summaries ORDER BY last_modified_time ASC;" 2>/dev/null`, { encoding: 'utf8', timeout: 3000 });
+        summaries = JSON.parse(raw || '[]') as AgyDbSummary[];
+      } catch {
+        return;
+      }
+    }
 
     for (const sum of summaries) {
       const convId = sum.conversation_id;
@@ -452,7 +474,9 @@ export const historyService = {
     };
 
     const filePath = path.join(SESSIONS_DIR, `${session.id}.json`);
-    await fs.writeFile(filePath, JSON.stringify(record, null, 2), 'utf8');
+    const tmpPath = `${filePath}.tmp.${Date.now()}`;
+    await fs.writeFile(tmpPath, JSON.stringify(record, null, 2), 'utf8');
+    await fs.rename(tmpPath, filePath);
     return record;
   },
 

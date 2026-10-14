@@ -25,9 +25,24 @@ interface SummaryItem {
 
 let summaries: SummaryItem[] = [];
 try {
-  const sql = 'SELECT conversation_id, title, preview, last_modified_time, workspace_uris FROM conversation_summaries ORDER BY last_modified_time ASC;';
-  const raw = execSync(`sqlite3 -json "${DB_PATH}" "${sql}"`, { encoding: 'utf8' });
-  summaries = JSON.parse(raw);
+  try {
+    // @ts-ignore
+    const { DatabaseSync } = await import('node:sqlite');
+    const db = new DatabaseSync(DB_PATH, { open: true, readOnly: true });
+    const rows = db.prepare('SELECT conversation_id, title, preview, last_modified_time, workspace_uris FROM conversation_summaries ORDER BY last_modified_time ASC;').all() as any[];
+    summaries = rows.map((r: any) => ({
+      conversation_id: String(r.conversation_id),
+      title: r.title ? String(r.title) : undefined,
+      preview: r.preview ? String(r.preview) : undefined,
+      last_modified_time: r.last_modified_time,
+      workspace_uris: r.workspace_uris ? String(r.workspace_uris) : undefined
+    }));
+    db.close();
+  } catch {
+    const sql = 'SELECT conversation_id, title, preview, last_modified_time, workspace_uris FROM conversation_summaries ORDER BY last_modified_time ASC;';
+    const raw = execSync(`sqlite3 -json "${DB_PATH}" "${sql}" 2>/dev/null`, { encoding: 'utf8' });
+    summaries = JSON.parse(raw);
+  }
 } catch (e) {
   console.error('Erro ao ler conversation_summaries.db:', (e as Error).message);
 }
