@@ -25,7 +25,11 @@ services:
     volumes:
       - "${WORKSPACE_PATH:-/DATA/Projetos}:/workspace"
       - "${KRAKEN_CONFIG_PATH:-/DATA/AppData/krakenbridge/config}:/root/.gemini"
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/usr/bin/docker:/usr/bin/docker:ro"
+      - "/usr/lib/docker/cli-plugins:/usr/lib/docker/cli-plugins:ro"
+      - "/DATA:/DATA"
+      - "/var/lib/casaos:/var/lib/casaos"
     x-casaos:
       envs:
         - container: GEMINI_API_KEY
@@ -49,6 +53,14 @@ services:
           description:
             en_US: Persistent CLI credentials and history
             pt_BR: Credenciais persistentes e histórico do CLI
+        - container: /DATA
+          description:
+            en_US: Full Homelab storage access for autonomy
+            pt_BR: Acesso ao armazenamento do Homelab para autonomia
+        - container: /var/lib/casaos
+          description:
+            en_US: CasaOS App manifests access
+            pt_BR: Acesso aos manifestos de aplicativos do CasaOS
       ports:
         - container: "8088"
           description:
