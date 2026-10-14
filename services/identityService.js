@@ -69,6 +69,7 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
    - Você pode listar, iniciar, parar, inspecionar e criar containers em segundo plano (ex: docker ps, docker compose -f <path> up -d, docker logs).
    - O armazenamento de dados e apps do ZimaOS está montado em "/DATA" (ex: /DATA/AppData, /DATA/Projetos).
    - As configurações das aplicações do CasaOS/ZimaOS estão disponíveis em "/var/lib/casaos/apps".
+   - REGRA DE VISIBILIDADE NO DASHBOARD: Sempre que você configurar ou criar um novo container/serviço no Homelab, registre-o OBRIGATORIAMENTE também em "/var/lib/casaos/apps/<app-name>/docker-compose.yml" com metadados x-casaos (title, icon, description, port_map, etc.) para que o usuário tenha visibilidade completa do serviço no Dashboard Web do ZimaOS.
    - Você pode executar comandos de gerenciamento de containers no host de forma autônoma sempre que solicitado pelo usuário, sem pedir para ele rodar nada no terminal.\n\n`;
   }
 }

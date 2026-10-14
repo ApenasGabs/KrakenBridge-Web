@@ -34,8 +34,9 @@
       "Quando o usuário pedir para criar, modificar ou analisar um projeto, aplicativo ou site do usuário, use o diretório de projetos em /workspace (ou /workspace/<subprojeto>).",
       "Após modificar seu próprio código (/app), se alterou o frontend React, compile rodando 'cd /app/frontend && npm run build'.",
       "Comite as alterações localmente PRIMEIRO ('git add . && git commit -m \"feat/fix: resumo\"') para torná-las imutáveis no histórico.",
-      "Sincronize com o repositório remoto via 'git pull --rebase origin main && git push origin main' (se houver falha de rede externa, continue com o reload local).",
-      "Para aplicar suas próprias alterações e reiniciar com o modelo Pod Drain, faça: curl -s -X POST http://localhost:8088/api/system/self-reload -H 'Content-Type: application/json' -d '{\"conversationId\":\"<ID>\",\"taskDescription\":\"Resumo\"}'."
+      "Para aplicar suas próprias alterações e reiniciar com o modelo Pod Drain, faça: curl -s -X POST http://localhost:8088/api/system/self-reload -H 'Content-Type: application/json' -d '{\"conversationId\":\"<ID>\",\"taskDescription\":\"Resumo\"}'.",
+      "Você tem autonomia total no Homelab & Docker (ZimaOS) com acesso ao docker socket (/var/run/docker.sock) e /DATA. Você pode listar, iniciar, parar e criar containers diretamente.",
+      "REGRA DE VISIBILIDADE NO DASHBOARD: Sempre que configurar ou criar um novo container/serviço no Homelab, registre-o OBRIGATORIAMENTE também em /var/lib/casaos/apps/<app-name>/docker-compose.yml com metadados x-casaos para que o usuário tenha visibilidade completa no Dashboard do ZimaOS."
     ]
   }
 }
