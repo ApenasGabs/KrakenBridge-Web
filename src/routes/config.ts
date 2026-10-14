@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import path from 'path';
 import fs from 'fs/promises';
 import { spawn } from 'child_process';
+import type { ModelsMap, ModelItem } from '../types/config.js';
 
 export const configRouter = Router();
 
@@ -9,11 +10,11 @@ const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
 const CODE_SERVER_PORT = process.env.CODE_SERVER_PORT || '8089';
 
 // Cache em memória para lista de modelos disponíveis
-let cachedModels = null;
+let cachedModels: ModelsMap | null = null;
 let lastModelsCheck = 0;
 
 // Configuração geral
-configRouter.get('/', (req, res) => {
+configRouter.get('/', (_req: Request, res: Response) => {
   res.json({
     appName: 'KrakenBridge Web',
     workspaceDir: WORKSPACE_DIR,
@@ -39,7 +40,7 @@ configRouter.get('/', (req, res) => {
 });
 
 // Listagem de projetos / subpastas do workspace
-configRouter.get('/projects', async (req, res) => {
+configRouter.get('/projects', async (_req: Request, res: Response) => {
   try {
     const entries = await fs.readdir(WORKSPACE_DIR, { withFileTypes: true });
     const projects = entries
@@ -48,12 +49,12 @@ configRouter.get('/projects', async (req, res) => {
       .sort((a, b) => a.name.localeCompare(b.name));
     res.json({ projects, count: projects.length });
   } catch (err) {
-    res.json({ projects: [], count: 0, error: err.message });
+    res.json({ projects: [], count: 0, error: (err as Error).message });
   }
 });
 
 // Listagem dinâmica de modelos suportados por cada agente
-configRouter.get('/models', async (req, res) => {
+configRouter.get('/models', async (_req: Request, res: Response) => {
   const now = Date.now();
   // Se o cache tiver menos de 60 segundos, retorna direto
   if (cachedModels && now - lastModelsCheck < 60000) {
@@ -61,7 +62,7 @@ configRouter.get('/models', async (req, res) => {
   }
 
   // Tenta consultar modelos nativos via agy models
-  const agyModels = await new Promise((resolve) => {
+  const agyModels = await new Promise<ModelItem[]>((resolve) => {
     const child = spawn('agy', ['models'], { env: { ...process.env, HOME: '/root' } });
     let output = '';
     child.stdout.on('data', (d) => output += d.toString());
@@ -69,7 +70,7 @@ configRouter.get('/models', async (req, res) => {
     child.on('close', (code) => {
       if (code === 0 && !output.includes('Please sign in')) {
         const lines = output.split('\n');
-        const list = [];
+        const list: ModelItem[] = [];
         for (const line of lines) {
           const parts = line.split('\t');
           if (parts.length >= 2 && parts[0].trim()) {
@@ -102,7 +103,7 @@ configRouter.get('/models', async (req, res) => {
     claude: [
       { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet (Recomendado)' },
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' }
+      { id: 'claude-3-opus-20240229', name: 'Claude 3根 Opus' }
     ],
     aider: [
       { id: 'gpt-4o', name: 'OpenAI GPT-4o' },

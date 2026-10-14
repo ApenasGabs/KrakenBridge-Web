@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "description": "KrakenBridge Web: Autonomous Multi-Agent AI Bridge & Integrated VS Code for ZimaOS and Docker",
   "type": "module",
-  "main": "server.js",
+  "main": "dist-server/server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node dist-server/server.js",
+    "build:server": "tsc",
     "build:frontend": "npm run --prefix frontend build",
-    "build": "npm run build:frontend"
+    "build": "npm run build:frontend && npm run build:server",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
     "krakenbridge",
@@ -27,5 +29,11 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
   }
 }

@@ -1,39 +1,47 @@
 import fs from 'fs/promises';
 import path from 'path';
+import type { JwtPayload, AccountInfo, SavedAccount } from '../types/account.js';
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const ACCOUNTS_DIR = path.join(DATA_DIR, 'accounts');
 const TOKEN_PATH = process.env.AGY_TOKEN_PATH || '/root/.gemini/antigravity-cli/antigravity-oauth-token';
 
-function sanitizeEmail(email) {
+function sanitizeEmail(email?: string | null): string {
   return (email || 'unknown').toLowerCase().replace(/[^a-z0-9._-]/g, '_');
 }
 
-export function parseJwtPayload(tokenStr) {
+export function parseJwtPayload(tokenStr?: string | null): JwtPayload | null {
   if (!tokenStr) return null;
   try {
     const parts = tokenStr.split('.');
     if (parts.length >= 2) {
       const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
       const json = Buffer.from(payloadBase64, 'base64').toString('utf8');
-      return JSON.parse(json);
+      return JSON.parse(json) as JwtPayload;
     }
   } catch (e) {}
   return null;
 }
 
-class AccountService {
-  constructor() {
-    this.initialized = false;
-  }
+export interface StoredAccountRecord {
+  email: string;
+  name: string;
+  picture: string | null;
+  expiry: string | null;
+  updatedAt: string;
+  raw: string;
+}
 
-  async init() {
+class AccountService {
+  private initialized = false;
+
+  async init(): Promise<void> {
     if (this.initialized) return;
     try {
       await fs.mkdir(ACCOUNTS_DIR, { recursive: true });
       await this.discoverAndImportTokens();
     } catch (e) {
-      console.warn('[AccountService] Erro ao inicializar diretório de contas:', e.message);
+      console.warn('[AccountService] Erro ao inicializar diretório de contas:', (e as Error).message);
     }
     this.initialized = true;
   }
@@ -41,7 +49,7 @@ class AccountService {
   /**
    * Importa automaticamente o token ativo atual e backups .bak_* existentes se houverem
    */
-  async discoverAndImportTokens() {
+  async discoverAndImportTokens(): Promise<void> {
     try {
       // 1. Verificar token principal
       const existsActive = await fs.access(TOKEN_PATH).then(() => true).catch(() => false);
@@ -63,19 +71,23 @@ class AccountService {
         }
       }
     } catch (e) {
-      console.warn('[AccountService] Erro ao sincronizar tokens existentes:', e.message);
+      console.warn('[AccountService] Erro ao sincronizar tokens existentes:', (e as Error).message);
     }
   }
 
-  extractAccountInfo(rawJson) {
+  extractAccountInfo(rawJson: unknown): (AccountInfo & { data?: unknown }) | null {
     try {
       const parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
-      let email = null;
-      let name = null;
-      let picture = null;
+      if (!parsed || typeof parsed !== 'object') return null;
 
-      if (parsed.id_token) {
-        const payload = parseJwtPayload(parsed.id_token);
+      let email: string | null = null;
+      let name: string | null = null;
+      let picture: string | null = null;
+
+      const rec = parsed as Record<string, unknown>;
+
+      if (typeof rec.id_token === 'string') {
+        const payload = parseJwtPayload(rec.id_token);
         if (payload) {
           email = payload.email || null;
           name = payload.name || null;
@@ -97,8 +109,9 @@ class AccountService {
         if (mPic) picture = mPic[1];
       }
 
-      const expiry = parsed.token?.expiry || null;
-      const hasToken = !!(parsed.token?.access_token || parsed.token?.refresh_token);
+      const tokenObj = rec.token as Record<string, unknown> | undefined;
+      const expiry = (tokenObj?.expiry as string) || null;
+      const hasToken = !!(tokenObj?.access_token || tokenObj?.refresh_token);
 
       return {
         email: email ? email.toLowerCase() : null,
@@ -116,7 +129,7 @@ class AccountService {
   /**
    * Salva os dados de uma conta no store de múltiplas contas
    */
-  async saveTokenData(rawJson, setActive = false) {
+  async saveTokenData(rawJson: unknown, setActive = false): Promise<StoredAccountRecord | null> {
     await fs.mkdir(ACCOUNTS_DIR, { recursive: true });
     const info = this.extractAccountInfo(rawJson);
     if (!info || !info.email || !info.hasToken) return null;
@@ -124,11 +137,11 @@ class AccountService {
     const fileName = `${sanitizeEmail(info.email)}.json`;
     const filePath = path.join(ACCOUNTS_DIR, fileName);
 
-    const record = {
+    const record: StoredAccountRecord = {
       email: info.email,
-      name: info.name,
-      picture: info.picture,
-      expiry: info.expiry,
+      name: info.name || 'Usuário',
+      picture: info.picture || null,
+      expiry: info.expiry || null,
       updatedAt: new Date().toISOString(),
       raw: typeof rawJson === 'string' ? rawJson : JSON.stringify(rawJson, null, 2)
     };
@@ -142,20 +155,20 @@ class AccountService {
     return record;
   }
 
-  async writeToActiveTokenFile(rawTokenJson) {
+  async writeToActiveTokenFile(rawTokenJson: string): Promise<void> {
     try {
       const parentDir = path.dirname(TOKEN_PATH);
       await fs.mkdir(parentDir, { recursive: true });
       await fs.writeFile(TOKEN_PATH, rawTokenJson, { encoding: 'utf8', mode: 0o600 });
     } catch (e) {
-      console.error('[AccountService] Falha ao escrever em TOKEN_PATH:', e.message);
+      console.error('[AccountService] Falha ao escrever em TOKEN_PATH:', (e as Error).message);
     }
   }
 
   /**
    * Identifica qual email está atualmente ativo em TOKEN_PATH
    */
-  async getActiveEmail() {
+  async getActiveEmail(): Promise<string | null> {
     try {
       const raw = await fs.readFile(TOKEN_PATH, 'utf8');
       const info = this.extractAccountInfo(raw);
@@ -168,10 +181,10 @@ class AccountService {
   /**
    * Retorna lista de todas as contas conectadas
    */
-  async listAccounts() {
+  async listAccounts(): Promise<{ activeEmail: string | null; accounts: SavedAccount[] }> {
     await this.init();
     const activeEmail = await this.getActiveEmail();
-    const accounts = [];
+    const accounts: SavedAccount[] = [];
 
     try {
       const files = await fs.readdir(ACCOUNTS_DIR);
@@ -179,7 +192,7 @@ class AccountService {
         if (!file.endsWith('.json')) continue;
         try {
           const content = await fs.readFile(path.join(ACCOUNTS_DIR, file), 'utf8');
-          const parsed = JSON.parse(content);
+          const parsed = JSON.parse(content) as StoredAccountRecord;
           accounts.push({
             email: parsed.email,
             name: parsed.name,
@@ -191,7 +204,7 @@ class AccountService {
         } catch (e) {}
       }
     } catch (e) {
-      console.warn('[AccountService] Erro ao listar contas:', e.message);
+      console.warn('[AccountService] Erro ao listar contas:', (e as Error).message);
     }
 
     return {
@@ -203,7 +216,7 @@ class AccountService {
   /**
    * Alterna a conta ativa com 1 clique
    */
-  async switchAccount(email) {
+  async switchAccount(email: string): Promise<{ success: boolean; email: string; name: string; picture: string | null }> {
     await this.init();
     if (!email) throw new Error('Email da conta não informado.');
 
@@ -214,7 +227,7 @@ class AccountService {
     }
 
     const content = await fs.readFile(targetFile, 'utf8');
-    const record = JSON.parse(content);
+    const record = JSON.parse(content) as StoredAccountRecord;
 
     await this.writeToActiveTokenFile(record.raw);
 
@@ -229,7 +242,7 @@ class AccountService {
   /**
    * Remove uma conta do armazenamento
    */
-  async removeAccount(email) {
+  async removeAccount(email: string): Promise<{ success: boolean; wasActive: boolean }> {
     await this.init();
     if (!email) throw new Error('Email da conta não informado.');
 
@@ -239,7 +252,7 @@ class AccountService {
     } catch (e) {}
 
     const activeEmail = await this.getActiveEmail();
-    const wasActive = activeEmail && activeEmail.toLowerCase() === email.toLowerCase();
+    const wasActive = !!(activeEmail && activeEmail.toLowerCase() === email.toLowerCase());
 
     return {
       success: true,
@@ -249,9 +262,8 @@ class AccountService {
 
   /**
    * Prepara um diretório de HOME isolado para executar o agy sob uma conta específica
-   * Retorna o caminho do HOME isolado para passar no env do spawn
    */
-  async prepareAccountHome(email) {
+  async prepareAccountHome(email?: string | null): Promise<string> {
     if (!email) return process.env.HOME || '/root';
 
     await this.init();
@@ -264,7 +276,7 @@ class AccountService {
 
     try {
       const content = await fs.readFile(targetFile, 'utf8');
-      const record = JSON.parse(content);
+      const record = JSON.parse(content) as StoredAccountRecord;
       const safeDirName = sanitizeEmail(email);
       const accountHome = path.join(DATA_DIR, 'account_homes', safeDirName);
       const geminiDir = path.join(accountHome, '.gemini');
@@ -279,9 +291,7 @@ class AccountService {
         await fs.access(targetConfig);
       } catch {
         try {
-          await fs.symlink(sourceConfig, targetConfig, 'junction').catch(async () => {
-            // Se symlink falhar, ignora ou cria vazio
-          });
+          await fs.symlink(sourceConfig, targetConfig, 'junction').catch(async () => {});
         } catch {}
       }
 
@@ -291,11 +301,10 @@ class AccountService {
 
       return accountHome;
     } catch (e) {
-      console.error(`[AccountService] Falha ao preparar HOME para ${email}:`, e.message);
+      console.error(`[AccountService] Falha ao preparar HOME para ${email}:`, (e as Error).message);
       return process.env.HOME || '/root';
     }
   }
 }
 
 export const accountService = new AccountService();
-

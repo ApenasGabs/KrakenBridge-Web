@@ -2,11 +2,12 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
+import type { McpConfigFile, McpServerItem, McpAuthUrlResponse, McpExchangeResponse } from '../types/mcp.js';
 
 const execAsync = promisify(exec);
 const CONFIG_PATH = process.env.MCP_CONFIG_PATH || '/root/.gemini/config/mcp_config.json';
 
-function extractAuthCodeOrToken(input) {
+function extractAuthCodeOrToken(input: unknown): string {
   if (!input || typeof input !== 'string') return '';
   const trimmed = input.trim();
 
@@ -33,33 +34,33 @@ function extractAuthCodeOrToken(input) {
 }
 
 class McpService {
-  async readConfig() {
+  async readConfig(): Promise<McpConfigFile> {
     try {
       const exists = await fs.access(CONFIG_PATH).then(() => true).catch(() => false);
       if (exists) {
         const raw = await fs.readFile(CONFIG_PATH, 'utf8');
-        return JSON.parse(raw);
+        return JSON.parse(raw) as McpConfigFile;
       }
     } catch (e) {
-      console.warn('[McpService] Erro ao ler mcp_config.json:', e.message);
+      console.warn('[McpService] Erro ao ler mcp_config.json:', (e as Error).message);
     }
     return { mcpServers: {} };
   }
 
-  async writeConfig(config) {
+  async writeConfig(config: McpConfigFile): Promise<boolean> {
     try {
       const dir = path.dirname(CONFIG_PATH);
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
       return true;
     } catch (e) {
-      console.error('[McpService] Erro ao salvar mcp_config.json:', e.message);
+      console.error('[McpService] Erro ao salvar mcp_config.json:', (e as Error).message);
       throw e;
     }
   }
 
-  async list() {
-    let servers = [];
+  async list(): Promise<McpServerItem[]> {
+    let servers: McpServerItem[] = [];
 
     // Fallback: ler mcp_config.json diretamente para extrair detalhes ricos de autenticação
     const config = await this.readConfig();
@@ -69,7 +70,7 @@ class McpService {
       // Tentar via 'agy mcp list'
       const { stdout } = await execAsync('agy mcp list');
       const lines = stdout.trim().split('\n');
-      
+
       if (lines.length > 1 && lines[0].includes('NAME')) {
         for (let i = 1; i < lines.length; i++) {
           const line = lines[i].trim();
@@ -113,18 +114,18 @@ class McpService {
     return servers;
   }
 
-  async toggle(name, enable) {
+  async toggle(name: string, enable: boolean): Promise<{ success: boolean; error?: string }> {
     const action = enable ? 'enable' : 'disable';
     try {
       await execAsync(`agy mcp ${action} ${name}`);
       return { success: true };
     } catch (e) {
-      console.warn(`[McpService] Falha ao executar agy mcp ${action}:`, e.message);
-      return { success: false, error: e.message };
+      console.warn(`[McpService] Falha ao executar agy mcp ${action}:`, (e as Error).message);
+      return { success: false, error: (e as Error).message };
     }
   }
 
-  async getAuthUrl(name) {
+  async getAuthUrl(name: string): Promise<McpAuthUrlResponse> {
     const config = await this.readConfig();
     const conf = config.mcpServers?.[name] || {};
     const serverUrl = conf.serverUrl || conf.url || '';
@@ -132,7 +133,6 @@ class McpService {
     if (name.toLowerCase() === 'supabase' || serverUrl.includes('supabase.com')) {
       return {
         server: name,
-        type: 'supabase',
         authUrl: 'https://supabase.com/dashboard/account/tokens',
         instructions: 'Gere um Personal Access Token (PAT) no painel do Supabase com o botão "Generate new token" ou informe o código de autorização OAuth.'
       };
@@ -141,7 +141,6 @@ class McpService {
     if (name.toLowerCase() === 'github' || serverUrl.includes('github.com')) {
       return {
         server: name,
-        type: 'github',
         authUrl: 'https://github.com/settings/tokens',
         instructions: 'Gere um Personal Access Token no GitHub com escopo de repositório ou informe o código.'
       };
@@ -149,13 +148,12 @@ class McpService {
 
     return {
       server: name,
-      type: 'generic',
-      authUrl: serverUrl || null,
+      authUrl: serverUrl || undefined,
       instructions: 'Informe a chave de API, Bearer Token ou código de autorização para conectar este servidor MCP.'
     };
   }
 
-  async exchangeCode(name, rawInput) {
+  async exchangeCode(name: string, rawInput: unknown): Promise<McpExchangeResponse> {
     if (!name) throw new Error('Nome do servidor é obrigatório');
     const token = extractAuthCodeOrToken(rawInput);
     if (!token) throw new Error('Código ou token de autenticação não foi informado ou é inválido');
@@ -182,9 +180,8 @@ class McpService {
 
     return {
       success: true,
-      server: name,
-      authStatus: 'authenticated',
-      message: `Servidor MCP "${name}" autenticado com sucesso!`
+      message: `Servidor MCP "${name}" autenticado com sucesso!`,
+      tokenSet: true
     };
   }
 }

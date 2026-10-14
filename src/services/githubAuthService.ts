@@ -1,20 +1,43 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { spawn } from 'child_process';
 
 const GH_CONFIG_DIR = process.env.GH_CONFIG_DIR || '/root/.config/gh';
 const HOSTS_FILE = path.join(GH_CONFIG_DIR, 'hosts.yml');
 const CLIENT_ID = '178c6fc778ccc68e1d6a'; // Client ID oficial da CLI do GitHub
 
+export interface GithubAuthStatus {
+  authenticated: boolean;
+  username?: string;
+  hasToken?: boolean;
+}
+
+export interface GithubPendingSession {
+  device_code: string;
+  user_code: string;
+  verification_uri: string;
+  interval: number;
+  expires_at: number;
+}
+
+export interface GithubDeviceFlowResult {
+  userCode: string;
+  verificationUri: string;
+  interval: number;
+}
+
+export interface GithubPollResult {
+  status: 'pending' | 'slow_down' | 'expired' | 'denied' | 'error' | 'success' | 'no_session';
+  username?: string;
+  error?: string;
+}
+
 class GithubAuthService {
-  constructor() {
-    this.pendingSession = null; // { device_code, user_code, verification_uri, interval, expires_at }
-  }
+  private pendingSession: GithubPendingSession | null = null;
 
   /**
    * Obtém o status da autenticação do GitHub CLI
    */
-  async getStatus() {
+  async getStatus(): Promise<GithubAuthStatus> {
     try {
       const exists = await fs.stat(HOSTS_FILE).catch(() => null);
       if (!exists) {
@@ -33,7 +56,7 @@ class GithubAuthService {
         };
       }
     } catch (err) {
-      console.warn('[GithubAuthService] Erro ao ler status:', err.message);
+      console.warn('[GithubAuthService] Erro ao ler status:', (err as Error).message);
     }
     return { authenticated: false };
   }
@@ -41,7 +64,7 @@ class GithubAuthService {
   /**
    * Inicia o fluxo OAuth Device Code do GitHub
    */
-  async startDeviceFlow() {
+  async startDeviceFlow(): Promise<GithubDeviceFlowResult> {
     try {
       const response = await fetch('https://github.com/login/device/code', {
         method: 'POST',
@@ -60,8 +83,14 @@ class GithubAuthService {
         throw new Error(`Falha ao solicitar código do dispositivo: ${errText}`);
       }
 
-      const data = await response.json();
-      // data: { device_code, user_code, verification_uri, expires_in, interval }
+      const data = await response.json() as {
+        device_code: string;
+        user_code: string;
+        verification_uri?: string;
+        expires_in?: number;
+        interval?: number;
+      };
+
       this.pendingSession = {
         device_code: data.device_code,
         user_code: data.user_code,
@@ -84,7 +113,7 @@ class GithubAuthService {
   /**
    * Faz a verificação/polling do token para a sessão ativa
    */
-  async pollToken() {
+  async pollToken(): Promise<GithubPollResult> {
     if (!this.pendingSession) {
       return { status: 'no_session', error: 'Nenhuma sessão de autenticação ativa.' };
     }
@@ -108,7 +137,11 @@ class GithubAuthService {
         })
       });
 
-      const data = await response.json();
+      const data = await response.json() as {
+        error?: string;
+        error_description?: string;
+        access_token?: string;
+      };
 
       if (data.error) {
         if (data.error === 'authorization_pending') {
@@ -142,7 +175,7 @@ class GithubAuthService {
 
         let username = 'user';
         if (userRes.ok) {
-          const userData = await userRes.json();
+          const userData = await userRes.json() as { login?: string };
           if (userData.login) username = userData.login;
         }
 
@@ -153,14 +186,14 @@ class GithubAuthService {
       return { status: 'pending' };
     } catch (err) {
       console.error('[GithubAuthService] Erro pollToken:', err);
-      return { status: 'error', error: err.message };
+      return { status: 'error', error: (err as Error).message };
     }
   }
 
   /**
    * Salva diretamente um Personal Access Token (PAT)
    */
-  async saveToken(token) {
+  async saveToken(token: string): Promise<{ success: boolean; username: string }> {
     const cleanToken = token.trim();
     if (!cleanToken) throw new Error('Token inválido.');
 
@@ -175,7 +208,7 @@ class GithubAuthService {
       throw new Error('Token do GitHub inválido ou não autorizado.');
     }
 
-    const userData = await userRes.json();
+    const userData = await userRes.json() as { login?: string };
     const username = userData.login || 'user';
 
     await this.saveHostsConfig(username, cleanToken);
@@ -185,7 +218,7 @@ class GithubAuthService {
   /**
    * Grava a configuração no formato oficial do gh CLI
    */
-  async saveHostsConfig(username, token) {
+  async saveHostsConfig(username: string, token: string): Promise<void> {
     await fs.mkdir(GH_CONFIG_DIR, { recursive: true });
 
     const hostsYaml = `github.com:
@@ -203,7 +236,7 @@ class GithubAuthService {
   /**
    * Remove credenciais do GitHub CLI
    */
-  async logout() {
+  async logout(): Promise<{ success: boolean }> {
     try {
       await fs.unlink(HOSTS_FILE);
       return { success: true };

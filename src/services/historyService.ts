@@ -1,9 +1,12 @@
 import fs from 'fs/promises';
+import { createReadStream } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
-
 import { execSync } from 'child_process';
 import readline from 'readline';
+import type { ChatMessage, ToolCall } from '../types/chat.js';
+import type { ConversationSession, SessionListItem, UpdateSessionPayload } from '../types/session.js';
+import type { ProjectItem } from '../types/config.js';
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const SESSIONS_DIR = path.join(DATA_DIR, 'sessions');
@@ -11,27 +14,35 @@ const BRAIN_DIR = process.env.BRAIN_DIR || '/root/.gemini/antigravity-cli/brain'
 const AGY_DB_PATH = process.env.AGY_DB_PATH || '/root/.gemini/antigravity-cli/conversation_summaries.db';
 
 // Garante que o diretório de dados existe
-async function ensureDir() {
+async function ensureDir(): Promise<void> {
   try {
     await fs.mkdir(SESSIONS_DIR, { recursive: true });
   } catch (err) {
-    console.error('[HistoryService] Erro ao criar diretório de sessões:', err.message);
+    console.error('[HistoryService] Erro ao criar diretório de sessões:', (err as Error).message);
   }
 }
 
 let lastAgySync = 0;
 
+interface AgyDbSummary {
+  conversation_id: string;
+  title?: string;
+  preview?: string;
+  last_modified_time: string | number;
+  workspace_uris?: string;
+}
+
 /**
  * Sincroniza automaticamente conversas nativas do Antigravity CLI para a interface web
  */
-async function syncAntigravityConversations() {
+async function syncAntigravityConversations(): Promise<void> {
   const now = Date.now();
   if (now - lastAgySync < 15000) return; // Debounce de 15s
   lastAgySync = now;
 
   try {
     const raw = execSync(`sqlite3 -json "${AGY_DB_PATH}" "SELECT conversation_id, title, preview, last_modified_time, workspace_uris FROM conversation_summaries ORDER BY last_modified_time ASC;"`, { encoding: 'utf8', timeout: 3000 });
-    const summaries = JSON.parse(raw || '[]');
+    const summaries = JSON.parse(raw || '[]') as AgyDbSummary[];
 
     for (const sum of summaries) {
       const convId = sum.conversation_id;
@@ -47,7 +58,7 @@ async function syncAntigravityConversations() {
 
       let subproject = '';
       try {
-        const uris = JSON.parse(sum.workspace_uris || '[]');
+        const uris = JSON.parse(sum.workspace_uris || '[]') as string[];
         if (uris.length > 0) {
           const match = uris[0].match(/file:\/\/\/(?:workspace\/|DATA\/Projetos\/)([^/]+)/);
           if (match) subproject = match[1];
@@ -55,18 +66,26 @@ async function syncAntigravityConversations() {
       } catch {}
 
       const transcriptFile = path.join(BRAIN_DIR, convId, '.system_generated', 'logs', 'transcript.jsonl');
-      const messages = [];
+      const messages: ChatMessage[] = [];
 
       try {
         await fs.access(transcriptFile);
-        const fileStream = (await import('fs')).createReadStream(transcriptFile);
+        const fileStream = createReadStream(transcriptFile);
         const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-        let currentAssistant = null;
+        let currentAssistant: ChatMessage | null = null;
 
         for await (const line of rl) {
           if (!line.trim()) continue;
           try {
-            const entry = JSON.parse(line);
+            const entry = JSON.parse(line) as {
+              type?: string;
+              content?: string;
+              thinking?: string;
+              step_index?: number;
+              created_at?: string;
+              tool_calls?: { name?: string; args?: Record<string, any> }[];
+            };
+
             if (entry.type === 'USER_INPUT' && entry.content) {
               if (currentAssistant) {
                 messages.push(currentAssistant);
@@ -79,6 +98,7 @@ async function syncAntigravityConversations() {
                 id: `step-${entry.step_index}`,
                 role: 'user',
                 text: userText,
+                content: userText,
                 timestamp: entry.created_at || sum.last_modified_time
               });
             } else if (entry.type === 'PLANNER_RESPONSE') {
@@ -87,6 +107,7 @@ async function syncAntigravityConversations() {
                   id: `step-${entry.step_index}`,
                   role: 'assistant',
                   text: '',
+                  content: '',
                   thinking: '',
                   toolCalls: [],
                   timestamp: entry.created_at || sum.last_modified_time
@@ -94,6 +115,7 @@ async function syncAntigravityConversations() {
               }
               if (entry.content) {
                 currentAssistant.text += (currentAssistant.text ? '\n\n' : '') + entry.content;
+                currentAssistant.content = currentAssistant.text;
               }
               if (entry.thinking) {
                 currentAssistant.thinking += (currentAssistant.thinking ? '\n\n' : '') + entry.thinking;
@@ -117,6 +139,8 @@ async function syncAntigravityConversations() {
                   } else if (args.toolAction) {
                     cmd = `${args.toolAction}${args.toolSummary ? `: ${args.toolSummary}` : ''}`;
                   }
+
+                  if (!currentAssistant.toolCalls) currentAssistant.toolCalls = [];
                   currentAssistant.toolCalls.push({
                     step_index: entry.step_index,
                     name: tc.name || 'tool',
@@ -127,7 +151,7 @@ async function syncAntigravityConversations() {
                   });
                 }
               }
-            } else if (entry.type === 'GENERIC' && entry.content && currentAssistant && currentAssistant.toolCalls.length > 0) {
+            } else if (entry.type === 'GENERIC' && entry.content && currentAssistant && currentAssistant.toolCalls && currentAssistant.toolCalls.length > 0) {
               const lastTc = currentAssistant.toolCalls[currentAssistant.toolCalls.length - 1];
               if (lastTc && !lastTc.output) {
                 lastTc.output = entry.content;
@@ -141,10 +165,10 @@ async function syncAntigravityConversations() {
       const tags = extractContextualTags({
         messages,
         subproject,
-        title: sum.title || sum.preview
+        title: sum.title || sum.preview || ''
       });
 
-      const sessionData = {
+      const sessionData: ConversationSession = {
         id: convId,
         agyConvId: convId,
         title: sum.title || sum.preview || 'Conversa Antigravity',
@@ -165,10 +189,10 @@ async function syncAntigravityConversations() {
 }
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
-let cachedProjects = null;
+let cachedProjects: ProjectItem[] | null = null;
 let lastProjectsCheck = 0;
 
-async function getAvailableProjects() {
+async function getAvailableProjects(): Promise<ProjectItem[]> {
   const now = Date.now();
   if (cachedProjects && now - lastProjectsCheck < 30000) {
     return cachedProjects;
@@ -185,11 +209,11 @@ async function getAvailableProjects() {
   }
 }
 
-function normalizeForMatch(str) {
+function normalizeForMatch(str?: string | null): string {
   return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-function detectProjectFromText(text, projects) {
+function detectProjectFromText(text: string, projects: ProjectItem[]): string | null {
   if (!text || !projects || projects.length === 0) return null;
   const lower = text.toLowerCase();
   const clean = normalizeForMatch(text);
@@ -213,7 +237,7 @@ function detectProjectFromText(text, projects) {
   }
 
   // 3. Mapeamentos conhecidos e termos-chave comuns
-  const aliases = {
+  const aliases: Record<string, string> = {
     'gabot': 'G_aBot',
     'g-abot': 'G_aBot',
     'g_abot': 'G_aBot',
@@ -234,7 +258,7 @@ function detectProjectFromText(text, projects) {
   return null;
 }
 
-function cleanUserText(text) {
+function cleanUserText(text?: string | null): string {
   if (!text) return '';
   let clean = text;
   // Remove diretivas de sistema injetadas para não poluir a análise contextual
@@ -243,18 +267,26 @@ function cleanUserText(text) {
   return clean;
 }
 
+export interface ExtractTagsOptions {
+  messages?: ChatMessage[];
+  subproject?: string;
+  title?: string;
+  toolCalls?: ToolCall[];
+}
+
 /**
  * Analisa dinamicamente o contexto real da conversa (mensagens, chamadas de ferramentas, intenção)
  * para derivar tags inteligentes que representam o assunto real e não apenas a pasta do arquivo.
  */
-function extractContextualTags({ messages = [], subproject = '', title = '', toolCalls = [] }) {
+function extractContextualTags({ messages = [], subproject = '', title = '', toolCalls = [] }: ExtractTagsOptions): string[] {
   let combined = (title + ' ' + (subproject || '') + ' ').toLowerCase();
 
   for (const m of messages) {
+    const textContent = m.text || m.content || '';
     if (m.role === 'user') {
-      combined += ' ' + cleanUserText(m.text).slice(0, 1000);
+      combined += ' ' + cleanUserText(textContent).slice(0, 1000);
     } else if (m.role === 'assistant') {
-      combined += ' ' + (m.text || '').slice(0, 1000);
+      combined += ' ' + textContent.slice(0, 1000);
     }
   }
 
@@ -262,12 +294,13 @@ function extractContextualTags({ messages = [], subproject = '', title = '', too
     if (tc.name) combined += ' ' + tc.name;
     if (tc.command) combined += ' ' + tc.command.slice(0, 200);
     if (tc.parameters) {
-      if (tc.parameters.CommandLine) combined += ' ' + tc.parameters.CommandLine.slice(0, 200);
-      if (tc.parameters.TargetFile) combined += ' ' + tc.parameters.TargetFile;
+      const p = tc.parameters as Record<string, any>;
+      if (p.CommandLine) combined += ' ' + String(p.CommandLine).slice(0, 200);
+      if (p.TargetFile) combined += ' ' + String(p.TargetFile);
     }
   }
 
-  const tags = new Set();
+  const tags = new Set<string>();
 
   // 1. Domínios de Projetos e Negócio
   if (/(?:^|\W)(?:estoque|produtos|suprimento|compras|invent[aá]rio|barcode|meuestoque|receitas-estoque)(?:$|\W)/i.test(combined)) tags.add('estoque');
@@ -304,19 +337,19 @@ export const historyService = {
   detectProject: detectProjectFromText,
   extractContextualTags,
 
-  async list() {
+  async list(): Promise<SessionListItem[]> {
     await ensureDir();
     await syncAntigravityConversations().catch(() => {});
     try {
       const files = await fs.readdir(SESSIONS_DIR);
       const jsonFiles = files.filter(f => f.endsWith('.json'));
-      const list = [];
+      const list: SessionListItem[] = [];
       const availableProjects = await getAvailableProjects();
 
       for (const file of jsonFiles) {
         try {
           const content = await fs.readFile(path.join(SESSIONS_DIR, file), 'utf8');
-          const data = JSON.parse(content);
+          const data = JSON.parse(content) as ConversationSession & { chatMode?: string };
           let subproject = data.subproject || '';
           let tags = Array.isArray(data.tags) ? data.tags : [];
           let hasMutated = false;
@@ -324,8 +357,9 @@ export const historyService = {
           // Se a sessão não tiver subprojeto definido, tenta auto-detectar pela primeira mensagem
           if (!subproject && Array.isArray(data.messages) && data.messages.length > 0) {
             const firstUserMsg = data.messages.find(m => m.role === 'user');
-            if (firstUserMsg && firstUserMsg.text) {
-              const detected = detectProjectFromText(firstUserMsg.text, availableProjects);
+            const userMsgText = firstUserMsg ? (firstUserMsg.text || firstUserMsg.content) : null;
+            if (userMsgText) {
+              const detected = detectProjectFromText(userMsgText, availableProjects);
               if (detected) {
                 subproject = detected;
                 data.subproject = detected;
@@ -349,9 +383,12 @@ export const historyService = {
           }
 
           if (hasMutated) {
-            // Salvar em background para persistir no arquivo
             fs.writeFile(path.join(SESSIONS_DIR, file), JSON.stringify(data, null, 2), 'utf8').catch(() => {});
           }
+
+          const msgs = Array.isArray(data.messages) ? data.messages : [];
+          const lastMsg = msgs[msgs.length - 1];
+          const lastSnippet = lastMsg ? (lastMsg.text || lastMsg.content || '').slice(0, 100) : '';
 
           list.push({
             id: data.id,
@@ -360,60 +397,58 @@ export const historyService = {
             model: data.model || '',
             effort: data.effort || 'high',
             mode: data.mode || 'default',
-            chatMode: data.chatMode || 'agent',
             subproject: subproject,
             tags: tags,
-            agyConvId: data.agyConvId || null,
             createdAt: data.createdAt,
             updatedAt: data.updatedAt,
-            messageCount: Array.isArray(data.messages) ? data.messages.length : 0
+            messageCount: msgs.length,
+            lastMessageSnippet: lastSnippet
           });
         } catch (e) {
-          console.warn(`[HistoryService] Erro ao ler sessão ${file}:`, e.message);
+          console.warn(`[HistoryService] Erro ao ler sessão ${file}:`, (e as Error).message);
         }
       }
 
       // Ordenar por atualização mais recente
-      list.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+      list.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
       return list;
     } catch (err) {
-      console.error('[HistoryService] Erro ao listar conversas:', err.message);
+      console.error('[HistoryService] Erro ao listar conversas:', (err as Error).message);
       return [];
     }
   },
 
-  async get(id) {
+  async get(id: string): Promise<ConversationSession | null> {
     if (!id) return null;
     await ensureDir();
     const filePath = path.join(SESSIONS_DIR, `${id}.json`);
     try {
       const content = await fs.readFile(filePath, 'utf8');
-      return JSON.parse(content);
+      return JSON.parse(content) as ConversationSession;
     } catch (err) {
       return null;
     }
   },
 
-  async save(session) {
+  async save(session: Partial<ConversationSession> & { id: string }): Promise<ConversationSession | null> {
     if (!session || !session.id) return null;
     await ensureDir();
     const now = new Date().toISOString();
     const existing = await this.get(session.id);
 
-    const record = {
+    const record: ConversationSession = {
       id: session.id,
-      agyConvId: session.agyConvId || (existing && existing.agyConvId) || null,
-      title: session.title || (existing && existing.title) || 'Nova Conversa',
-      agent: session.agent || (existing && existing.agent) || 'antigravity',
-      model: session.model || (existing && existing.model) || '',
-      effort: session.effort || (existing && existing.effort) || 'high',
-      mode: session.mode || (existing && existing.mode) || 'default',
-      chatMode: session.chatMode || (existing && existing.chatMode) || 'agent',
-      subproject: session.subproject || (existing && existing.subproject) || '',
+      agyConvId: session.agyConvId || existing?.agyConvId || undefined,
+      title: session.title || existing?.title || 'Nova Conversa',
+      agent: session.agent || existing?.agent || 'antigravity',
+      model: session.model || existing?.model || '',
+      effort: session.effort || existing?.effort || 'high',
+      mode: session.mode || existing?.mode || 'default',
+      subproject: session.subproject || existing?.subproject || '',
       tags: Array.isArray(session.tags) ? session.tags : (existing && Array.isArray(existing.tags) ? existing.tags : []),
-      createdAt: (existing && existing.createdAt) || now,
+      createdAt: existing?.createdAt || now,
       updatedAt: now,
-      messages: session.messages || (existing && existing.messages) || []
+      messages: session.messages || existing?.messages || []
     };
 
     const filePath = path.join(SESSIONS_DIR, `${session.id}.json`);
@@ -421,27 +456,37 @@ export const historyService = {
     return record;
   },
 
-  async addMessage(id, message, sessionMeta = {}) {
+  async addMessage(id: string, message: ChatMessage, sessionMeta: Record<string, any> = {}): Promise<ConversationSession | null> {
     let session = await this.get(id);
+    const msgText = message.text || message.content || '';
+
     if (!session) {
       session = {
         id,
-        title: message.role === 'user' ? message.text.slice(0, 40) : 'Conversa',
+        title: message.role === 'user' ? msgText.slice(0, 40) : 'Conversa',
+        agent: 'antigravity',
+        model: 'gemini-3.8-flash-high',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         ...sessionMeta,
         messages: []
       };
-    } else if (sessionMeta.chatMode) {
-      session.chatMode = sessionMeta.chatMode;
     }
+
+    if (!message.content && message.text) message.content = message.text;
+    if (!message.text && message.content) message.text = message.content;
+
     session.messages.push(message);
+
     if (session.messages.length === 1 && message.role === 'user' && (!session.title || session.title === 'Nova Conversa')) {
-      session.title = message.text.slice(0, 45);
+      session.title = msgText.slice(0, 45);
     }
+
     return this.save(session);
   },
 
-  async updateLastAssistantMessage(id, messageData) {
-    let session = await this.get(id);
+  async updateLastAssistantMessage(id: string, messageData: Partial<ChatMessage>): Promise<ConversationSession | null> {
+    const session = await this.get(id);
     if (!session) return null;
     const msgs = session.messages || [];
     const lastIdx = msgs.length - 1;
@@ -456,6 +501,8 @@ export const historyService = {
       msgs.push({
         id: randomUUID(),
         role: 'assistant',
+        content: messageData.content || messageData.text || '',
+        text: messageData.text || messageData.content || '',
         ...messageData,
         timestamp: new Date().toISOString()
       });
@@ -465,7 +512,7 @@ export const historyService = {
     return this.save(session);
   },
 
-  async delete(id) {
+  async delete(id: string): Promise<boolean> {
     await ensureDir();
     const filePath = path.join(SESSIONS_DIR, `${id}.json`);
     try {
@@ -476,14 +523,14 @@ export const historyService = {
     }
   },
 
-  async rename(id, newTitle) {
+  async rename(id: string, newTitle: string): Promise<ConversationSession | null> {
     const session = await this.get(id);
     if (!session) return null;
     session.title = newTitle.trim();
     return this.save(session);
   },
 
-  async update(id, updates = {}) {
+  async update(id: string, updates: UpdateSessionPayload = {}): Promise<ConversationSession | null> {
     const session = await this.get(id);
     if (!session) return null;
     if (updates.title !== undefined) session.title = updates.title.trim();
@@ -491,26 +538,30 @@ export const historyService = {
     if (updates.tags !== undefined) {
       if (Array.isArray(updates.tags)) {
         session.tags = updates.tags.map(t => String(t).trim().replace(/^#/, '')).filter(Boolean);
-      } else if (typeof updates.tags === 'string') {
-        session.tags = updates.tags.split(',').map(t => t.trim().replace(/^#/, '')).filter(Boolean);
       }
     }
     return this.save(session);
   },
 
-  async getLatestAssistantFromTranscript(convId) {
+  async getLatestAssistantFromTranscript(convId: string): Promise<{ text: string; thinking: string; toolCalls: ToolCall[] } | null> {
     if (!convId) return null;
     const transcriptFile = path.join(BRAIN_DIR, convId, '.system_generated', 'logs', 'transcript.jsonl');
     try {
       await fs.access(transcriptFile);
-      const fileStream = (await import('fs')).createReadStream(transcriptFile);
+      const fileStream = createReadStream(transcriptFile);
       const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-      let lastAssistant = null;
+      let lastAssistant: { text: string; thinking: string; toolCalls: ToolCall[] } | null = null;
 
       for await (const line of rl) {
         if (!line.trim()) continue;
         try {
-          const entry = JSON.parse(line);
+          const entry = JSON.parse(line) as {
+            type?: string;
+            content?: string;
+            thinking?: string;
+            tool_calls?: { name?: string; args?: Record<string, any> }[];
+          };
+
           if (entry.type === 'PLANNER_RESPONSE') {
             if (!lastAssistant) {
               lastAssistant = {
@@ -528,7 +579,7 @@ export const historyService = {
             if (Array.isArray(entry.tool_calls)) {
               for (const tc of entry.tool_calls) {
                 const args = tc.args || {};
-                let cmd = args.CommandLine || args.TargetFile || args.AbsolutePath || '';
+                const cmd = args.CommandLine || args.TargetFile || args.AbsolutePath || '';
                 lastAssistant.toolCalls.push({
                   name: tc.name || 'tool',
                   command: typeof cmd === 'string' ? cmd.replace(/^["']|["']$/g, '') : '',
@@ -553,4 +604,3 @@ export const historyService = {
     }
   }
 };
-

@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { exec } from 'child_process';
 import util from 'util';
+import type { TokenUsageRecord } from '../types/quota.js';
 
 const execPromise = util.promisify(exec);
 
@@ -10,7 +11,7 @@ const QUOTA_FILE = path.join(DATA_DIR, 'quota_history.json');
 const STATE_FILE = path.join(DATA_DIR, 'quota_state.json');
 
 // Formata intervalo de tempo restante no estilo oficial do Antigravity
-function formatRefreshTime(ms, isFiveHour = false) {
+function formatRefreshTime(ms: number, isFiveHour = false): string | null {
   if (ms <= 0) return null;
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   const days = Math.floor(totalSeconds / 86400);
@@ -34,33 +35,58 @@ function formatRefreshTime(ms, isFiveHour = false) {
   return `${Math.max(1, minutes)} minute${minutes > 1 ? 's' : ''}`;
 }
 
+export interface InternalQuotaBucketState {
+  weeklyRemaining: number;
+  weeklyResetAt: number | null;
+  fiveHourRemaining: number;
+  fiveHourResetAt: number | null;
+}
+
+export interface InternalQuotaState {
+  gemini: InternalQuotaBucketState;
+  claudeGpt: InternalQuotaBucketState;
+  source: string;
+  lastUpdated: string;
+}
+
+export interface RecordUsageOptions {
+  model?: string;
+  agent?: string;
+  subproject?: string;
+  conversationId?: string | null;
+  durationMs?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  thinking_tokens?: number;
+  total_tokens?: number;
+  timestamp?: string;
+}
+
 class QuotaService {
-  constructor() {
-    this.records = [];
-    this.initialized = false;
-    this.lastAgyFetch = 0;
-    this.isFetchingFromAgy = false;
+  private records: (TokenUsageRecord & { subproject?: string; durationMs?: number; conversationId?: string | null })[] = [];
+  private initialized = false;
+  private lastAgyFetch = 0;
+  private isFetchingFromAgy = false;
 
-    // Estado oficial dos limites Antigravity
-    this.state = {
-      gemini: {
-        weeklyRemaining: 100,
-        weeklyResetAt: null,
-        fiveHourRemaining: 100,
-        fiveHourResetAt: null
-      },
-      claudeGpt: {
-        weeklyRemaining: 100,
-        weeklyResetAt: null,
-        fiveHourRemaining: 100,
-        fiveHourResetAt: null
-      },
-      source: 'live',
-      lastUpdated: new Date().toISOString()
-    };
-  }
+  // Estado oficial dos limites Antigravity
+  private state: InternalQuotaState = {
+    gemini: {
+      weeklyRemaining: 100,
+      weeklyResetAt: null,
+      fiveHourRemaining: 100,
+      fiveHourResetAt: null
+    },
+    claudeGpt: {
+      weeklyRemaining: 100,
+      weeklyResetAt: null,
+      fiveHourRemaining: 100,
+      fiveHourResetAt: null
+    },
+    source: 'live',
+    lastUpdated: new Date().toISOString()
+  };
 
-  async init() {
+  async init(): Promise<void> {
     if (this.initialized) return;
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
@@ -79,7 +105,7 @@ class QuotaService {
       const existsState = await fs.access(STATE_FILE).then(() => true).catch(() => false);
       if (existsState) {
         const rawState = await fs.readFile(STATE_FILE, 'utf8');
-        const parsedState = JSON.parse(rawState);
+        const parsedState = JSON.parse(rawState) as Partial<InternalQuotaState>;
         this.state = {
           gemini: { ...this.state.gemini, ...(parsedState.gemini || {}) },
           claudeGpt: { ...this.state.claudeGpt, ...(parsedState.claudeGpt || {}) },
@@ -88,7 +114,7 @@ class QuotaService {
         };
       }
     } catch (e) {
-      console.warn('[QuotaService] Erro ao carregar cotas:', e.message);
+      console.warn('[QuotaService] Erro ao carregar cotas:', (e as Error).message);
     }
     this.initialized = true;
 
@@ -96,31 +122,31 @@ class QuotaService {
     this.fetchLiveQuotaFromGoogle().catch(() => {});
   }
 
-  async persistHistory() {
+  async persistHistory(): Promise<void> {
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
       const cutoff30Days = Date.now() - (30 * 24 * 60 * 60 * 1000);
       this.records = this.records.filter(r => new Date(r.timestamp).getTime() >= cutoff30Days);
       await fs.writeFile(QUOTA_FILE, JSON.stringify(this.records, null, 2), 'utf8');
     } catch (e) {
-      console.error('[QuotaService] Falha ao persistir histórico de cotas:', e.message);
+      console.error('[QuotaService] Falha ao persistir histórico de cotas:', (e as Error).message);
     }
   }
 
-  async persistState() {
+  async persistState(): Promise<void> {
     try {
       await fs.mkdir(DATA_DIR, { recursive: true });
       this.state.lastUpdated = new Date().toISOString();
       await fs.writeFile(STATE_FILE, JSON.stringify(this.state, null, 2), 'utf8');
     } catch (e) {
-      console.error('[QuotaService] Falha ao persistir estado de cotas:', e.message);
+      console.error('[QuotaService] Falha ao persistir estado de cotas:', (e as Error).message);
     }
   }
 
   /**
    * Consulta a cota 100% oficial e global diretamente pelo CLI agy via /usage
    */
-  async fetchLiveQuotaFromGoogle(force = false) {
+  async fetchLiveQuotaFromGoogle(force = false): Promise<InternalQuotaState> {
     const now = Date.now();
     // Cache de 30 segundos para não onerar o CLI agy desnecessariamente em refresh contínuo
     if (!force && now - this.lastAgyFetch < 30000) {
@@ -143,7 +169,7 @@ class QuotaService {
         const groupName = (group.name || '').toLowerCase();
         const buckets = group.buckets || [];
 
-        let target = null;
+        let target: InternalQuotaBucketState | null = null;
         if (groupName.includes('gemini')) {
           target = this.state.gemini;
         } else if (groupName.includes('claude') || groupName.includes('gpt')) {
@@ -171,7 +197,7 @@ class QuotaService {
       this.lastAgyFetch = Date.now();
       await this.persistState();
     } catch (err) {
-      console.warn('[QuotaService] Consulta oficial ao vivo pelo agy falhou ou demorou:', err.message);
+      console.warn('[QuotaService] Consulta oficial ao vivo pelo agy falhou ou demorou:', (err as Error).message);
     } finally {
       this.isFetchingFromAgy = false;
     }
@@ -180,20 +206,35 @@ class QuotaService {
   }
 
   /**
+   * Permite calibrar manualmente cotas se necessário
+   */
+  async syncQuota({ gemini, claudeGpt }: { gemini?: Partial<InternalQuotaBucketState>; claudeGpt?: Partial<InternalQuotaBucketState> }) {
+    await this.init();
+    if (gemini) {
+      this.state.gemini = { ...this.state.gemini, ...gemini };
+    }
+    if (claudeGpt) {
+      this.state.claudeGpt = { ...this.state.claudeGpt, ...claudeGpt };
+    }
+    await this.persistState();
+    return this.getStats();
+  }
+
+  /**
    * Registra o consumo de um turno
    */
-  async recordUsage({ 
-    model = 'gemini-3.8-flash-high', 
-    agent = 'antigravity', 
+  async recordUsage({
+    model = 'gemini-3.8-flash-high',
+    agent = 'antigravity',
     subproject = '',
     conversationId = null,
     durationMs = 0,
-    input_tokens = 0, 
-    output_tokens = 0, 
-    thinking_tokens = 0, 
-    total_tokens = 0, 
-    timestamp 
-  }) {
+    input_tokens = 0,
+    output_tokens = 0,
+    thinking_tokens = 0,
+    total_tokens = 0,
+    timestamp
+  }: RecordUsageOptions) {
     await this.init();
 
     const total = Number(total_tokens) || ((Number(input_tokens) || 0) + (Number(output_tokens) || 0) + (Number(thinking_tokens) || 0));
@@ -282,8 +323,8 @@ class QuotaService {
     const hourly = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0 };
     const daily = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0 };
     const weekly = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0 };
-    const modelBreakdown = {};
-    const workspaceBreakdown = {};
+    const modelBreakdown: Record<string, { totalTokens: number; count: number; inputTokens: number; outputTokens: number; thinkingTokens: number }> = {};
+    const workspaceBreakdown: Record<string, { totalTokens: number; count: number }> = {};
 
     let totalTokensAllTime = 0;
     let totalInputTokens = 0;
@@ -293,7 +334,15 @@ class QuotaService {
 
     // Mapa dos últimos 42 dias para o Heatmap (Orca style)
     const DAY_COUNT = 42;
-    const dailyMap = new Map();
+    const dailyMap = new Map<string, {
+      day: string;
+      totalTokens: number;
+      inputTokens: number;
+      outputTokens: number;
+      thinkingTokens: number;
+      turnsCount: number;
+    }>();
+
     for (let i = DAY_COUNT - 1; i >= 0; i--) {
       const d = new Date(now - i * 86400000);
       const dayStr = d.toISOString().slice(0, 10);
@@ -343,7 +392,7 @@ class QuotaService {
       // Mapa diário para o heatmap
       const dayKey = (item.timestamp || '').slice(0, 10);
       if (dailyMap.has(dayKey)) {
-        const dEntry = dailyMap.get(dayKey);
+        const dEntry = dailyMap.get(dayKey)!;
         dEntry.totalTokens += tokens;
         dEntry.inputTokens += inp;
         dEntry.outputTokens += out;
@@ -379,7 +428,7 @@ class QuotaService {
     // Calcula intensidade (0 a 4) e melhor dia (Best Day)
     const rawDailyPoints = Array.from(dailyMap.values());
     let maxDailyTokens = 0;
-    let bestDay = null;
+    let bestDay: { day: string; totalTokens: number } | null = null;
     let activeDays = 0;
 
     for (const p of rawDailyPoints) {

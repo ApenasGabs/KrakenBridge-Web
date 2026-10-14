@@ -1,19 +1,18 @@
 import fs from 'fs/promises';
 import path from 'path';
+import type { KrakenIdentity, SystemDirectiveOptions } from '../types/identity.js';
 
 const IDENTITY_FILE = path.resolve('.kraken-identity.json');
 
 class IdentityService {
-  constructor() {
-    this.cachedIdentity = null;
-  }
+  private cachedIdentity: KrakenIdentity | null = null;
 
-  async getIdentity() {
+  async getIdentity(): Promise<KrakenIdentity> {
     if (this.cachedIdentity) return this.cachedIdentity;
 
     try {
       const raw = await fs.readFile(IDENTITY_FILE, 'utf8');
-      this.cachedIdentity = JSON.parse(raw);
+      this.cachedIdentity = JSON.parse(raw) as KrakenIdentity;
       return this.cachedIdentity;
     } catch {
       // Fallback padrão se o arquivo não puder ser lido
@@ -23,6 +22,7 @@ class IdentityService {
         aliases: ['kraken', 'krakenbridge'],
         paths: {
           selfSource: process.env.APP_DIR || '/app',
+          selfFrontend: process.env.APP_FRONTEND_DIR || '/app/frontend',
           userWorkspaces: process.env.WORKSPACE_DIR || '/workspace'
         }
       };
@@ -32,7 +32,7 @@ class IdentityService {
   /**
    * Gera a diretiva do sistema que ensina a IA quem ela é e como se comportar
    */
-  async buildSystemDirective({ conversationId, activeChatMode, subproject = '', tags = [] }) {
+  async buildSystemDirective({ conversationId, activeChatMode, subproject = '', tags = [] }: SystemDirectiveOptions): Promise<string> {
     const identity = await this.getIdentity();
     const formattedTags = tags && tags.length > 0 ? tags.map(t => '#' + t).join(' ') : 'nenhuma';
 

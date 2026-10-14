@@ -26,5 +26,6 @@ tmp/
 temp/
 dist/
 frontend/dist/
+dist-server/
 bin/
 .config/

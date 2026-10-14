@@ -27,23 +27,25 @@ RUN git config --global --add safe.directory "*"
 # Diretório da aplicação
 WORKDIR /app
 
-# Copiar manifesto de dependências do backend
-COPY package.json ./
+# Copiar manifestos de dependências do backend
+COPY package*.json tsconfig.json ./
 
-# Instalar dependências de produção do Node
-RUN npm install --omit=dev
+# Instalar dependências completas para viabilizar auto-evolução e build TypeScript
+RUN npm install
 
-# Copiar código do backend e rotas modulares
-COPY server.js ./
-COPY routes ./routes
-COPY services ./services
+# Copiar código-fonte TypeScript e scripts
+COPY src ./src
+COPY scripts ./scripts
 COPY public ./public
 COPY entrypoint.sh ./
+
+# Compilar Backend TypeScript para dist-server
+RUN npm run build:server
 
 # Copiar bundle de produção gerado pelo Vite
 COPY --from=frontend-builder /app/frontend/dist ./dist
 
-RUN chmod +x entrypoint.sh
+RUN chmod +x entrypoint.sh scripts/*.sh
 
 # Criar ponto de montagem padrão para o workspace
 RUN mkdir -p /workspace
@@ -56,4 +58,4 @@ ENV CODE_SERVER_PORT=8089
 EXPOSE 8088
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["node", "server.js"]
+CMD ["node", "dist-server/server.js"]

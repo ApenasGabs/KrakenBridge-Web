@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { spawn } from 'child_process';
 import readline from 'readline';
 import { randomUUID } from 'crypto';
@@ -7,20 +7,19 @@ import { historyService } from '../services/historyService.js';
 import { quotaService } from '../services/quotaService.js';
 import { accountService } from '../services/accountService.js';
 import { identityService } from '../services/identityService.js';
+import { activeProcesses, activeSessions } from '../services/sessionState.js';
+import type { AgentDriver, AgentType, ToolCall, ChatRequestBody } from '../types/chat.js';
 
 export const chatRouter = Router();
+export { activeSessions };
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
 
-// Mapa de processos e sessões ativas
-const activeProcesses = new Map();
-export const activeSessions = new Map();
-
 // Construtor flexível de argumentos para os drivers CLI dos agentes
-const AGENT_DRIVERS = {
+const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
   antigravity: {
     cmd: 'agy',
-    buildArgs: ({ prompt, conversationId, agyConvId, continueSession, model, effort, mode, sandbox, skipPermissions, disableSlashCommands }) => {
+    buildArgs: ({ prompt, agyConvId, continueSession, model, effort, mode, sandbox, skipPermissions }) => {
       const args = ['-p', prompt, '--output-format', 'stream-json'];
 
       if (skipPermissions !== false) {
@@ -93,7 +92,7 @@ const AGENT_DRIVERS = {
 };
 
 // Endpoint principal de Chat com SSE Streaming
-chatRouter.post('/', async (req, res) => {
+chatRouter.post('/', async (req: Request, res: Response) => {
   const {
     prompt,
     conversationId: clientConvId,
@@ -109,7 +108,7 @@ chatRouter.post('/', async (req, res) => {
     chatMode = 'agent',
     accountEmail,
     force = false
-  } = req.body;
+  } = (req.body || {}) as ChatRequestBody;
 
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'Prompt é obrigatório' });
@@ -132,10 +131,10 @@ chatRouter.post('/', async (req, res) => {
             } catch {}
           }, 200);
         } catch (e) {
-          console.warn('[KrakenBridge] Erro ao encerrar processo anterior:', e.message);
+          console.warn('[KrakenBridge] Erro ao encerrar processo anterior:', (e as Error).message);
         }
         activeSessions.delete(clientConvId);
-        activeProcesses.delete(existing.reqId);
+        if (existing.reqId) activeProcesses.delete(existing.reqId);
         try {
           if (existing.res && !existing.res.writableEnded && !existing.res.destroyed) {
             existing.res.write(`data: ${JSON.stringify({ event: 'interrupted', message: 'Interrompido por envio forçado' })}\n\n`);
@@ -144,8 +143,8 @@ chatRouter.post('/', async (req, res) => {
         } catch {}
       }
     } else {
-      return res.status(409).json({ 
-        error: 'Esta conversa já possui uma tarefa em execução. Aguarde a conclusão, use "Forçar Envio" ou clique em Parar.' 
+      return res.status(409).json({
+        error: 'Esta conversa já possui uma tarefa em execução. Aguarde a conclusão, use "Forçar Envio" ou clique em Parar.'
       });
     }
   }
@@ -153,8 +152,8 @@ chatRouter.post('/', async (req, res) => {
   const existingSession = clientConvId ? await historyService.get(clientConvId) : null;
   const conversationId = clientConvId || randomUUID();
   const agyConvId = existingSession?.agyConvId || null;
-  const activeChatMode = chatMode || existingSession?.chatMode || 'agent';
-  const activeAccountEmail = accountEmail || existingSession?.accountEmail || null;
+  const activeChatMode = chatMode || existingSession?.mode || 'agent';
+  const activeAccountEmail = accountEmail || null;
   const reqId = randomUUID();
 
   // Determinação inteligente do subprojeto / workspace
@@ -168,7 +167,7 @@ chatRouter.post('/', async (req, res) => {
         console.log(`[KrakenBridge] Subprojeto auto-detectado a partir do prompt: "${activeSubproject}"`);
       }
     } catch (e) {
-      console.warn('[KrakenBridge] Falha ao auto-detectar subprojeto:', e.message);
+      console.warn('[KrakenBridge] Falha ao auto-detectar subprojeto:', (e as Error).message);
     }
   }
 
@@ -180,6 +179,7 @@ chatRouter.post('/', async (req, res) => {
     id: randomUUID(),
     role: 'user',
     text: prompt,
+    content: prompt,
     timestamp: new Date().toISOString()
   }, { agent, model, effort, mode, chatMode: activeChatMode, subproject: activeSubproject, agyConvId, accountEmail: activeAccountEmail });
 
@@ -189,6 +189,7 @@ chatRouter.post('/', async (req, res) => {
     id: assistantMsgId,
     role: 'assistant',
     text: '',
+    content: '',
     agent,
     model,
     toolCalls: [],
@@ -227,14 +228,14 @@ chatRouter.post('/', async (req, res) => {
   });
 
   // Prepara HOME isolado caso uma conta específica tenha sido selecionada
-  let processEnv = { ...process.env };
+  const processEnv: NodeJS.ProcessEnv = { ...process.env };
   if (agent === 'antigravity' && activeAccountEmail) {
     try {
       const isolatedHome = await accountService.prepareAccountHome(activeAccountEmail);
       processEnv.HOME = isolatedHome;
       console.log(`[KrakenBridge] Executando Antigravity sob conta isolada: ${activeAccountEmail} (HOME: ${isolatedHome})`);
     } catch (err) {
-      console.warn(`[KrakenBridge] Erro ao isolar conta ${activeAccountEmail}:`, err.message);
+      console.warn(`[KrakenBridge] Erro ao isolar conta ${activeAccountEmail}:`, (err as Error).message);
     }
   }
 
@@ -252,11 +253,14 @@ chatRouter.post('/', async (req, res) => {
     reqId,
     child,
     res,
-    startTime: executionStartTime
+    startTime: executionStartTime,
+    agent,
+    model: model || 'gemini-3.8-flash-high',
+    conversationId
   });
 
   // Função para envio seguro de SSE (não quebra caso o cliente desconecte)
-  const safeWrite = (chunk) => {
+  const safeWrite = (chunk: string) => {
     try {
       const sess = activeSessions.get(conversationId);
       const targetRes = sess?.res || res;
@@ -278,9 +282,9 @@ chatRouter.post('/', async (req, res) => {
 
   let accumulatedText = '';
   let thinkingText = '';
-  let toolCalls = [];
-  let lastUsage = null;
-  let saveTimeout = null;
+  const toolCalls: ToolCall[] = [];
+  let lastUsage: Record<string, any> | null = null;
+  let saveTimeout: NodeJS.Timeout | null = null;
 
   // Persistência contínua com debounce
   const scheduleSave = () => {
@@ -290,19 +294,20 @@ chatRouter.post('/', async (req, res) => {
       try {
         await historyService.updateLastAssistantMessage(conversationId, {
           text: accumulatedText,
+          content: accumulatedText,
           thinking: thinkingText,
           agent,
           model,
           toolCalls
         });
       } catch (err) {
-        console.warn('[KrakenBridge] Erro no auto-save do histórico:', err.message);
+        console.warn('[KrakenBridge] Erro no auto-save do histórico:', (err as Error).message);
       }
     }, 400);
   };
 
   // Monitora stdout bruto para detectar solicitações de autenticação inline
-  child.stdout.on('data', (data) => {
+  child.stdout.on('data', (data: Buffer) => {
     const text = data.toString();
     const match = text.match(/(https:\/\/accounts\.google\.com\/o\/oauth2\/auth[^\s\r\n]+)/);
     if (match) {
@@ -313,11 +318,33 @@ chatRouter.post('/', async (req, res) => {
   const rl = readline.createInterface({ input: child.stdout });
 
   // Stream de eventos JSON emitidos pelo CLI do Agente
-  rl.on('line', (line) => {
+  rl.on('line', (line: string) => {
     const trimmed = line.trim();
     if (!trimmed) return;
     try {
-      const parsed = JSON.parse(trimmed);
+      const parsed = JSON.parse(trimmed) as {
+        event?: string;
+        conversation_id?: string;
+        step_update?: {
+          step_type?: string;
+          text_delta?: string;
+          thinking_delta?: string;
+          thinking?: string;
+          usage?: Record<string, any>;
+          tool_name?: string;
+          step_index?: number;
+          duration_seconds?: number;
+          state?: string;
+          tool_info?: {
+            parameters?: Record<string, any>;
+            output?: string;
+          };
+        };
+        result?: {
+          response?: string;
+          usage?: Record<string, any>;
+        };
+      };
 
       // Salva ID interno do agy para continuações futuras
       if (parsed.event === 'init' && parsed.conversation_id) {
@@ -409,7 +436,7 @@ chatRouter.post('/', async (req, res) => {
   });
 
   // Repassar logs do stderr
-  child.stderr.on('data', (data) => {
+  child.stderr.on('data', (data: Buffer) => {
     const text = data.toString();
     const match = text.match(/(https:\/\/accounts\.google\.com\/o\/oauth2\/auth[^\s\r\n]+)/);
     if (match) {
@@ -418,7 +445,7 @@ chatRouter.post('/', async (req, res) => {
     safeWrite(`data: ${JSON.stringify({ event: 'stderr', text })}\n\n`);
   });
 
-  child.on('close', async (code) => {
+  child.on('close', async (code: number | null) => {
     clearInterval(pingInterval);
     if (saveTimeout) {
       clearTimeout(saveTimeout);
@@ -427,7 +454,7 @@ chatRouter.post('/', async (req, res) => {
     activeProcesses.delete(reqId);
     activeSessions.delete(conversationId);
 
-    // Recuperar quaisquer dados faltantes (raciocínio, texto final, saídas de ferramentas) diretamente do transcript do agy
+    // Recuperar quaisquer dados faltantes diretamente do transcript do agy
     if (agent === 'antigravity') {
       try {
         const fromTranscript = await historyService.getLatestAssistantFromTranscript(agyConvId || conversationId);
@@ -448,7 +475,7 @@ chatRouter.post('/', async (req, res) => {
           }
         }
       } catch (e) {
-        console.warn('[KrakenBridge] Aviso ao sincronizar transcript no close:', e.message);
+        console.warn('[KrakenBridge] Aviso ao sincronizar transcript no close:', (e as Error).message);
       }
     }
 
@@ -456,14 +483,15 @@ chatRouter.post('/', async (req, res) => {
     try {
       await historyService.updateLastAssistantMessage(conversationId, {
         text: accumulatedText,
+        content: accumulatedText,
         thinking: thinkingText,
         agent,
         model,
         toolCalls,
-        tokens: lastUsage
+        tokens: lastUsage || undefined
       });
     } catch (err) {
-      console.warn('[KrakenBridge] Erro ao finalizar gravação do histórico:', err.message);
+      console.warn('[KrakenBridge] Erro ao finalizar gravação do histórico:', (err as Error).message);
     }
 
     // Salvar métricas de consumo de tokens para a cota horária e semanal
@@ -481,7 +509,7 @@ chatRouter.post('/', async (req, res) => {
           total_tokens: lastUsage.total_tokens
         });
       } catch (err) {
-        console.warn('[KrakenBridge] Falha ao registrar cota:', err.message);
+        console.warn('[KrakenBridge] Falha ao registrar cota:', (err as Error).message);
       }
     }
 
@@ -502,7 +530,7 @@ chatRouter.post('/', async (req, res) => {
         }
       }
     } catch (tagErr) {
-      console.warn('[KrakenBridge] Aviso ao atualizar tags contextuais:', tagErr.message);
+      console.warn('[KrakenBridge] Aviso ao atualizar tags contextuais:', (tagErr as Error).message);
     }
 
     safeWrite(`data: ${JSON.stringify({ event: 'done', code, conversation_id: conversationId })}\n\n`);
@@ -513,7 +541,7 @@ chatRouter.post('/', async (req, res) => {
     } catch {}
   });
 
-  child.on('error', async (err) => {
+  child.on('error', async (err: Error) => {
     clearInterval(pingInterval);
     if (saveTimeout) {
       clearTimeout(saveTimeout);
@@ -525,6 +553,7 @@ chatRouter.post('/', async (req, res) => {
     try {
       await historyService.updateLastAssistantMessage(conversationId, {
         text: (accumulatedText ? accumulatedText + '\n\n' : '') + `⚠️ Erro de execução: ${err.message}`,
+        content: (accumulatedText ? accumulatedText + '\n\n' : '') + `⚠️ Erro de execução: ${err.message}`,
         thinking: thinkingText,
         agent,
         model,
@@ -541,7 +570,6 @@ chatRouter.post('/', async (req, res) => {
   });
 
   // Quando o cliente desconecta (fecha aba, muda de tela ou recarrega a página)
-  // O processo NÃO é finalizado: ele continua executando em background até o fim!
   res.on('close', () => {
     clearInterval(pingInterval);
     const session = activeSessions.get(conversationId);
@@ -553,25 +581,25 @@ chatRouter.post('/', async (req, res) => {
 });
 
 // Envio de stdin / código diretamente para processo de chat ativo
-chatRouter.post('/submit-auth', (req, res) => {
-  let { reqId, code } = req.body;
+chatRouter.post('/submit-auth', (req: Request, res: Response) => {
+  let { reqId, code } = req.body || {};
   if (!reqId || !code) return res.status(400).json({ error: 'reqId e code são obrigatórios' });
-  if (code.includes('code=')) {
-    const m = code.match(/[?&]code=([^&]+)/);
+  if (String(code).includes('code=')) {
+    const m = String(code).match(/[?&]code=([^&]+)/);
     if (m) code = decodeURIComponent(m[1]);
   }
   const proc = activeProcesses.get(reqId);
-  if (!proc) return res.status(404).json({ error: 'Processo não encontrado ou já finalizado' });
-  proc.stdin.write(code.trim() + '\n');
+  if (!proc || !proc.stdin) return res.status(404).json({ error: 'Processo não encontrado ou já finalizado' });
+  proc.stdin.write(String(code).trim() + '\n');
   res.json({ status: 'submitted' });
 });
 
 // Interromper geração ativa (específica de uma conversa ou todas)
-chatRouter.post('/stop', (req, res) => {
+chatRouter.post('/stop', (req: Request, res: Response) => {
   const { conversationId } = req.body || {};
   let count = 0;
 
-  const terminateSession = (session, convId) => {
+  const terminateSession = (session: { child: import('child_process').ChildProcess; res?: Response | null; reqId?: string }, convId: string) => {
     try {
       session.child.kill('SIGTERM');
       setTimeout(() => {
@@ -594,10 +622,10 @@ chatRouter.post('/stop', (req, res) => {
   };
 
   if (conversationId && activeSessions.has(conversationId)) {
-    const session = activeSessions.get(conversationId);
+    const session = activeSessions.get(conversationId)!;
     terminateSession(session, conversationId);
     activeSessions.delete(conversationId);
-    activeProcesses.delete(session.reqId);
+    if (session.reqId) activeProcesses.delete(session.reqId);
   } else {
     for (const [convId, session] of activeSessions.entries()) {
       terminateSession(session, convId);

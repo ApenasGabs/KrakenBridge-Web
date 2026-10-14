@@ -1,8 +1,8 @@
 #!/bin/bash
 # ==============================================================================
-# KrakenBridge Self-Reload Supervisor
+# KrakenBridge Self-Reload Supervisor (TypeScript Edition)
 # Desacoplado do processo do Node.js: espera a requisição terminar,
-# faz o build (se solicitado) e recarrega o servidor Node de forma atômica.
+# compila TypeScript de forma segura (fail-safe) e recarrega o servidor Node.
 # ==============================================================================
 
 MODE="${1:-quick}"
@@ -15,6 +15,18 @@ sleep 1.5
 
 echo "[SelfReload] Iniciando rotina de auto-reload no diretório: $DIR (Modo: $MODE)" >> data/evolution.log 2>&1
 
+# 1. Compilação do Backend TypeScript (Fail-safe: se falhar, aborta sem derrubar o servidor)
+echo "[SelfReload] Verificando e compilando Backend TypeScript..." >> data/evolution.log 2>&1
+if [ -f "./node_modules/.bin/tsc" ]; then
+    ./node_modules/.bin/tsc >> data/evolution.log 2>&1
+    if [ $? -ne 0 ]; then
+        echo "[SelfReload] ❌ ERRO CRÍTICO: Falha na compilação do TypeScript! Abortando reinício para manter serviço ativo." >> data/evolution.log 2>&1
+        exit 1
+    fi
+    echo "[SelfReload] ✅ Backend TypeScript compilado com sucesso em dist-server/." >> data/evolution.log 2>&1
+fi
+
+# 2. Compilação do Frontend se solicitado
 if [ "$MODE" = "build" ]; then
     echo "[SelfReload] Executando compilação do frontend..." >> data/evolution.log 2>&1
     if [ -d "frontend" ]; then
@@ -25,19 +37,19 @@ fi
 
 echo "[SelfReload] Recarregando processo do servidor Node..." >> data/evolution.log 2>&1
 
-# Mata o processo do node server.js antigo (PID 1 do container sh -c vai reiniciar ou nós reiniciamos o processo)
-NODE_PID=$(pgrep -f "node server.js" | grep -v "$$" | head -n 1)
+# 3. Mata o processo do servidor antigo (seja node dist-server/server.js ou o legado node server.js)
+NODE_PID=$(pgrep -f "server.js" | grep -v "$$" | grep -v "self-reload" | head -n 1)
 
 if [ -n "$NODE_PID" ]; then
-    echo "[SelfReload] Encerrando Node PID: $NODE_PID para reinício automático..." >> data/evolution.log 2>&1
+    echo "[SelfReload] Encerrando Node PID: $NODE_PID para reinício atômico..." >> data/evolution.log 2>&1
     kill -15 "$NODE_PID" 2>/dev/null || kill -9 "$NODE_PID" 2>/dev/null
 fi
 
-# Fallback: Se o container não reiniciar o node server.js pelo PID 1, sobe em background
+# 4. Fallback: Se o container não reiniciar automaticamente pelo supervisor do PID 1, sobe em background
 sleep 2
-if ! pgrep -f "node server.js" > /dev/null; then
-    echo "[SelfReload] Subindo node server.js manualmente..." >> data/evolution.log 2>&1
-    nohup node server.js >> data/evolution.log 2>&1 &
+if ! pgrep -f "dist-server/server.js" > /dev/null && ! pgrep -f "node server.js" > /dev/null; then
+    echo "[SelfReload] Subindo node dist-server/server.js manualmente..." >> data/evolution.log 2>&1
+    nohup node dist-server/server.js >> data/evolution.log 2>&1 &
 fi
 
-echo "[SelfReload] Auto-reload finalizado com sucesso." >> data/evolution.log 2>&1
+echo "[SelfReload] Auto-reload finalizado com sucesso na versão TypeScript." >> data/evolution.log 2>&1
