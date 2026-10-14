@@ -1,19 +1,25 @@
 import React from 'react';
 import type { QueuedMessage } from '../../types';
-import { ListOrdered, X, Pencil, Trash2 } from 'lucide-react';
+import { ListOrdered, X, Pencil, Trash2, Zap, Play } from 'lucide-react';
 
 interface MessageQueueBannerProps {
   queue: QueuedMessage[];
   onRemove: (id: string) => void;
   onEdit: (msg: QueuedMessage) => void;
   onClear: () => void;
+  onForceSend?: (msg: QueuedMessage) => void;
+  onRunNext?: () => void;
+  isGenerating?: boolean;
 }
 
 export const MessageQueueBanner: React.FC<MessageQueueBannerProps> = ({
   queue,
   onRemove,
   onEdit,
-  onClear
+  onClear,
+  onForceSend,
+  onRunNext,
+  isGenerating = false
 }) => {
   if (queue.length === 0) return null;
 
@@ -34,22 +40,63 @@ export const MessageQueueBanner: React.FC<MessageQueueBannerProps> = ({
                 <span className="badge badge-sm badge-info text-[10px] font-mono px-1.5 py-0.5 h-4">
                   {queue.length} {queue.length === 1 ? 'pendente' : 'pendentes'}
                 </span>
+                {isGenerating ? (
+                  <span className="flex items-center gap-1 text-[10px] text-sky-400/90 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping inline-block" />
+                    auto-espera
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-emerald-400 font-medium">
+                    ● pronta
+                  </span>
+                )}
               </div>
-              <p className="text-[10px] text-base-content/50 leading-none mt-0.5">
-                Executará automaticamente em sequência assim que a resposta atual terminar
+              <p className="text-[10px] text-base-content/60 leading-none mt-0.5">
+                {isGenerating
+                  ? 'Aguardando término da resposta atual ou clique em ⚡ para forçar o envio imediato'
+                  : 'Fila pronta para execução sequencial'}
               </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClear}
-            className="btn btn-ghost btn-xs text-base-content/50 hover:text-error flex items-center gap-1 text-[11px] h-7"
-            title="Limpar todas as mensagens da fila"
-          >
-            <Trash2 className="w-3 h-3" />
-            <span className="hidden sm:inline">Limpar fila</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            {/* Botão de Executar Fila se o agente não estiver gerando */}
+            {!isGenerating && onRunNext && (
+              <button
+                type="button"
+                onClick={onRunNext}
+                className="btn btn-primary btn-xs text-[11px] h-7 gap-1 shadow-sm font-medium"
+                title="Executar próxima mensagem da fila agora"
+              >
+                <Play className="w-3 h-3 fill-current" />
+                <span>Executar fila</span>
+              </button>
+            )}
+
+            {/* Botão de Forçar 1º da fila caso esteja gerando */}
+            {isGenerating && onForceSend && queue.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onForceSend(queue[0])}
+                className="btn btn-warning btn-xs text-[11px] h-7 gap-1 bg-amber-500 hover:bg-amber-400 text-black font-semibold border-amber-600 shadow-sm"
+                title="Forçar envio da 1ª mensagem agora (interrompe geração atual)"
+              >
+                <Zap className="w-3 h-3 fill-current" />
+                <span className="hidden sm:inline">Forçar 1º agora</span>
+                <span className="sm:hidden">Forçar</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onClear}
+              className="btn btn-ghost btn-xs text-base-content/50 hover:text-error flex items-center gap-1 text-[11px] h-7"
+              title="Limpar todas as mensagens da fila"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span className="hidden sm:inline">Limpar</span>
+            </button>
+          </div>
         </div>
 
         {/* Lista de Mensagens Enfileiradas */}
@@ -69,6 +116,19 @@ export const MessageQueueBanner: React.FC<MessageQueueBannerProps> = ({
               </div>
 
               <div className="flex items-center gap-1 shrink-0 opacity-70 group-hover:opacity-100 transition-opacity">
+                {/* Forçar Envio do Item Específico */}
+                {onForceSend && (
+                  <button
+                    type="button"
+                    onClick={() => onForceSend(item)}
+                    className="btn btn-ghost btn-xs btn-square h-6 w-6 text-amber-400 hover:bg-amber-500/20"
+                    title="Forçar envio desta mensagem agora (interrompe geração atual)"
+                  >
+                    <Zap className="w-3.5 h-3.5 fill-current" />
+                  </button>
+                )}
+
+                {/* Editar Item */}
                 <button
                   type="button"
                   onClick={() => onEdit(item)}
@@ -77,6 +137,8 @@ export const MessageQueueBanner: React.FC<MessageQueueBannerProps> = ({
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
+
+                {/* Remover Item */}
                 <button
                   type="button"
                   onClick={() => onRemove(item.id)}

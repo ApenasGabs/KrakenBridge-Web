@@ -10,6 +10,7 @@ interface ChatViewProps {
   prompt: string;
   onPromptChange: (val: string) => void;
   onSubmit: () => void;
+  onForceSubmit?: () => void;
   onStop: () => void;
   isLoading: boolean;
   onSelectSuggestion?: (prompt: string) => void;
@@ -22,6 +23,8 @@ interface ChatViewProps {
   onRemoveQueueItem?: (id: string) => void;
   onEditQueueItem?: (msg: QueuedMessage) => void;
   onClearQueue?: () => void;
+  onForceSendQueueItem?: (msg: QueuedMessage) => void;
+  onRunNextQueueItem?: () => void;
   // Subprojeto / Workspace
   projects?: ProjectWorkspace[];
   subproject?: string;
@@ -36,6 +39,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   prompt,
   onPromptChange,
   onSubmit,
+  onForceSubmit,
   onStop,
   isLoading,
   onSelectSuggestion,
@@ -47,6 +51,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onRemoveQueueItem,
   onEditQueueItem,
   onClearQueue,
+  onForceSendQueueItem,
+  onRunNextQueueItem,
   projects = [],
   subproject = '',
   onSubprojectChange,
@@ -244,6 +250,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
           onRemove={onRemoveQueueItem}
           onEdit={onEditQueueItem}
           onClear={onClearQueue}
+          onForceSend={onForceSendQueueItem}
+          onRunNext={onRunNextQueueItem}
+          isGenerating={isLoading}
         />
       )}
 
@@ -252,6 +261,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         prompt={prompt}
         onChange={onPromptChange}
         onSubmit={onSubmit}
+        onForceSubmit={onForceSubmit}
         onStop={onStop}
         isLoading={isLoading}
         currentModel={currentModel}

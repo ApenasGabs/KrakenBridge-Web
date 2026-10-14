@@ -299,6 +299,7 @@ export const api = {
       prompt: string;
       conversationId?: string;
       options: ChatOptions;
+      force?: boolean;
     },
     callbacks: SSECallbacks,
     abortSignal?: AbortSignal
@@ -315,7 +316,8 @@ export const api = {
       disableSlashCommands: payload.options.disableSlashCommands,
       subproject: payload.options.subproject || undefined,
       chatMode: payload.options.chatMode || undefined,
-      accountEmail: payload.options.accountEmail || undefined
+      accountEmail: payload.options.accountEmail || undefined,
+      force: payload.force ?? false
     };
 
     const response = await fetch(`${getApiBase()}/chat`, {
@@ -397,6 +399,9 @@ export const api = {
             }
           } else if (parsed.event === 'raw') {
             if (parsed.text) callbacks.onTextDelta?.(parsed.text + '\n');
+          } else if (parsed.event === 'interrupted') {
+            callbacks.onTextDelta?.('\n\n*(Interrompido por novo envio forçado)*');
+            callbacks.onDone?.({ code: 130, conversation_id: payload.conversationId || '' });
           } else if (parsed.event === 'done') {
             callbacks.onDone?.(parsed);
           } else if (parsed.event === 'error') {

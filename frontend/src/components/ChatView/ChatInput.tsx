@@ -27,6 +27,7 @@ interface ChatInputProps {
   prompt: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onForceSubmit?: () => void;
   onStop: () => void;
   isLoading: boolean;
   disabled?: boolean;
@@ -191,6 +192,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   prompt,
   onChange,
   onSubmit,
+  onForceSubmit,
   onStop,
   isLoading,
   disabled,
@@ -311,6 +313,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         setIsSlashOpen(false);
         return;
       }
+    }
+
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (prompt.trim() && !disabled) {
+        if (isListening) stopListening();
+        if (onForceSubmit) {
+          onForceSubmit();
+        } else {
+          onSubmit();
+        }
+      }
+      return;
     }
 
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -604,24 +619,47 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 )}
               </button>
 
-              {/* Botão de Envio / Enfileirar / Parar */}
+              {/* Botão de Envio / Enfileirar / Forçar Envio / Parar */}
               {isLoading ? (
                 <div className="flex items-center gap-1.5">
                   {prompt.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isListening) stopListening();
-                        onSubmit();
-                      }}
-                      className="btn btn-info btn-xs gap-1 shadow-sm px-2.5 h-7"
-                      title="Adicionar à fila de mensagens (Enter)"
-                    >
-                      <ListPlus className="w-3.5 h-3.5" />
-                      <span className="text-[11px] font-medium hidden sm:inline">
-                        Enfileirar{queuedCount > 0 ? ` (${queuedCount})` : ''}
-                      </span>
-                    </button>
+                    <>
+                      {/* Botão de Enfileirar (aguarda o próximo prompt) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isListening) stopListening();
+                          onSubmit();
+                        }}
+                        className="btn btn-info btn-xs gap-1 shadow-sm px-2.5 h-7"
+                        title="Adicionar à fila para executar após a resposta atual (Enter)"
+                      >
+                        <ListPlus className="w-3.5 h-3.5" />
+                        <span className="text-[11px] font-medium hidden sm:inline">
+                          Enfileirar{queuedCount > 0 ? ` (${queuedCount})` : ''}
+                        </span>
+                      </button>
+
+                      {/* Botão de Forçar Envio (interrompe geração e envia agora) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isListening) stopListening();
+                          if (onForceSubmit) {
+                            onForceSubmit();
+                          } else {
+                            onSubmit();
+                          }
+                        }}
+                        className="btn btn-warning btn-xs gap-1 shadow-sm px-2.5 h-7 bg-amber-500 hover:bg-amber-400 text-black font-semibold border-amber-600"
+                        title="Forçar envio imediato — interrompe a tarefa atual e executa já (Ctrl+Enter)"
+                      >
+                        <Zap className="w-3.5 h-3.5 fill-current" />
+                        <span className="text-[11px] font-bold hidden sm:inline">
+                          Forçar Envio
+                        </span>
+                      </button>
+                    </>
                   )}
                   <button
                     type="button"
@@ -641,7 +679,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   }}
                   disabled={!prompt.trim() || disabled}
                   className="w-7 h-7 rounded-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white flex items-center justify-center shadow-md transition-all disabled:opacity-30 disabled:pointer-events-none"
-                  title="Enviar mensagem (Enter)"
+                  title="Enviar mensagem (Enter ou Ctrl+Enter)"
                 >
                   <ArrowRight className="w-4 h-4 stroke-[2.5]" />
                 </button>

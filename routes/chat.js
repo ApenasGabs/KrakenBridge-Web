@@ -107,7 +107,8 @@ chatRouter.post('/', async (req, res) => {
     disableSlashCommands,
     subproject,
     chatMode = 'agent',
-    accountEmail
+    accountEmail,
+    force = false
   } = req.body;
 
   if (!prompt || typeof prompt !== 'string') {
@@ -115,9 +116,38 @@ chatRouter.post('/', async (req, res) => {
   }
 
   if (clientConvId && activeSessions.has(clientConvId)) {
-    return res.status(409).json({ 
-      error: 'Esta conversa já possui uma tarefa em execução. Aguarde a conclusão ou clique em Parar.' 
-    });
+    const existing = activeSessions.get(clientConvId);
+    const isAlreadyDead = existing?.child && (existing.child.killed || existing.child.exitCode !== null);
+
+    if (force || isAlreadyDead) {
+      console.log(`[KrakenBridge] ${force ? 'Forçando envio' : 'Limpando processo encerrado'} na conversa ${clientConvId}.`);
+      if (existing) {
+        try {
+          existing.child.kill('SIGTERM');
+          setTimeout(() => {
+            try {
+              if (!existing.child.killed && existing.child.exitCode === null) {
+                existing.child.kill('SIGKILL');
+              }
+            } catch {}
+          }, 200);
+        } catch (e) {
+          console.warn('[KrakenBridge] Erro ao encerrar processo anterior:', e.message);
+        }
+        activeSessions.delete(clientConvId);
+        activeProcesses.delete(existing.reqId);
+        try {
+          if (existing.res && !existing.res.writableEnded && !existing.res.destroyed) {
+            existing.res.write(`data: ${JSON.stringify({ event: 'interrupted', message: 'Interrompido por envio forçado' })}\n\n`);
+            existing.res.end();
+          }
+        } catch {}
+      }
+    } else {
+      return res.status(409).json({ 
+        error: 'Esta conversa já possui uma tarefa em execução. Aguarde a conclusão, use "Forçar Envio" ou clique em Parar.' 
+      });
+    }
   }
 
   const existingSession = clientConvId ? await historyService.get(clientConvId) : null;
@@ -469,24 +499,36 @@ chatRouter.post('/stop', (req, res) => {
   const { conversationId } = req.body || {};
   let count = 0;
 
-  if (conversationId && activeSessions.has(conversationId)) {
-    const session = activeSessions.get(conversationId);
+  const terminateSession = (session, convId) => {
     try {
       session.child.kill('SIGTERM');
+      setTimeout(() => {
+        try {
+          if (!session.child.killed && session.child.exitCode === null) {
+            session.child.kill('SIGKILL');
+          }
+        } catch {}
+      }, 250);
       count++;
     } catch (e) {
-      console.error(`Erro ao finalizar processo da conversa ${conversationId}:`, e);
+      console.error(`Erro ao finalizar processo da conversa ${convId}:`, e);
     }
+    try {
+      if (session.res && !session.res.writableEnded && !session.res.destroyed) {
+        session.res.write(`data: ${JSON.stringify({ event: 'done', code: 130, interrupted: true, conversation_id: convId })}\n\n`);
+        session.res.end();
+      }
+    } catch {}
+  };
+
+  if (conversationId && activeSessions.has(conversationId)) {
+    const session = activeSessions.get(conversationId);
+    terminateSession(session, conversationId);
     activeSessions.delete(conversationId);
     activeProcesses.delete(session.reqId);
   } else {
     for (const [convId, session] of activeSessions.entries()) {
-      try {
-        session.child.kill('SIGTERM');
-        count++;
-      } catch (e) {
-        console.error(`Erro ao finalizar processo da conversa ${convId}:`, e);
-      }
+      terminateSession(session, convId);
     }
     for (const [id, proc] of activeProcesses.entries()) {
       try {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { 
   ChatMessage, 
   ChatOptions, 
@@ -26,6 +26,10 @@ export const App: React.FC = () => {
   // Estado das Conversas
   const [conversations, setConversations] = useState<ConversationSession[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const activeConvIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeConvIdRef.current = activeConvId;
+  }, [activeConvId]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +71,10 @@ export const App: React.FC = () => {
       showQuotaBubble: saved !== null ? saved === 'true' : true
     };
   });
+  const optionsRef = useRef<ChatOptions>(options);
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
   const handleUpdateOptions = useCallback((newOptions: ChatOptions) => {
     setOptions(newOptions);
@@ -234,28 +242,77 @@ export const App: React.FC = () => {
     }
   }, [activeConvId, handleNewChat]);
 
-  // Fila de Mensagens Pendentes
-  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>([]);
-  const messageQueueRef = useRef<QueuedMessage[]>([]);
-  useEffect(() => {
-    messageQueueRef.current = messageQueue;
-  }, [messageQueue]);
+  // Fila de Mensagens Pendentes (com sincronização síncrona de Ref e persistência no localStorage)
+  const [messageQueue, setMessageQueue] = useState<QueuedMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem('kraken_message_queue');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const messageQueueRef = useRef<QueuedMessage[]>(messageQueue);
+
+  const updateMessageQueue = useCallback((updater: QueuedMessage[] | ((prev: QueuedMessage[]) => QueuedMessage[])) => {
+    setMessageQueue(prev => {
+      const updated = typeof updater === 'function' ? updater(prev) : updater;
+      messageQueueRef.current = updated;
+      try {
+        localStorage.setItem('kraken_message_queue', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  }, []);
 
   const handleRemoveQueueItem = useCallback((id: string) => {
-    setMessageQueue(prev => prev.filter(m => m.id !== id));
-  }, []);
+    updateMessageQueue(prev => prev.filter(m => m.id !== id));
+  }, [updateMessageQueue]);
 
   const handleEditQueueItem = useCallback((msg: QueuedMessage) => {
-    setMessageQueue(prev => prev.filter(m => m.id !== msg.id));
+    updateMessageQueue(prev => prev.filter(m => m.id !== msg.id));
     setPrompt(msg.text);
-  }, []);
+  }, [updateMessageQueue]);
 
   const handleClearQueue = useCallback(() => {
-    setMessageQueue([]);
-  }, []);
+    updateMessageQueue([]);
+  }, [updateMessageQueue]);
+
+  // Fila filtrada para a conversa ativa atual
+  const currentConversationQueue = useMemo(() => {
+    return messageQueue.filter(m => !m.conversationId || m.conversationId === activeConvId);
+  }, [messageQueue, activeConvId]);
+
+  // Ref mutável para executeTurn a fim de evitar stale closures nos callbacks SSE
+  const executeTurnRef = useRef<(userText: string, turnOptions?: { force?: boolean; model?: string; subproject?: string }) => Promise<void>>(async () => {});
+
+  // Despacho seguro do próximo item da fila
+  const dispatchNextQueueItem = useCallback(() => {
+    const queue = messageQueueRef.current;
+    if (!queue || queue.length === 0) return;
+
+    const currentConvId = activeConvIdRef.current;
+    const nextIdx = queue.findIndex(item => !item.conversationId || item.conversationId === currentConvId);
+    if (nextIdx === -1) return;
+
+    const nextMsg = queue[nextIdx];
+    const remaining = queue.filter((_, idx) => idx !== nextIdx);
+    updateMessageQueue(remaining);
+
+    // Timeout de 450ms com force: true garante que encerramentos assíncronos anteriores não travem o próximo envio
+    setTimeout(() => {
+      executeTurnRef.current(nextMsg.text, {
+        force: true,
+        model: nextMsg.model,
+        subproject: nextMsg.subproject
+      });
+    }, 450);
+  }, [updateMessageQueue]);
 
   // Executar Turno do Assistente com SSE Streaming
-  const executeTurn = useCallback(async (userText: string) => {
+  const executeTurn = useCallback(async (
+    userText: string,
+    turnOptions?: { force?: boolean; model?: string; subproject?: string }
+  ) => {
     setIsLoading(true);
 
     const userMessage: ChatMessage = {
@@ -266,13 +323,14 @@ export const App: React.FC = () => {
     };
 
     const streamingId = `assistant-${Date.now()}`;
+    const targetModel = turnOptions?.model || optionsRef.current.model;
     const assistantMessage: ChatMessage = {
       id: streamingId,
       role: 'assistant',
       text: '',
       timestamp: new Date().toISOString(),
-      agent: options.agent,
-      model: options.model,
+      agent: optionsRef.current.agent,
+      model: targetModel,
       toolCalls: [],
       thinking: '',
       isStreaming: true
@@ -286,12 +344,18 @@ export const App: React.FC = () => {
       await api.streamChat(
         {
           prompt: userText,
-          conversationId: activeConvId || undefined,
-          options
+          conversationId: activeConvIdRef.current || undefined,
+          options: {
+            ...optionsRef.current,
+            model: targetModel,
+            subproject: turnOptions?.subproject ?? optionsRef.current.subproject
+          },
+          force: turnOptions?.force ?? false
         },
         {
           onSessionStart: (data) => {
-            if (!activeConvId) {
+            if (!activeConvIdRef.current) {
+              activeConvIdRef.current = data.conversation_id;
               setActiveConvId(data.conversation_id);
             }
             if (data.subproject) {
@@ -368,14 +432,8 @@ export const App: React.FC = () => {
             setIsLoading(false);
             loadConversations();
 
-            // Auto-dispatch da próxima mensagem enfileirada
-            if (messageQueueRef.current.length > 0) {
-              const [nextMsg, ...remaining] = messageQueueRef.current;
-              setMessageQueue(remaining);
-              setTimeout(() => {
-                executeTurn(nextMsg.text);
-              }, 400);
-            }
+            // Auto-dispatch da próxima mensagem enfileirada com segurança
+            dispatchNextQueueItem();
           },
           onError: (err) => {
             abortControllerRef.current = null;
@@ -408,7 +466,11 @@ export const App: React.FC = () => {
         return msg;
       }));
     }
-  }, [activeConvId, options, loadConversations]);
+  }, [loadConversations, dispatchNextQueueItem]);
+
+  useEffect(() => {
+    executeTurnRef.current = executeTurn;
+  }, [executeTurn]);
 
   // Polling para sincronizar mensagens se a conversa ativa estiver rodando em segundo plano
   useEffect(() => {
@@ -430,13 +492,7 @@ export const App: React.FC = () => {
             setIsLoading(false);
             loadConversations();
             // Auto-dispatch se houver item pendente na fila
-            if (messageQueueRef.current.length > 0) {
-              const [nextMsg, ...remaining] = messageQueueRef.current;
-              setMessageQueue(remaining);
-              setTimeout(() => {
-                executeTurn(nextMsg.text);
-              }, 400);
-            }
+            dispatchNextQueueItem();
           }
         }
       } catch (e) {
@@ -445,7 +501,7 @@ export const App: React.FC = () => {
     }, 1500);
 
     return () => clearInterval(interval);
-  }, [activeConvId, isLoading, loadConversations, executeTurn]);
+  }, [activeConvId, isLoading, loadConversations, dispatchNextQueueItem]);
 
   // Polling da lista de conversas caso alguma esteja rodando em segundo plano
   useEffect(() => {
@@ -465,22 +521,81 @@ export const App: React.FC = () => {
     if (!userText) return;
 
     if (isLoading) {
-      // Adiciona à fila de mensagens
+      // Adiciona à fila de mensagens associando à conversa atual
       const queuedItem: QueuedMessage = {
         id: `queue-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        conversationId: activeConvIdRef.current,
         text: userText,
         timestamp: new Date().toISOString(),
-        model: options.model,
-        subproject: options.subproject
+        model: optionsRef.current.model,
+        subproject: optionsRef.current.subproject,
+        status: 'pending'
       };
-      setMessageQueue(prev => [...prev, queuedItem]);
+      updateMessageQueue(prev => [...prev, queuedItem]);
       setPrompt('');
       return;
     }
 
     setPrompt('');
     executeTurn(userText);
-  }, [prompt, isLoading, options, executeTurn]);
+  }, [prompt, isLoading, executeTurn, updateMessageQueue]);
+
+  // Forçar Envio Imediato de Mensagem do Campo de Texto (Interrompe qualquer tarefa ativa e roda imediatamente)
+  const handleForceSubmitMessage = useCallback(async () => {
+    const userText = prompt.trim();
+    if (!userText) return;
+
+    if (isLoading || abortControllerRef.current) {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      setMessages(prev => prev.map(msg => {
+        if (msg.isStreaming) {
+          return { ...msg, isStreaming: false, text: (msg.text ? msg.text + '\n\n' : '') + '*(Interrompido por novo envio forçado)*' };
+        }
+        return msg;
+      }));
+      try {
+        api.stopChat(activeConvIdRef.current || undefined).catch(() => {});
+      } catch {}
+    }
+
+    setPrompt('');
+    executeTurn(userText, { force: true });
+  }, [prompt, isLoading, executeTurn]);
+
+  // Forçar Envio de um Item Específico da Fila
+  const handleForceSendQueueItem = useCallback(async (item: QueuedMessage) => {
+    updateMessageQueue(prev => prev.filter(m => m.id !== item.id));
+
+    if (isLoading || abortControllerRef.current) {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      setMessages(prev => prev.map(msg => {
+        if (msg.isStreaming) {
+          return { ...msg, isStreaming: false, text: (msg.text ? msg.text + '\n\n' : '') + '*(Interrompido por envio forçado da fila)*' };
+        }
+        return msg;
+      }));
+      try {
+        api.stopChat(activeConvIdRef.current || undefined).catch(() => {});
+      } catch {}
+    }
+
+    executeTurn(item.text, {
+      force: true,
+      model: item.model,
+      subproject: item.subproject
+    });
+  }, [isLoading, updateMessageQueue, executeTurn]);
+
+  // Executar o próximo item da fila manualmente (caso esteja pausada)
+  const handleRunNextQueueItem = useCallback(() => {
+    dispatchNextQueueItem();
+  }, [dispatchNextQueueItem]);
 
   const handleStop = async () => {
     if (abortControllerRef.current) {
@@ -488,7 +603,7 @@ export const App: React.FC = () => {
       abortControllerRef.current = null;
     }
     try {
-      await api.stopChat(activeConvId || undefined);
+      await api.stopChat(activeConvIdRef.current || undefined);
     } catch (e) {
       console.warn('Erro ao interromper chat:', e);
     }
@@ -563,6 +678,7 @@ export const App: React.FC = () => {
             prompt={prompt}
             onPromptChange={setPrompt}
             onSubmit={handleSubmitMessage}
+            onForceSubmit={handleForceSubmitMessage}
             onStop={handleStop}
             isLoading={isLoading}
             onSelectSuggestion={(sug) => setPrompt(sug)}
@@ -570,10 +686,12 @@ export const App: React.FC = () => {
             availableModels={availableModels}
             onModelChange={(model) => handleUpdateOptions({ ...options, model })}
             onOpenMcpModal={() => setIsMcpModalOpen(true)}
-            messageQueue={messageQueue}
+            messageQueue={currentConversationQueue}
             onRemoveQueueItem={handleRemoveQueueItem}
             onEditQueueItem={handleEditQueueItem}
             onClearQueue={handleClearQueue}
+            onForceSendQueueItem={handleForceSendQueueItem}
+            onRunNextQueueItem={handleRunNextQueueItem}
             projects={projects}
             subproject={options.subproject}
             onSubprojectChange={handleSubprojectChange}

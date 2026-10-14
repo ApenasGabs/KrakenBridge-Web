@@ -32,10 +32,13 @@ export interface ChatMessage {
 
 export interface QueuedMessage {
   id: string;
+  conversationId?: string | null;
   text: string;
   timestamp: string;
   model?: string;
   subproject?: string;
+  status?: 'pending' | 'sending' | 'error';
+  error?: string;
 }
 
 export interface ConversationSession {
