@@ -20,11 +20,10 @@ O **KrakenBridge Web** é a ponte definitiva que transforma os agentes de progra
 Assim como o mítico **Kraken**, a aplicação controla múltiplos motores e ferramentas através de tentáculos sincronizados:
 1. **🤖 Modo Agente com Logs Reais de Terminal:** Acompanhe a execução do agente em tempo real via Server-Sent Events (SSE), contadores de *thinking tokens* e **cartões colapsáveis com os comandos de terminal executados e sua saída real (`stdout`/`stderr`)**.
 2. **💻 Modo IDE Embutido:** O **VS Code oficial para navegador (`code-server`)** roda no mesmo ambiente. Alterne instantaneamente entre o chat e o editor com um clique na aba **[IDE]**.
-3. **🐙 Suporte Multi-Motor:** Selecione no topo da interface qual cérebro deseja acionar:
-   * **✨ Google Antigravity (`agy`)**
-   * **🟣 Anthropic Claude Code (`claude`)**
-   * **🟢 OpenAI Codex / Aider (`aider`)**
-4. **🔄 Workspace Unificado:** Agentes e VS Code compartilham o mesmo volume (`/workspace`), permitindo inspecionar *git diffs* e novos arquivos no mesmo segundo em que a IA os cria.
+3. **🧬 Auto-Evolução Contínua (Pod Drain):** O Kraken possui auto-consciência do seu próprio código em `/app`. Ele é capaz de aprimorar a si mesmo, recompilar seu frontend e reiniciar com o padrão **Pod Drain** (`/api/system/self-reload`), aguardando tarefas em execução sem interromper o fluxo de desenvolvimento.
+4. **📊 Status Dashboard & Topology Mesh:** Monitoramento da malha de servidores domésticos (ZimaOS `gabisa`, `servidor` GPU, etc.) e medidores de quotas de tokens em tempo real estilo Orca.
+5. **🐙 Suporte Multi-Motor & Multi-Contas:** Selecione o motor de IA ativo (**Google Antigravity**, **Claude Code**, **Codex / Aider**) e autentique rapidamente via **GitHub CLI Device Code Flow** ou PATs isolados por sessão.
+6. **🔄 Workspace Unificado & Isolamento Seguro:** Separação estrita entre o código do próprio sistema (`/app`) e os projetos do usuário (`/workspace`), permitindo que a IA edite repositórios com segurança total.
 
 ---
 
@@ -32,19 +31,24 @@ Assim como o mítico **Kraken**, a aplicação controla múltiplos motores e fer
 
 ```mermaid
 flowchart TD
-    subgraph Dispositivos["Dispositivos (Celular / Tablet / Desktop)"]
+    subgraph Dispositivos["📱 Dispositivos (Celular / Tablet / Desktop)"]
         Browser["Navegador Web (Rede Local ou Tailscale)"]
     end
 
-    subgraph Servidor["Servidor ZimaOS / CasaOS / Linux"]
+    subgraph Servidor["🏠 Servidor ZimaOS / CasaOS / Homelab"]
         subgraph Port8088["KrakenBridge Web (Porta 8088)"]
-            UI["Interface Web (Seletor Multi-Agente + Gemini Dark UI)"]
-            API["Backend Express (Camada de Drivers + SSE Stream)"]
+            UI["Interface Web (React 19 + TypeScript + DaisyUI 5)"]
+            API["Backend Express 4 (ESM + SSE Stream)"]
+            SelfEngine["Motor de Auto-Evolução (Pod Drain Controller)"]
+            StatusMesh["Status Mesh & Quota Monitor (Orca Metrics)"]
             subgraph Drivers["Tentáculos / Drivers de Execução"]
                 DAgy["✨ Google Antigravity (agy)"]
                 DClaude["🟣 Claude Code (claude)"]
                 DAider["🟢 Codex / Aider (aider)"]
             end
+            API --> SelfEngine
+            API --> StatusMesh
+            API --> Drivers
         end
 
         subgraph Port8089["VS Code Web (Porta 8089)"]
@@ -52,17 +56,40 @@ flowchart TD
             Ext["Extensões de IA & Git Integrado"]
         end
 
-        Workspace["Volume Compartilhado (/workspace - Repositórios Git)"]
+        subgraph Storage["💾 Armazenamento"]
+            AppCode["/app (Código do Kraken)"]
+            Workspace["/workspace (Repositórios do Usuário)"]
+        end
     end
 
     Browser -->|HTTP :8088| UI
     UI -->|POST /api/chat| API
-    API --> Drivers
+    SelfEngine -->|Modifica & Compila| AppCode
     Drivers -->|Executam Comandos & Editam Código| Workspace
     
     UI -.->|"Aba IDE (Iframe :8089)"| CodeServer
     CodeServer -->|Visualização de Diffs e Edição| Workspace
 ```
+
+---
+
+## 🧬 Ciclo de Auto-Evolução & Pod Drain
+
+O Kraken possui auto-consciência operacional através do arquivo [`.kraken-identity.json`](.kraken-identity.json):
+* **Separação de Domínios:**
+  * O código-fonte do próprio Kraken reside em `/app` (frontend em `/app/frontend`).
+  * Os projetos e aplicações do usuário ficam estritamente em `/workspace`.
+* **Fluxo de Auto-Aprimoramento:**
+  1. **Modificação:** O Kraken aplica ajustes em seu próprio backend ou na interface React.
+  2. **Compilação:** Se o frontend foi alterado, compila os assets: `cd /app/frontend && npm run build`.
+  3. **Versionamento Git:** Commita as alterações localmente e sincroniza com o repositório (`git pull --rebase origin main && git push origin main`).
+  4. **Pod Drain:** Aciona o endpoint de reinício gracioso:
+     ```bash
+     curl -s -X POST http://localhost:8088/api/system/self-reload \
+       -H "Content-Type: application/json" \
+       -d '{"conversationId":"<ID>","taskDescription":"Resumo da melhoria"}'
+     ```
+     O servidor entra em estado de dreno, aguarda o término seguro de tarefas em andamento, reinicia o processo e reconecta a sessão de chat na nova versão!
 
 ---
 
