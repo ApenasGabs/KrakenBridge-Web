@@ -8,6 +8,8 @@ import { authRouter } from './routes/auth.js';
 import { chatRouter } from './routes/chat.js';
 import { quotaRouter } from './routes/quota.js';
 import { mcpRouter } from './routes/mcp.js';
+import { systemRouter } from './routes/system.js';
+import { evolutionService } from './services/evolutionService.js';
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
@@ -81,6 +83,7 @@ const registerRoutes = (prefix) => {
   app.use(`${prefix}/chat`, chatRouter);
   app.use(`${prefix}/quota`, quotaRouter);
   app.use(`${prefix}/mcp`, mcpRouter);
+  app.use(`${prefix}/system`, systemRouter);
 
   app.post(`${prefix}/stop`, (req, res) => res.redirect(307, `${prefix}/chat/stop`));
   app.get(`${prefix}/projects`, (req, res) => res.redirect(`${prefix}/config/projects`));
@@ -145,5 +148,8 @@ app.listen(PORT, '0.0.0.0', () => {
   // Registra no Gateway imediatamente e a cada 5 minutos
   registerZimaosGatewayRoute();
   setInterval(registerZimaosGatewayRoute, 5 * 60 * 1000);
+
+  // Checa se este boot é decorrente de um ciclo de auto-evolução
+  evolutionService.checkAndResumeAfterBoot();
 });
 

@@ -176,9 +176,17 @@ Você está operando em MODO CHAT/CONSULTA.
 2. NÃO faça edições, criações nem remoções de arquivos no workspace local do projeto.
 3. NÃO execute comandos de escrita de código ou destrutivos no terminal local.\n\n`;
 
+  const AGENT_MODE_DIRECTIVE = `[CAPACIDADE_DO_SISTEMA - AUTO-EVOLUÇÃO]:
+Se o usuário solicitar que você modifique o próprio código do KrakenBridge-Web (/app) e aplique as mudanças com reinício:
+1. Faça as modificações nos arquivos de código com segurança.
+2. Se modificar o frontend React, compile rodando: cd /app/frontend && npm run build
+3. Para recarregar o servidor e aplicar suas alterações sem perder o estado, execute via terminal:
+   curl -s -X POST http://localhost:8088/api/system/self-reload -H "Content-Type: application/json" -d '{"conversationId":"${conversationId}","taskDescription":"Breve resumo do que foi alterado"}'
+4. O servidor será recarregado em background e você/o sistema retomará a conversa após o reinício automaticamente.\n\n`;
+
   const effectivePrompt = (activeChatMode === 'chat')
     ? `${CHAT_MODE_DIRECTIVE}${prompt}`
-    : prompt;
+    : `${AGENT_MODE_DIRECTIVE}${prompt}`;
 
   const driver = AGENT_DRIVERS[agent] || AGENT_DRIVERS.antigravity;
   const args = driver.buildArgs({
