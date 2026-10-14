@@ -692,12 +692,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         </div>
 
         {/* Rodapé explicativo discreto */}
-        <div className="flex items-center justify-between text-[11px] text-base-content/40 mt-2 px-1 select-none">
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="w-3 h-3 text-primary/70" />
-            <span>Digite <code className="bg-base-200 text-primary px-1 rounded font-mono">/</code> para comandos ou use o microfone</span>
+        <div className="flex items-center justify-between text-[11px] text-base-content/40 mt-2 px-1 select-none gap-2">
+          <div className="flex items-center gap-1.5 truncate">
+            <Sparkles className="w-3 h-3 text-primary/70 shrink-0" />
+            <span className="truncate">Digite <code className="bg-base-200 text-primary px-1 rounded font-mono">/</code> para comandos<span className="hidden sm:inline"> ou use o microfone</span></span>
           </div>
-          <span>Shift + Enter para nova linha</span>
+          <span className="hidden sm:inline shrink-0">Shift + Enter para nova linha</span>
         </div>
 
       </div>

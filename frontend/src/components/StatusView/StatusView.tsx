@@ -290,7 +290,7 @@ const StatusContent: React.FC<StatusViewProps> = ({
         <div className="flex items-center gap-1.5 sm:gap-2">
           {layoutMode !== 'stats' && (
             <>
-              <div className="relative w-32 sm:w-44">
+              <div className="relative w-24 sm:w-44">
                 <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-base-content/40" />
                 <input
                   type="text"

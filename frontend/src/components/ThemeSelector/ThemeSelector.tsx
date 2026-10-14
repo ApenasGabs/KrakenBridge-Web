@@ -1,9 +1,20 @@
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
+import { Palette, X } from "lucide-react";
 
 const DEFAULT_THEME = "light";
 
-const ThemeSelector = () => {
+interface ThemeSelectorProps {
+  drawerId?: string;
+  compact?: boolean;
+  className?: string;
+}
+
+const ThemeSelector: React.FC<ThemeSelectorProps> = ({
+  drawerId = "theme-drawer",
+  compact = false,
+  className = ""
+}) => {
   const [currentTheme, setCurrentTheme] = useState<string>(() => {
     if (typeof window === "undefined") return DEFAULT_THEME;
     return localStorage.getItem("theme") || DEFAULT_THEME;
@@ -20,14 +31,14 @@ const ThemeSelector = () => {
 
   const toggleDrawer = useCallback((): void => {
     const drawerToggle = document.getElementById(
-      "theme-drawer",
+      drawerId,
     ) as HTMLInputElement | null;
 
     if (!drawerToggle) return;
 
     drawerToggle.checked = !drawerToggle.checked;
     drawerToggle.dispatchEvent(new Event("change", { bubbles: true }));
-  }, []);
+  }, [drawerId]);
 
   useEffect(() => {
     applyTheme(currentTheme);
@@ -85,10 +96,10 @@ const ThemeSelector = () => {
   ));
 
   return (
-    <div className="text-xl" data-testid="theme-selector">
+    <div className={className} data-testid="theme-selector">
       <div className="drawer drawer-end">
         <input
-          id="theme-drawer"
+          id={drawerId}
           type="checkbox"
           className="drawer-toggle"
           data-testid="theme-drawer-toggle"
@@ -96,8 +107,8 @@ const ThemeSelector = () => {
         />
         <div className="drawer-content">
           <label
-            htmlFor="theme-drawer"
-            className="btn btn-sm btn-ghost text-xl"
+            htmlFor={drawerId}
+            className={`btn btn-ghost btn-sm gap-1.5 ${compact ? 'px-2 text-xs' : 'px-2.5 text-xs sm:text-sm'}`}
             role="button"
             aria-label="Temas"
             data-testid="theme-button"
@@ -109,21 +120,34 @@ const ThemeSelector = () => {
               }
             }}
           >
-            Temas
+            <Palette className="w-4 h-4 text-base-content/70 shrink-0" />
+            <span className={compact ? "sr-only sm:not-sr-only sm:inline" : ""}>Temas</span>
           </label>
         </div>
-        <div className="drawer-side z-1">
+        <div className="drawer-side z-50">
           <label
-            htmlFor="theme-drawer"
+            htmlFor={drawerId}
             className="drawer-overlay"
             data-testid="theme-drawer-overlay"
           ></label>
-          <ul
-            className="menu bg-base-200 text-base-content min-h-full w-80 p-4 pt-10"
-            data-testid="theme-menu"
-          >
-            {ThemeOptions}
-          </ul>
+          <div className="menu bg-base-200 text-base-content min-h-full w-80 max-w-[85vw] p-4 pt-6 flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-base-300">
+              <div className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-sm">Temas da Interface</span>
+              </div>
+              <label
+                htmlFor={drawerId}
+                className="btn btn-ghost btn-xs btn-square cursor-pointer"
+                aria-label="Fechar temas"
+              >
+                <X className="w-4 h-4" />
+              </label>
+            </div>
+            <ul className="space-y-1 flex-1 overflow-y-auto" data-testid="theme-menu">
+              {ThemeOptions}
+            </ul>
+          </div>
         </div>
       </div>
     </div>
