@@ -202,7 +202,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
 
   // Modo Balão Expandido - Réplica Fiel do Painel Oficial Antigravity
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-96 max-w-[calc(100vw-2.5rem)] rounded-2xl bg-[#121417]/98 backdrop-blur-xl border border-neutral-800/90 shadow-2xl p-4 text-xs font-sans text-neutral-200 select-none animate-in fade-in slide-in-from-bottom-3 duration-200">
+    <div className="fixed bottom-6 right-6 z-50 w-96 max-w-[calc(100vw-2.5rem)] rounded-2xl bg-[#121417]/98 backdrop-blur-xl border border-neutral-800/90 shadow-2xl p-4 text-xs font-sans text-neutral-200 select-none animate-in fade-in slide-in-from-bottom-3 duration-200" data-testid="quota-bubble">
       
       {/* Barra de controle discreta no topo */}
       <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-neutral-800/80">
@@ -241,6 +241,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
             <Minimize2 className="w-3.5 h-3.5" />
           </button>
           <button 
+            data-testid="quota-bubble-close"
             onClick={onClose}
             className="p-1 rounded-md text-neutral-400 hover:text-red-400 hover:bg-neutral-800/60 transition-colors"
             title="Fechar balão"

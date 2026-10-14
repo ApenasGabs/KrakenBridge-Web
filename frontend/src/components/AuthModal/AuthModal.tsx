@@ -331,7 +331,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="modal modal-open z-50">
+    <div className="modal modal-open z-50" data-testid="auth-modal">
       <div className="modal-box w-11/12 max-w-xl p-4 sm:p-6 bg-base-100 border border-base-300 shadow-2xl rounded-2xl">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between pb-3 border-b border-base-200">
@@ -341,7 +341,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               Gerenciador de Contas & Autenticação
             </h3>
           </div>
-          <button onClick={onClose} className="btn btn-sm btn-ghost btn-circle">
+          <button data-testid="auth-modal-close" onClick={onClose} className="btn btn-sm btn-ghost btn-circle">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -389,6 +389,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Abas do Modal */}
         <div className="tabs tabs-boxed bg-base-200/80 p-0.5 mb-4 text-xs flex overflow-x-auto whitespace-nowrap">
           <button
+            data-testid="auth-tab-accounts"
             onClick={() => setActiveTab('accounts')}
             className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'accounts' ? 'tab-active font-medium' : ''}`}
           >
@@ -399,6 +400,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
           </button>
           <button
+            data-testid="auth-tab-google"
             onClick={() => setActiveTab('google')}
             className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'google' ? 'tab-active font-medium' : ''}`}
           >
@@ -406,6 +408,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <span>Google</span>
           </button>
           <button
+            data-testid="auth-tab-github"
             onClick={() => setActiveTab('github')}
             className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'github' ? 'tab-active font-medium' : ''}`}
           >
@@ -416,12 +419,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
           </button>
           <button
+            data-testid="auth-tab-apikey"
             onClick={() => setActiveTab('apikey')}
             className={`tab tab-sm flex-1 min-w-[80px] ${activeTab === 'apikey' ? 'tab-active font-medium' : ''}`}
           >
             API Key
           </button>
           <button
+            data-testid="auth-tab-ide"
             onClick={() => setActiveTab('ide')}
             className={`tab tab-sm flex-1 min-w-[80px] ${activeTab === 'ide' ? 'tab-active font-medium' : ''}`}
           >

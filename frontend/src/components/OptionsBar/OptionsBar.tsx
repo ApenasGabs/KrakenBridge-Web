@@ -37,7 +37,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
   };
 
   return (
-    <div className="bg-base-200/80 border-b border-base-300 px-4 py-2.5 transition-all text-xs">
+    <div className="bg-base-200/80 border-b border-base-300 px-4 py-2.5 transition-all text-xs" data-testid="options-bar">
       <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4">
         {/* Seleção de Modelo */}
         <div className="flex items-center gap-2">
@@ -46,6 +46,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             Modelo:
           </label>
           <select
+            data-testid="options-model-select"
             value={options.model}
             onChange={(e) => update({ model: e.target.value })}
             className="select select-bordered select-xs bg-base-100 font-mono"
@@ -63,6 +64,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             Raciocínio:
           </label>
           <select
+            data-testid="options-effort-select"
             value={options.effort}
             onChange={(e) => update({ effort: e.target.value })}
             className="select select-bordered select-xs bg-base-100"
@@ -82,6 +84,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             Modo:
           </label>
           <select
+            data-testid="options-mode-select"
             value={options.mode}
             onChange={(e) => update({ mode: e.target.value })}
             className="select select-bordered select-xs bg-base-100"
@@ -99,6 +102,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             Interação:
           </label>
           <select
+            data-testid="options-interaction-select"
             value={options.chatMode || 'agent'}
             onChange={(e) => update({ chatMode: e.target.value as 'agent' | 'chat' })}
             className="select select-bordered select-xs bg-base-100 font-medium"
@@ -116,6 +120,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
               Executar com:
             </label>
             <select
+              data-testid="options-account-select"
               value={options.accountEmail || ''}
               onChange={(e) => update({ accountEmail: e.target.value || undefined })}
               className="select select-bordered select-xs bg-base-100 font-mono text-[11px]"
@@ -135,6 +140,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
         <div className="flex items-center gap-4">
           <label className="cursor-pointer flex items-center gap-1.5 text-base-content/80 select-none">
             <input
+              data-testid="options-skip-permissions"
               type="checkbox"
               checked={options.skipPermissions}
               onChange={(e) => update({ skipPermissions: e.target.checked })}
@@ -146,6 +152,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
 
           <label className="cursor-pointer flex items-center gap-1.5 text-base-content/80 select-none">
             <input
+              data-testid="options-sandbox"
               type="checkbox"
               checked={options.sandbox}
               onChange={(e) => update({ sandbox: e.target.checked })}
@@ -157,6 +164,7 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
 
           <label className="cursor-pointer flex items-center gap-1.5 text-base-content/80 select-none">
             <input
+              data-testid="options-quota-bubble"
               type="checkbox"
               checked={!!options.showQuotaBubble}
               onChange={(e) => update({ showQuotaBubble: e.target.checked })}

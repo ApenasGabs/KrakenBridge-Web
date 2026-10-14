@@ -76,6 +76,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Tabs Centrais: Status vs Chat vs IDE */}
         <div className="inline-flex items-center bg-base-200/80 rounded-lg p-0.5 ml-0.5 sm:ml-2 shrink-0">
           <button
+            data-testid="tab-status"
             onClick={() => onTabChange('status')}
             className={`px-2 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'status' 
@@ -89,6 +90,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           <button
+            data-testid="tab-chat"
             onClick={() => onTabChange('chat')}
             className={`px-2 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'chat' 
@@ -101,6 +103,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           <button
+            data-testid="tab-ide"
             onClick={() => onTabChange('ide')}
             className={`px-2 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'ide' 
@@ -121,6 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="hidden md:flex items-center gap-1.5 shrink-0">
         {/* Painel de Tokens Desktop */}
         <div 
+          data-testid="header-quota-btn"
           onClick={onToggleQuota}
           className="hidden xl:flex items-center gap-2 px-2.5 py-1 rounded-md bg-base-200 hover:bg-base-300 border border-base-300 text-xs shrink-0 cursor-pointer transition-colors"
           title="Consumo de tokens na sessão ativa (Clique para abrir balão de cotas)"
@@ -149,6 +153,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Botão de Servidores MCP */}
         <button
+          data-testid="header-mcp-btn"
           onClick={onOpenMcp}
           className="btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1.5 text-xs text-base-content/70 hover:text-primary transition-colors"
           title="Visualizar servidores MCP (Model Context Protocol)"
@@ -162,6 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Botão de Opções do CLI */}
         <button
+          data-testid="header-options-btn"
           onClick={onToggleOptions}
           className={`btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1 text-xs ${
             isOptionsOpen ? 'bg-base-200 text-primary' : 'text-base-content/70'
@@ -174,6 +180,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Botão de Autenticação / Contas */}
         <button
+          data-testid="header-auth-btn"
           onClick={onOpenAuth}
           className={`btn btn-sm btn-square sm:btn-auto px-2 gap-1.5 text-xs max-w-[180px] ${
             isAuthOk 
