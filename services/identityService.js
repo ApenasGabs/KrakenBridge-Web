@@ -57,9 +57,11 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
 4. CICLO DE AUTO-EVOLUÇÃO (POD DRAIN):
    - Se você alterar o seu próprio código (/app):
      a) Se alterou arquivos do frontend React, compile rodando: cd /app/frontend && npm run build
-     b) Para recarregar o servidor Node.js com segurança e aplicar suas melhorias, execute via terminal:
+     b) SEMPRE comite as alterações no Git para garantir a persistência antes de reiniciar:
+        git add . && git commit -m "feat: resumo das melhorias"
+     c) Para recarregar o servidor Node.js com segurança e aplicar suas melhorias, execute via terminal:
         curl -s -X POST http://localhost:8088/api/system/self-reload -H "Content-Type: application/json" -d '{"conversationId":"${conversationId}","taskDescription":"Breve resumo do que você implementou em si mesma"}'
-     c) O servidor entrará em "Pod Drain", aguardará que qualquer tarefa pendente seja concluída sem interrupção e reiniciará. Assim que reiniciar, você retomará a conversa automaticamente na nova versão!\n\n`;
+     d) O servidor entrará em "Pod Drain", aguardará que qualquer tarefa pendente seja concluída sem interrupção e reiniciará. Assim que reiniciar, você retomará a conversa automaticamente na nova versão!\n\n`;
   }
 }
 
