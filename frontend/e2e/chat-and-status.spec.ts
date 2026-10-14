@@ -67,6 +67,15 @@ test.describe('E2E: Status, Chat, Cotas e Temas', () => {
     await expect(viewOutputBtn).toBeVisible();
     await viewOutputBtn.click();
     await expect(page.getByText('✓ 14 passed (3.4s)')).toBeVisible();
+
+    // Verifica card inline de Diff e Operação de Arquivo (FileOperationCard)
+    await expect(page.getByText('Editado', { exact: true })).toBeVisible();
+    await expect(page.getByText('App.tsx')).toBeVisible();
+    await expect(page.getByText('+2', { exact: true })).toBeVisible();
+    await expect(page.getByText('-1', { exact: true })).toBeVisible();
+    await expect(page.getByText('Adiciona componente FileOperationCard')).toBeVisible();
+    await expect(page.getByText(/const updated = 2;/)).toBeVisible();
+    await expect(page.getByText(/const old = 1;/)).toBeVisible();
   });
 
   test('Chat: Envio de nova mensagem e recepção de resposta simulada via stream', async ({ page }) => {

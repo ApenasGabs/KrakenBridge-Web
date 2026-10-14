@@ -706,6 +706,7 @@ export const App: React.FC = () => {
             tags={activeConversation?.tags || []}
             chatMode={options.chatMode || 'agent'}
             onChatModeChange={(chatMode) => handleUpdateOptions({ ...options, chatMode })}
+            codeServerPort={codeServerPort}
           />
         ) : (
           <IdeView

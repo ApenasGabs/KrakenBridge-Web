@@ -6,6 +6,7 @@ export interface ToolCall {
   summary?: string;
   duration?: number;
   args?: Record<string, unknown>;
+  parameters?: Record<string, unknown>;
   output?: string;
   state?: 'ACTIVE' | 'RUNNING' | 'DONE' | 'ERROR';
 }

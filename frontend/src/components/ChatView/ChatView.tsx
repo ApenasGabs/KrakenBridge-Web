@@ -34,6 +34,7 @@ interface ChatViewProps {
   // Modo de Operação
   chatMode?: 'agent' | 'chat';
   onChatModeChange?: (mode: 'agent' | 'chat') => void;
+  codeServerPort?: number;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
@@ -60,7 +61,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onSubprojectChange,
   tags = [],
   chatMode = 'agent',
-  onChatModeChange
+  onChatModeChange,
+  codeServerPort
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -239,7 +241,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           ) : (
             messages.map((msg) => (
-              <MessageItem key={msg.id} message={msg} />
+              <MessageItem key={msg.id} message={msg} codeServerPort={codeServerPort} />
             ))
           )}
         </div>

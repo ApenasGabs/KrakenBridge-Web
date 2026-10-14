@@ -100,6 +100,25 @@ export const defaultMockData = {
               state: 'DONE',
               output: '✓ 14 passed (3.4s)',
             },
+            {
+              step_index: 2,
+              name: 'replace_file_content',
+              parameters: {
+                TargetFile: '/workspace/src/App.tsx',
+                Instruction: 'Adiciona componente FileOperationCard',
+                StartLine: 45,
+                EndLine: 48
+              },
+              state: 'DONE',
+              output: `The following changes were made to /workspace/src/App.tsx:
+[diff_block_start]
+@@ -45,4 +45,5 @@
+  import React from 'react';
+- const old = 1;
++ const updated = 2;
++ const added = 3;
+[diff_block_end]`,
+            },
           ],
         },
       ],

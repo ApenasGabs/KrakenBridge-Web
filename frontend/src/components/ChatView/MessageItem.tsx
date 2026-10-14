@@ -13,11 +13,16 @@ import {
   AlertTriangle, 
   Loader2,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  FileCode,
+  ExternalLink
 } from 'lucide-react';
+import { parseFileOperation } from '../../utils/diffParser';
+import { FileOperationCard } from './FileOperationCard';
 
 interface MessageItemProps {
   message: ChatMessage;
+  codeServerPort?: number;
 }
 
 const CodeBlock: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
@@ -62,7 +67,12 @@ const CodeBlock: React.FC<{ children: React.ReactNode; className?: string }> = (
   );
 };
 
-const ToolItem: React.FC<{ tool: ToolCall }> = ({ tool }) => {
+const ToolItem: React.FC<{ tool: ToolCall; codeServerPort?: number }> = ({ tool, codeServerPort }) => {
+  const fileOp = parseFileOperation(tool);
+  if (fileOp) {
+    return <FileOperationCard data={fileOp} codeServerPort={codeServerPort} />;
+  }
+
   const [showOutput, setShowOutput] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -160,7 +170,7 @@ const ToolItem: React.FC<{ tool: ToolCall }> = ({ tool }) => {
   );
 };
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
+export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPort }) => {
   const isUser = message.role === 'user';
 
   return (
@@ -212,7 +222,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
             </div>
             <div className="collapse-content text-xs space-y-2 pt-0 pb-3">
               {message.toolCalls.map((tool: ToolCall, idx: number) => (
-                <ToolItem key={tool.step_index ?? idx} tool={tool} />
+                <ToolItem key={tool.step_index ?? idx} tool={tool} codeServerPort={codeServerPort} />
               ))}
             </div>
           </div>
@@ -238,6 +248,34 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
                   );
                 }
                 return <CodeBlock className={className}>{children}</CodeBlock>;
+              },
+              // Intercepta links markdown file:/// para permitir abrir direto na IDE
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              a({ href, children, ...props }: any) {
+                if (href && (href.startsWith('file:///') || href.startsWith('file://'))) {
+                  const cleanPath = href.replace(/^file:\/\/\/?/, '/');
+                  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+                  const ideUrl = `http://${hostname}:${codeServerPort || 8089}/?file=${encodeURIComponent(cleanPath)}`;
+                  return (
+                    <a
+                      href={ideUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-primary font-mono text-[11px] hover:underline bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 align-baseline mx-0.5"
+                      title={`Abrir ${cleanPath} na IDE`}
+                      {...props}
+                    >
+                      <FileCode className="w-3 h-3 shrink-0" />
+                      <span>{children}</span>
+                      <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
+                    </a>
+                  );
+                }
+                return (
+                  <a href={href} target="_blank" rel="noreferrer" className="text-primary hover:underline" {...props}>
+                    {children}
+                  </a>
+                );
               }
             }}
           >
