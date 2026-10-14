@@ -100,16 +100,37 @@ async function syncAntigravityConversations() {
               }
               if (Array.isArray(entry.tool_calls)) {
                 for (const tc of entry.tool_calls) {
+                  const args = tc.args || {};
                   let cmd = '';
-                  if (tc.args) {
-                    cmd = tc.args.CommandLine || (tc.args.toolAction ? `${tc.args.toolAction}: ${tc.args.toolSummary || ''}` : '') || tc.args.AbsolutePath || tc.args.TargetFile || '';
+                  if (args.CommandLine) {
+                    cmd = args.CommandLine;
+                  } else if (args.TargetFile) {
+                    cmd = `${args.TargetFile}${args.Instruction ? ` (${args.Instruction})` : (args.Description ? ` (${args.Description})` : '')}`;
+                  } else if (args.AbsolutePath) {
+                    cmd = `${args.AbsolutePath}${args.StartLine ? ` [L${args.StartLine}-${args.EndLine || args.StartLine}]` : ''}`;
+                  } else if (args.ServerName && args.ToolName) {
+                    cmd = `${args.ServerName}:${args.ToolName}`;
+                  } else if (args.query) {
+                    cmd = args.query;
+                  } else if (args.Url) {
+                    cmd = args.Url;
+                  } else if (args.toolAction) {
+                    cmd = `${args.toolAction}${args.toolSummary ? `: ${args.toolSummary}` : ''}`;
                   }
                   currentAssistant.toolCalls.push({
+                    step_index: entry.step_index,
                     name: tc.name || 'tool',
                     command: typeof cmd === 'string' ? cmd.replace(/^["']|["']$/g, '') : '',
-                    state: 'done'
+                    parameters: args,
+                    output: '',
+                    state: 'DONE'
                   });
                 }
+              }
+            } else if (entry.type === 'GENERIC' && entry.content && currentAssistant && currentAssistant.toolCalls.length > 0) {
+              const lastTc = currentAssistant.toolCalls[currentAssistant.toolCalls.length - 1];
+              if (lastTc && !lastTc.output) {
+                lastTc.output = entry.content;
               }
             }
           } catch {}
@@ -373,5 +394,61 @@ export const historyService = {
     if (updates.title !== undefined) session.title = updates.title.trim();
     if (updates.subproject !== undefined) session.subproject = updates.subproject.trim();
     return this.save(session);
+  },
+
+  async getLatestAssistantFromTranscript(convId) {
+    if (!convId) return null;
+    const transcriptFile = path.join(BRAIN_DIR, convId, '.system_generated', 'logs', 'transcript.jsonl');
+    try {
+      await fs.access(transcriptFile);
+      const fileStream = (await import('fs')).createReadStream(transcriptFile);
+      const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+      let lastAssistant = null;
+
+      for await (const line of rl) {
+        if (!line.trim()) continue;
+        try {
+          const entry = JSON.parse(line);
+          if (entry.type === 'PLANNER_RESPONSE') {
+            if (!lastAssistant) {
+              lastAssistant = {
+                text: '',
+                thinking: '',
+                toolCalls: []
+              };
+            }
+            if (entry.content) {
+              lastAssistant.text += (lastAssistant.text ? '\n\n' : '') + entry.content;
+            }
+            if (entry.thinking) {
+              lastAssistant.thinking += (lastAssistant.thinking ? '\n\n' : '') + entry.thinking;
+            }
+            if (Array.isArray(entry.tool_calls)) {
+              for (const tc of entry.tool_calls) {
+                const args = tc.args || {};
+                let cmd = args.CommandLine || args.TargetFile || args.AbsolutePath || '';
+                lastAssistant.toolCalls.push({
+                  name: tc.name || 'tool',
+                  command: typeof cmd === 'string' ? cmd.replace(/^["']|["']$/g, '') : '',
+                  parameters: args,
+                  output: '',
+                  state: 'DONE'
+                });
+              }
+            }
+          } else if (entry.type === 'GENERIC' && entry.content && lastAssistant && lastAssistant.toolCalls.length > 0) {
+            const lastTc = lastAssistant.toolCalls[lastAssistant.toolCalls.length - 1];
+            if (lastTc && !lastTc.output) lastTc.output = entry.content;
+          } else if (entry.type === 'USER_INPUT') {
+            // Reinicia para coletar o turno assistente após esse user input
+            lastAssistant = null;
+          }
+        } catch {}
+      }
+      return lastAssistant;
+    } catch {
+      return null;
+    }
   }
 };
+

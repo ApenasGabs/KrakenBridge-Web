@@ -110,3 +110,53 @@ body {
 .transition-sidebar {
   transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* Cartões de Execução de Ferramentas / Terminal */
+.tool-card {
+  transition: all 0.15s ease-in-out;
+}
+.tool-card summary::-webkit-details-marker {
+  display: none;
+}
+.tool-card[open] .tool-chevron {
+  transform: rotate(90deg);
+}
+.tool-chevron {
+  transition: transform 0.15s ease;
+}
+
+/* Bloco de Raciocínio & Pensamento (Thinking) */
+.thinking-card summary::-webkit-details-marker {
+  display: none;
+}
+.thinking-card[open] .thinking-chevron {
+  transform: rotate(90deg);
+}
+.thinking-chevron {
+  transition: transform 0.15s ease;
+}
+.thinking-body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.thinking-body p {
+  margin-bottom: 0.5rem;
+}
+.thinking-body p:last-child {
+  margin-bottom: 0;
+}
+
+/* Saída de Terminal / Logs */
+.terminal-pre {
+  background-color: #07090d !important;
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.terminal-pre::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.terminal-pre::-webkit-scrollbar-thumb {
+  background: #272a34;
+  border-radius: 4px;
+}

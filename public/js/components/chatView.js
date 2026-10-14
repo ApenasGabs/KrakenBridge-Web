@@ -134,15 +134,33 @@ export class ChatViewComponent {
             const botEl = this.appendBotMessage(msg.agent || session.agent);
             const contentEl = botEl.querySelector('.bot-content');
             const timelineEl = botEl.querySelector('.bot-timeline');
+            const metaEl = botEl.querySelector('.bot-meta');
 
-            if (msg.toolCalls && msg.toolCalls.length > 0) {
-              for (const tc of msg.toolCalls) {
-                this.renderHistoricalToolCall(timelineEl, tc);
-              }
+            // 1. Renderiza Bloco de Raciocínio & Pensamento (se disponível)
+            if (msg.thinking && msg.thinking.trim()) {
+              this.renderThinkingCard(timelineEl, msg.thinking, msg.tokens?.thinking_tokens);
             }
 
-            contentEl.innerHTML = marked.parse(msg.text || '');
+            // 2. Renderiza Grupo de Ferramentas / Terminal (com saídas completas e expansíveis)
+            if (msg.toolCalls && msg.toolCalls.length > 0) {
+              this.renderToolGroup(timelineEl, msg.toolCalls);
+            }
+
+            // 3. Renderiza Conteúdo da Resposta
+            const displayText = msg.text || (msg.toolCalls?.length > 0 ? '*(Tarefas e modificações executadas no ambiente pelo agente)*' : '');
+            contentEl.innerHTML = marked.parse(displayText);
             this.highlightCodeBlocks(contentEl);
+
+            // 4. Metadados de Execução (tempo / tokens)
+            if (msg.tokens || msg.duration) {
+              const dur = msg.duration ? `${msg.duration.toFixed(1)}s` : '';
+              const tok = msg.tokens?.total_tokens ? `${msg.tokens.total_tokens.toLocaleString()} tokens` : '';
+              const parts = [dur, tok].filter(Boolean);
+              if (parts.length > 0) {
+                metaEl.textContent = `Executado em ${parts.join(' • ')}`;
+                metaEl.classList.remove('hidden');
+              }
+            }
           }
         }
 
@@ -187,7 +205,18 @@ export class ChatViewComponent {
     const metaEl = botMessageEl.querySelector('.bot-meta');
     contentEl.classList.add('typing-cursor');
 
+    // Banner de status ativo em tempo real
+    const liveStatusBar = document.createElement('div');
+    liveStatusBar.className = 'live-status-bar flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#161a24] border border-[#272a34] text-xs text-sky-300 font-mono my-1.5 animate-pulse';
+    liveStatusBar.innerHTML = `
+      <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+      <span class="status-text truncate">Kraken analisando solicitação...</span>
+    `;
+    timelineEl.appendChild(liveStatusBar);
+
     let accumulatedText = '';
+    let accumulatedThinking = '';
+    let liveThinkingCard = null;
     this.activeTools = new Map();
     this.abortController = new AbortController();
 
@@ -253,14 +282,31 @@ export class ChatViewComponent {
               const su = payload.step_update;
 
               if (su.step_type === 'tool') {
-                this.handleToolEvent(timelineEl, su);
+                const statusSpan = liveStatusBar.querySelector('.status-text');
+                const tName = su.tool_name || (su.tool_info && su.tool_info.name) || 'ferramenta';
+                if (statusSpan) {
+                  statusSpan.textContent = `Executando ${tName}...`;
+                }
+                this.handleToolEvent(timelineEl, su, liveStatusBar);
               }
 
-              if (su.step_type === 'agent_response' && su.text_delta) {
-                accumulatedText += su.text_delta;
-                contentEl.innerHTML = marked.parse(accumulatedText);
-                this.highlightCodeBlocks(contentEl);
-                this.scrollToBottom();
+              if (su.step_type === 'agent_response') {
+                if (su.text_delta) {
+                  accumulatedText += su.text_delta;
+                  contentEl.innerHTML = marked.parse(accumulatedText);
+                  this.highlightCodeBlocks(contentEl);
+                  this.scrollToBottom();
+                }
+                if (su.thinking_delta || su.thinking) {
+                  accumulatedThinking += (su.thinking_delta || su.thinking || '');
+                  if (!liveThinkingCard && accumulatedThinking.trim()) {
+                    liveThinkingCard = this.renderThinkingCard(timelineEl, accumulatedThinking, null, true);
+                    timelineEl.insertBefore(liveThinkingCard, liveStatusBar);
+                  } else if (liveThinkingCard) {
+                    const bodyEl = liveThinkingCard.querySelector('.thinking-body');
+                    if (bodyEl) bodyEl.innerHTML = marked.parse(accumulatedThinking);
+                  }
+                }
               }
 
               if (su.usage && su.usage.thinking_tokens > 0) {
@@ -276,13 +322,19 @@ export class ChatViewComponent {
 
             if (payload.event === 'result' && payload.result) {
               const res = payload.result;
-              if (res.response && !accumulatedText) {
+              if (res.response && (!accumulatedText || res.response.length > accumulatedText.length || accumulatedText.trim() === '')) {
                 accumulatedText = res.response;
                 contentEl.innerHTML = marked.parse(accumulatedText);
                 this.highlightCodeBlocks(contentEl);
               }
-              metaEl.textContent = `Executado em ${res.duration_seconds?.toFixed(1) || ''}s • ${res.usage?.total_tokens || 0} tokens`;
+              const countTools = this.activeTools.size;
+              const toolsText = countTools > 0 ? ` • ${countTools} ferramentas` : '';
+              metaEl.textContent = `Executado em ${res.duration_seconds?.toFixed(1) || ''}s${toolsText} • ${res.usage?.total_tokens || 0} tokens`;
               metaEl.classList.remove('hidden');
+            }
+
+            if (payload.event === 'done') {
+              liveStatusBar.remove();
             }
           } catch (e) {
             console.warn(e);
@@ -294,7 +346,32 @@ export class ChatViewComponent {
         contentEl.innerHTML = `<span class="text-red-400">Erro na comunicação: ${this.escape(err.message)}</span>`;
       }
     } finally {
+      if (liveStatusBar && liveStatusBar.parentNode) {
+        liveStatusBar.remove();
+      }
       contentEl.classList.remove('typing-cursor');
+
+      // Se por algum motivo o texto acumulado estiver vazio, tentar recarregar da API do servidor
+      if (!accumulatedText.trim()) {
+        try {
+          const currentId = state.get('activeConversationId');
+          if (currentId) {
+            const updatedSession = await api.getConversation(currentId);
+            const lastMsg = updatedSession?.messages?.[updatedSession.messages.length - 1];
+            if (lastMsg && lastMsg.role === 'assistant' && lastMsg.text && lastMsg.text.trim()) {
+              accumulatedText = lastMsg.text;
+              contentEl.innerHTML = marked.parse(accumulatedText);
+              this.highlightCodeBlocks(contentEl);
+            }
+          }
+        } catch {}
+      }
+
+      // Se ainda estiver vazio mas houve ferramentas executadas, dar retorno claro ao usuário
+      if (!accumulatedText.trim() && this.activeTools.size > 0) {
+        contentEl.innerHTML = marked.parse(`✅ **Ações concluídas.** O agente finalizou a execução de **${this.activeTools.size} ferramentas** no seu ambiente com sucesso.`);
+      }
+
       state.set('isGenerating', false);
       this.sendBtnEl.classList.remove('hidden');
       this.stopBtnEl.classList.add('hidden');
@@ -316,7 +393,7 @@ export class ChatViewComponent {
     const d = document.createElement('div');
     d.className = 'flex justify-end';
     d.innerHTML = `
-      <div class="max-w-[85%] bg-[#1e222d] text-white px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm border border-[#2d3242] whitespace-pre-wrap leading-relaxed">
+      <div class="max-w-[85%] bg-[#1e222d] text-white px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm border border-[#2d3242] whitespace-pre-wrap leading-relaxed shadow-md">
         ${this.escape(text)}
       </div>
     `;
@@ -328,88 +405,281 @@ export class ChatViewComponent {
     const d = document.createElement('div');
     d.className = 'flex items-start gap-3';
     d.innerHTML = `
-      <div class="w-7 h-7 rounded-lg bg-[#181a22] border border-[#272a34] flex items-center justify-center text-sky-400 flex-shrink-0 mt-0.5">
+      <div class="w-7 h-7 rounded-lg bg-[#181a22] border border-[#272a34] flex items-center justify-center text-sky-400 flex-shrink-0 mt-0.5 shadow">
         ${icons.bot(14)}
       </div>
       <div class="flex-1 min-w-0 space-y-2">
-        <div class="bot-timeline space-y-1"></div>
+        <div class="bot-timeline space-y-1.5"></div>
         <div class="bot-content markdown-body text-gray-200"></div>
-        <div class="bot-meta text-[10px] text-gray-500 font-mono hidden pt-1"></div>
+        <div class="bot-meta text-[11px] text-gray-500 font-mono hidden pt-1"></div>
       </div>
     `;
     this.messagesListEl.appendChild(d);
     return d;
   }
 
-  handleToolEvent(container, su) {
+  // Agrupador visual de ferramentas para conversas históricas com múltiplos comandos
+  renderToolGroup(container, toolCalls) {
+    if (!toolCalls || toolCalls.length === 0) return;
+
+    if (toolCalls.length === 1) {
+      this.renderToolCard(container, toolCalls[0], false, false);
+      return;
+    }
+
+    const groupWrapper = document.createElement('div');
+    groupWrapper.className = 'my-2 rounded-xl bg-[#101217] border border-[#232733] overflow-hidden text-xs';
+
+    const header = document.createElement('div');
+    header.className = 'flex items-center justify-between px-3.5 py-2 bg-[#14171f] border-b border-[#232733] text-gray-300 select-none';
+    header.innerHTML = `
+      <div class="flex items-center gap-2 font-mono text-[11px]">
+        <span class="text-sky-400">${icons.terminal(13)}</span>
+        <span class="font-semibold text-white">${toolCalls.length} operações no Homelab</span>
+        <span class="text-gray-500 text-[10px]">(Terminal, Docker e Arquivos)</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="btn-toggle-all text-[11px] font-mono text-sky-400 hover:text-sky-300 hover:underline">
+          Expandir todas
+        </button>
+      </div>
+    `;
+
+    const listContainer = document.createElement('div');
+    listContainer.className = 'p-2 space-y-1.5 bg-[#0b0d11]/50';
+
+    for (const tc of toolCalls) {
+      this.renderToolCard(listContainer, tc, false, false);
+    }
+
+    const toggleBtn = header.querySelector('.btn-toggle-all');
+    let allExpanded = false;
+    toggleBtn.onclick = () => {
+      allExpanded = !allExpanded;
+      listContainer.querySelectorAll('.tool-card').forEach(details => {
+        details.open = allExpanded;
+      });
+      toggleBtn.textContent = allExpanded ? 'Recolher todas' : 'Expandir todas';
+    };
+
+    groupWrapper.appendChild(header);
+    groupWrapper.appendChild(listContainer);
+    container.appendChild(groupWrapper);
+  }
+
+  // Renderiza um cartão detalhado de ferramenta (com saída completa do terminal)
+  renderToolCard(container, tc, isLive = false, initiallyOpen = false) {
+    const card = document.createElement('details');
+    card.open = initiallyOpen;
+    card.className = 'tool-card rounded-lg bg-[#12141a] border border-[#272a34] text-xs overflow-hidden';
+
+    const name = (tc.name || 'tool').toLowerCase();
+    let badgeClass = 'text-sky-300 bg-sky-950/40 border-sky-800/40';
+    let label = tc.name || 'TOOL';
+    let iconSvg = icons.terminal(12);
+
+    if (name.includes('command')) {
+      badgeClass = 'text-emerald-300 bg-emerald-950/40 border-emerald-800/40';
+      label = 'BASH';
+      iconSvg = icons.terminal(12);
+    } else if (name.includes('replace') || name.includes('sed')) {
+      badgeClass = 'text-amber-300 bg-amber-950/40 border-amber-800/40';
+      label = 'EDIT';
+      iconSvg = icons.code(12);
+    } else if (name.includes('write')) {
+      badgeClass = 'text-purple-300 bg-purple-950/40 border-purple-800/40';
+      label = 'WRITE';
+      iconSvg = icons.fileText(12);
+    } else if (name.includes('view') || name.includes('read')) {
+      badgeClass = 'text-sky-300 bg-sky-950/40 border-sky-800/40';
+      label = 'READ';
+      iconSvg = icons.fileText(12);
+    } else if (name.includes('mcp')) {
+      badgeClass = 'text-indigo-300 bg-indigo-950/40 border-indigo-800/40';
+      label = 'MCP';
+      iconSvg = icons.cpu(12);
+    }
+
+    const commandText = tc.command || '';
+    const hasOutput = tc.output && tc.output.trim().length > 0;
+    const durationText = tc.duration ? (tc.duration.toFixed(2) + 's') : '';
+
+    card.innerHTML = `
+      <summary class="flex items-center justify-between px-3 py-2 cursor-pointer bg-[#161820] hover:bg-[#1c1f2a] gap-2 select-none transition-colors">
+        <div class="flex items-center gap-2 min-w-0 truncate">
+          <span class="tool-chevron text-gray-500">${icons.chevronRight(11)}</span>
+          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${badgeClass}">
+            ${iconSvg}
+            <span>${label}</span>
+          </span>
+          <span class="truncate font-mono text-[11px] text-gray-300">${this.escape(commandText)}</span>
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0 text-[10px] font-mono text-gray-500">
+          ${durationText ? `<span>${durationText}</span>` : ''}
+          <span class="status-badge ${tc.state === 'DONE' ? 'text-emerald-400' : 'text-sky-400'}">
+            ${tc.state === 'DONE' ? icons.check(12) : '...'}
+          </span>
+        </div>
+      </summary>
+      <div class="p-3 bg-[#0a0c10] border-t border-[#232733] space-y-2.5">
+        ${commandText ? `
+          <div>
+            <div class="text-[10px] text-gray-500 font-mono uppercase mb-1">Comando / Ação:</div>
+            <div class="p-2 bg-black/60 rounded border border-[#272a34] font-mono text-xs text-sky-300 break-all">${this.escape(commandText)}</div>
+          </div>
+        ` : ''}
+        ${hasOutput ? `
+          <div class="space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] text-gray-500 font-mono uppercase tracking-wider">Saída do Terminal (stdout/stderr):</span>
+              <button class="btn-copy-tool-out text-[10px] font-mono text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
+                ${icons.copy(10)}
+                <span>Copiar</span>
+              </button>
+            </div>
+            <pre class="terminal-pre max-h-56 overflow-y-auto text-[11px] text-gray-300 p-2.5 rounded border border-[#272a34]/60 whitespace-pre-wrap">${this.escape(tc.output)}</pre>
+          </div>
+        ` : `
+          <div class="text-[11px] text-gray-500 italic font-mono py-0.5 flex items-center gap-1.5">
+            <span class="text-emerald-400">${icons.check(11)}</span>
+            <span>Comando executado com sucesso no host (sem saída de texto no terminal)</span>
+          </div>
+        `}
+      </div>
+    `;
+
+    const copyBtn = card.querySelector('.btn-copy-tool-out');
+    if (copyBtn) {
+      copyBtn.onclick = (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(tc.output || '');
+        copyBtn.innerHTML = `${icons.check(10)}<span>Copiado!</span>`;
+        setTimeout(() => {
+          copyBtn.innerHTML = `${icons.copy(10)}<span>Copiar</span>`;
+        }, 1800);
+      };
+    }
+
+    container.appendChild(card);
+    return card;
+  }
+
+  // Bloco de Raciocínio & Pensamento (Thinking) da IA
+  renderThinkingCard(container, thinkingText, tokens, initiallyOpen = false) {
+    const card = document.createElement('details');
+    card.open = initiallyOpen;
+    card.className = 'thinking-card rounded-xl bg-purple-950/20 border border-purple-800/40 text-xs my-2 overflow-hidden shadow';
+
+    const tokenLabel = tokens ? `${tokens.toLocaleString()} tokens` : '';
+
+    card.innerHTML = `
+      <summary class="flex items-center justify-between px-3.5 py-2 cursor-pointer bg-purple-950/30 hover:bg-purple-950/40 text-purple-300 gap-2 select-none transition-colors">
+        <div class="flex items-center gap-2">
+          <span class="thinking-chevron text-purple-400">${icons.chevronRight(12)}</span>
+          <span class="text-purple-400">${icons.brain(14)}</span>
+          <span class="font-semibold text-purple-200 text-xs">Processo de Pensamento da IA</span>
+        </div>
+        <div class="flex items-center gap-2 text-[10px] font-mono text-purple-400/80">
+          ${tokenLabel ? `<span>${tokenLabel}</span>` : ''}
+          <span class="px-1.5 py-0.5 rounded bg-purple-900/40 border border-purple-800/40">Raciocínio</span>
+        </div>
+      </summary>
+      <div class="p-3.5 bg-[#0c0a14] border-t border-purple-900/30 text-gray-300 font-sans text-xs thinking-body leading-relaxed max-h-72 overflow-y-auto custom-scroll">
+        ${marked.parse(thinkingText || '')}
+      </div>
+    `;
+
+    container.appendChild(card);
+    return card;
+  }
+
+  handleToolEvent(container, su, liveStatusBar) {
     const stepIdx = su.step_index;
     const toolName = su.tool_name || (su.tool_info && su.tool_info.name) || 'comando';
     const params = (su.tool_info && su.tool_info.parameters) || {};
     const output = (su.tool_info && su.tool_info.output) || '';
 
+    let cmd = params.CommandLine;
+    if (!cmd) {
+      if (params.TargetFile) {
+        cmd = `${params.TargetFile}${params.Instruction ? ` (${params.Instruction})` : ''}`;
+      } else if (params.AbsolutePath) {
+        cmd = `${params.AbsolutePath}${params.StartLine ? ` [L${params.StartLine}-${params.EndLine || params.StartLine}]` : ''}`;
+      } else if (params.ServerName && params.ToolName) {
+        cmd = `${params.ServerName}:${params.ToolName}`;
+      } else if (params.query) {
+        cmd = params.query;
+      } else if (params.Url) {
+        cmd = params.Url;
+      } else if (params.toolAction) {
+        cmd = `${params.toolAction}${params.toolSummary ? `: ${params.toolSummary}` : ''}`;
+      } else {
+        cmd = '';
+      }
+    }
+
     let toolCard = this.activeTools.get(stepIdx);
     if (!toolCard) {
-      toolCard = document.createElement('details');
-      toolCard.open = true;
-      toolCard.className = 'rounded-lg bg-[#12141a] border border-[#272a34] text-xs my-1.5 overflow-hidden';
-      
-      const cmd = params.CommandLine ? `<span class="text-emerald-400 font-mono">${this.escape(params.CommandLine)}</span>` : '';
-      toolCard.innerHTML = `
-        <summary class="flex items-center justify-between px-3 py-1.5 cursor-pointer bg-[#181a22] hover:bg-[#1e222d] gap-2">
-          <div class="flex items-center gap-2 truncate">
-            <span class="status-dot w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
-            <span class="font-mono font-semibold text-sky-300 uppercase text-[11px]">${this.escape(toolName)}</span>
-            <span class="truncate text-[11px]">${cmd}</span>
-          </div>
-          <span class="tool-dur text-[10px] text-gray-500 font-mono">executando...</span>
-        </summary>
-        <div class="p-2.5 bg-[#0b0d11] border-t border-[#272a34]/60 space-y-2">
-          <div class="tool-out hidden"></div>
-        </div>
-      `;
-      container.appendChild(toolCard);
+      const tcData = {
+        name: toolName,
+        command: cmd,
+        output: output,
+        duration: su.duration_seconds,
+        state: su.state || 'ACTIVE'
+      };
+      toolCard = this.renderToolCard(container, tcData, true, true);
       this.activeTools.set(stepIdx, toolCard);
+      if (liveStatusBar && liveStatusBar.parentNode === container) {
+        container.appendChild(liveStatusBar);
+      }
     }
 
     if (su.state === 'DONE') {
-      const dot = toolCard.querySelector('.status-dot');
-      if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
-      const dur = toolCard.querySelector('.tool-dur');
-      if (dur) dur.textContent = su.duration_seconds ? su.duration_seconds.toFixed(2) + 's' : 'concluído';
-
+      const statusBadge = toolCard.querySelector('.status-badge');
+      if (statusBadge) {
+        statusBadge.className = 'status-badge text-emerald-400';
+        statusBadge.innerHTML = icons.check(12);
+      }
       if (output) {
-        const outBox = toolCard.querySelector('.tool-out');
-        if (outBox) {
-          outBox.classList.remove('hidden');
-          outBox.innerHTML = `
-            <div class="text-[10px] text-gray-500 font-mono uppercase mb-1">Saída:</div>
-            <pre class="max-h-48 overflow-y-auto text-[11px] font-mono text-gray-300 bg-black/40 p-2 rounded border border-[#272a34]/40 whitespace-pre-wrap">${this.escape(output)}</pre>
-          `;
+        let pre = toolCard.querySelector('.terminal-pre');
+        if (!pre) {
+          const body = toolCard.querySelector('div.p-3');
+          if (body) {
+            const outBox = document.createElement('div');
+            outBox.className = 'space-y-1';
+            outBox.innerHTML = `
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] text-gray-500 font-mono uppercase tracking-wider">Saída do Terminal:</span>
+                <button class="btn-copy-tool-out text-[10px] font-mono text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
+                  ${icons.copy(10)}
+                  <span>Copiar</span>
+                </button>
+              </div>
+              <pre class="terminal-pre max-h-56 overflow-y-auto text-[11px] text-gray-300 p-2.5 rounded border border-[#272a34]/60 whitespace-pre-wrap">${this.escape(output)}</pre>
+            `;
+            body.appendChild(outBox);
+            const copyBtn = outBox.querySelector('.btn-copy-tool-out');
+            if (copyBtn) {
+              copyBtn.onclick = () => {
+                navigator.clipboard.writeText(output);
+                copyBtn.innerHTML = `${icons.check(10)}<span>Copiado!</span>`;
+                setTimeout(() => {
+                  copyBtn.innerHTML = `${icons.copy(10)}<span>Copiar</span>`;
+                }, 1800);
+              };
+            }
+          }
         }
       }
     }
-  }
-
-  renderHistoricalToolCall(container, tc) {
-    const card = document.createElement('div');
-    card.className = 'rounded-lg bg-[#12141a] border border-[#272a34] text-xs my-1 p-2 flex items-center justify-between';
-    card.innerHTML = `
-      <div class="flex items-center gap-2 truncate font-mono text-[11px]">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-        <span class="text-sky-300 uppercase">${this.escape(tc.name)}</span>
-        <span class="text-gray-400 truncate">${this.escape(tc.command)}</span>
-      </div>
-      <span class="text-[10px] text-gray-500 font-mono flex-shrink-0">${tc.duration ? tc.duration.toFixed(2) + 's' : ''}</span>
-    `;
-    container.appendChild(card);
   }
 
   addThinkingBadge(container, tokens, dur) {
     const b = document.createElement('div');
     b.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-950/30 border border-purple-800/40 text-purple-300 text-[10px] font-mono my-1';
     b.innerHTML = `
-      ${icons.cpu(11)}
-      <span>Raciocínio concluído (${tokens} tokens • ${dur?.toFixed(1) || ''}s)</span>
+      ${icons.brain(12)}
+      <span>Raciocínio concluído (${tokens.toLocaleString()} tokens • ${dur?.toFixed(1) || ''}s)</span>
     `;
     container.appendChild(b);
   }

@@ -330,6 +330,9 @@ chatRouter.post('/', async (req, res) => {
           if (su.thinking_delta) {
             thinkingText += su.thinking_delta;
           }
+          if (su.thinking) {
+            thinkingText = su.thinking;
+          }
           scheduleSave();
         }
         if (su.usage) {
@@ -337,11 +340,24 @@ chatRouter.post('/', async (req, res) => {
         }
         if (su.step_type === 'tool') {
           const params = su.tool_info?.parameters || {};
-          const cmd = params.CommandLine 
-            || (params.toolAction ? `${params.toolAction}: ${params.toolSummary || ''}` : '')
-            || params.AbsolutePath 
-            || params.TargetFile 
-            || '';
+          let cmd = params.CommandLine;
+          if (!cmd) {
+            if (params.TargetFile) {
+              cmd = `${params.TargetFile}${params.Instruction ? ` (${params.Instruction})` : (params.Description ? ` (${params.Description})` : '')}`;
+            } else if (params.AbsolutePath) {
+              cmd = `${params.AbsolutePath}${params.StartLine ? ` [L${params.StartLine}-${params.EndLine || params.StartLine}]` : ''}`;
+            } else if (params.ServerName && params.ToolName) {
+              cmd = `${params.ServerName}:${params.ToolName}`;
+            } else if (params.query) {
+              cmd = params.query;
+            } else if (params.Url) {
+              cmd = params.Url;
+            } else if (params.toolAction) {
+              cmd = `${params.toolAction}${params.toolSummary ? `: ${params.toolSummary}` : ''}`;
+            } else {
+              cmd = '';
+            }
+          }
           const out = su.tool_info?.output || '';
           const stepIdx = su.step_index;
           const existingIdx = toolCalls.findIndex(t => t.step_index !== undefined && t.step_index === stepIdx);
@@ -351,6 +367,7 @@ chatRouter.post('/', async (req, res) => {
               ...toolCalls[existingIdx],
               name: su.tool_name || toolCalls[existingIdx].name,
               command: cmd || toolCalls[existingIdx].command,
+              parameters: Object.keys(params).length > 0 ? params : toolCalls[existingIdx].parameters,
               output: out || toolCalls[existingIdx].output,
               duration: su.duration_seconds || toolCalls[existingIdx].duration,
               state: su.state
@@ -360,6 +377,7 @@ chatRouter.post('/', async (req, res) => {
               step_index: stepIdx,
               name: su.tool_name || 'tool',
               command: cmd,
+              parameters: params,
               output: out,
               duration: su.duration_seconds,
               state: su.state
@@ -368,7 +386,7 @@ chatRouter.post('/', async (req, res) => {
           scheduleSave();
         }
       } else if (parsed.event === 'result') {
-        if (parsed.result?.response && !accumulatedText) {
+        if (parsed.result?.response && (!accumulatedText || parsed.result.response.length > accumulatedText.length || accumulatedText.trim() === '')) {
           accumulatedText = parsed.result.response;
         }
         if (parsed.result?.usage) {
@@ -404,6 +422,31 @@ chatRouter.post('/', async (req, res) => {
     }
     activeProcesses.delete(reqId);
     activeSessions.delete(conversationId);
+
+    // Recuperar quaisquer dados faltantes (raciocínio, texto final, saídas de ferramentas) diretamente do transcript do agy
+    if (agent === 'antigravity') {
+      try {
+        const fromTranscript = await historyService.getLatestAssistantFromTranscript(agyConvId || conversationId);
+        if (fromTranscript) {
+          if ((!accumulatedText || accumulatedText.trim() === '') && fromTranscript.text) {
+            accumulatedText = fromTranscript.text;
+          }
+          if ((!thinkingText || thinkingText.trim() === '') && fromTranscript.thinking) {
+            thinkingText = fromTranscript.thinking;
+          }
+          if (Array.isArray(fromTranscript.toolCalls) && fromTranscript.toolCalls.length > 0) {
+            for (const tct of fromTranscript.toolCalls) {
+              const localTc = toolCalls.find(l => l.name === tct.name && (!l.command || l.command === tct.command));
+              if (localTc && !localTc.output && tct.output) {
+                localTc.output = tct.output;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[KrakenBridge] Aviso ao sincronizar transcript no close:', e.message);
+      }
+    }
 
     // Salvar estado final do assistente no histórico
     try {
