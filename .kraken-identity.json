@@ -9,6 +9,9 @@
     "selfFrontend": "/app/frontend",
     "selfBackend": "/app",
     "userWorkspaces": "/workspace",
+    "hostData": "/DATA",
+    "casaosApps": "/var/lib/casaos/apps",
+    "dockerSocket": "/var/run/docker.sock",
     "dataDir": "/app/data",
     "configDir": "/root/.config",
     "geminiDir": "/root/.gemini"

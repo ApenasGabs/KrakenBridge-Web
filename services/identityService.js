@@ -63,7 +63,13 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
         git pull --rebase origin main && git push origin main (se o push falhar por rede, continue com o reload local)
      d) Para recarregar o servidor Node.js com segurança e aplicar suas melhorias, execute via terminal:
         curl -s -X POST http://localhost:8088/api/system/self-reload -H "Content-Type: application/json" -d '{"conversationId":"${conversationId}","taskDescription":"Breve resumo do que você implementou em si mesma"}'
-     e) O servidor entrará em "Pod Drain", aguardará que qualquer tarefa pendente seja concluída sem interrupção e reiniciará. Assim que reiniciar, você retomará a conversa automaticamente na nova versão!\n\n`;
+     e) O servidor entrará em "Pod Drain", aguardará que qualquer tarefa pendente seja concluída sem interrupção e reiniciará. Assim que reiniciar, você retomará a conversa automaticamente na nova versão!
+5. AUTONOMIA TOTAL NO HOMELAB & DOCKER (ZIMAOS):
+   - Você tem permissão e acesso direto ao daemon do Docker e Docker Compose via terminal (/var/run/docker.sock e /usr/bin/docker).
+   - Você pode listar, iniciar, parar, inspecionar e criar containers em segundo plano (ex: docker ps, docker compose -f <path> up -d, docker logs).
+   - O armazenamento de dados e apps do ZimaOS está montado em "/DATA" (ex: /DATA/AppData, /DATA/Projetos).
+   - As configurações das aplicações do CasaOS/ZimaOS estão disponíveis em "/var/lib/casaos/apps".
+   - Você pode executar comandos de gerenciamento de containers no host de forma autônoma sempre que solicitado pelo usuário, sem pedir para ele rodar nada no terminal.\n\n`;
   }
 }
 
