@@ -1,9 +1,10 @@
-import type { ChatOptions, ModelOption } from '../../types';
-import { Cpu, Zap, Shield, ShieldAlert, Sparkles, Activity, MessageSquare } from 'lucide-react';
+import type { AccountInfo, ChatOptions, ModelOption } from '../../types';
+import { Cpu, Zap, Shield, ShieldAlert, Sparkles, Activity, MessageSquare, User } from 'lucide-react';
 
 interface OptionsBarProps {
   options: ChatOptions;
   availableModels: (string | ModelOption)[];
+  accounts?: AccountInfo[];
   onChange: (options: ChatOptions) => void;
   isOpen: boolean;
 }
@@ -11,6 +12,7 @@ interface OptionsBarProps {
 export const OptionsBar: React.FC<OptionsBarProps> = ({
   options,
   availableModels,
+  accounts = [],
   onChange,
   isOpen
 }) => {
@@ -105,6 +107,29 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             <option value="chat">💬 Modo Chat (Apenas Leitura & MCPs)</option>
           </select>
         </div>
+
+        {/* Conta de Execução (Isolamento Multi-Conta) */}
+        {accounts.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="font-semibold flex items-center gap-1.5 text-base-content/70">
+              <User className="w-3.5 h-3.5 text-primary" />
+              Executar com:
+            </label>
+            <select
+              value={options.accountEmail || ''}
+              onChange={(e) => update({ accountEmail: e.target.value || undefined })}
+              className="select select-bordered select-xs bg-base-100 font-mono text-[11px]"
+              title="Permite que este chat execute usando as credenciais e cotas de uma conta Google específica"
+            >
+              <option value="">Conta Padrão (Ativa)</option>
+              {accounts.map(acc => (
+                <option key={acc.email} value={acc.email}>
+                  {acc.name ? `${acc.name} (${acc.email})` : acc.email}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Flags de Segurança, Permissões e Cotas */}
         <div className="flex items-center gap-4">

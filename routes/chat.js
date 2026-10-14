@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import path from 'path';
 import { historyService } from '../services/historyService.js';
 import { quotaService } from '../services/quotaService.js';
+import { accountService } from '../services/accountService.js';
 
 export const chatRouter = Router();
 
@@ -104,7 +105,8 @@ chatRouter.post('/', async (req, res) => {
     skipPermissions,
     disableSlashCommands,
     subproject,
-    chatMode = 'agent'
+    chatMode = 'agent',
+    accountEmail
   } = req.body;
 
   if (!prompt || typeof prompt !== 'string') {
@@ -121,6 +123,7 @@ chatRouter.post('/', async (req, res) => {
   const conversationId = clientConvId || randomUUID();
   const agyConvId = existingSession?.agyConvId || null;
   const activeChatMode = chatMode || existingSession?.chatMode || 'agent';
+  const activeAccountEmail = accountEmail || existingSession?.accountEmail || null;
   const reqId = randomUUID();
 
   // Determinação inteligente do subprojeto / workspace
@@ -141,13 +144,13 @@ chatRouter.post('/', async (req, res) => {
   // Configuração do diretório de trabalho
   const workDir = activeSubproject ? path.join(WORKSPACE_DIR, activeSubproject) : WORKSPACE_DIR;
 
-  // Salvar mensagem do usuário no histórico
+  // Salvar mensagem do usuário no histórico com accountEmail
   await historyService.addMessage(conversationId, {
     id: randomUUID(),
     role: 'user',
     text: prompt,
     timestamp: new Date().toISOString()
-  }, { agent, model, effort, mode, chatMode: activeChatMode, subproject: activeSubproject, agyConvId });
+  }, { agent, model, effort, mode, chatMode: activeChatMode, subproject: activeSubproject, agyConvId, accountEmail: activeAccountEmail });
 
   // Criar entrada inicial do assistente para permitir persistência contínua
   const assistantMsgId = randomUUID();
@@ -191,11 +194,23 @@ Você está operando em MODO CHAT/CONSULTA.
     disableSlashCommands
   });
 
-  console.log(`[KrakenBridge] Motor: ${agent} | Conv: ${conversationId} | Cwd: ${workDir} | Prompt: "${prompt.slice(0, 50)}..."`);
+  // Prepara HOME isolado caso uma conta específica tenha sido selecionada
+  let processEnv = { ...process.env };
+  if (agent === 'antigravity' && activeAccountEmail) {
+    try {
+      const isolatedHome = await accountService.prepareAccountHome(activeAccountEmail);
+      processEnv.HOME = isolatedHome;
+      console.log(`[KrakenBridge] Executando Antigravity sob conta isolada: ${activeAccountEmail} (HOME: ${isolatedHome})`);
+    } catch (err) {
+      console.warn(`[KrakenBridge] Erro ao isolar conta ${activeAccountEmail}:`, err.message);
+    }
+  }
+
+  console.log(`[KrakenBridge] Motor: ${agent} | Conta: ${activeAccountEmail || 'padrão'} | Conv: ${conversationId} | Cwd: ${workDir} | Prompt: "${prompt.slice(0, 50)}..."`);
 
   const child = spawn(driver.cmd, args, {
     cwd: workDir,
-    env: driver.buildEnv(process.env)
+    env: driver.buildEnv(processEnv)
   });
 
   activeProcesses.set(reqId, child);

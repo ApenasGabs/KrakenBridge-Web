@@ -313,7 +313,9 @@ export const api = {
       sandbox: payload.options.sandbox,
       skipPermissions: payload.options.skipPermissions,
       disableSlashCommands: payload.options.disableSlashCommands,
-      subproject: payload.options.subproject || undefined
+      subproject: payload.options.subproject || undefined,
+      chatMode: payload.options.chatMode || undefined,
+      accountEmail: payload.options.accountEmail || undefined
     };
 
     const response = await fetch(`${getApiBase()}/chat`, {

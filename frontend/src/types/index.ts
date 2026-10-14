@@ -49,6 +49,7 @@ export interface ConversationSession {
   subproject?: string;
   agyConvId?: string;
   chatMode?: 'agent' | 'chat';
+  accountEmail?: string;
   messages?: ChatMessage[];
   lastMessageSnippet?: string;
   isRunning?: boolean;
@@ -102,6 +103,7 @@ export interface ChatOptions {
   disableSlashCommands: boolean;
   subproject: string;
   chatMode?: 'agent' | 'chat';
+  accountEmail?: string;
   showQuotaBubble?: boolean;
 }
 

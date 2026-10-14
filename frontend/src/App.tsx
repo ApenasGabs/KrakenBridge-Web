@@ -7,7 +7,8 @@ import type {
   SessionUsage, 
   AuthStatus,
   ModelsConfig,
-  QueuedMessage
+  QueuedMessage,
+  AccountInfo
 } from './types';
 import { api } from './services/api';
 import { Sidebar } from './components/Sidebar/Sidebar';
@@ -44,6 +45,7 @@ export const App: React.FC = () => {
 
   // Configurações do Sistema
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
+  const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [projects, setProjects] = useState<ProjectWorkspace[]>([]);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [codeServerPort, setCodeServerPort] = useState(8089);
@@ -87,8 +89,12 @@ export const App: React.FC = () => {
   // Carregar status e conversas iniciais
   const refreshAuthStatus = useCallback(async () => {
     try {
-      const status = await api.getAuthStatus();
+      const [status, accountsData] = await Promise.all([
+        api.getAuthStatus(),
+        api.getAccounts().catch(() => ({ activeEmail: null, accounts: [] }))
+      ]);
       setAuthStatus(status);
+      setAccounts(accountsData.accounts || []);
     } catch (e) {
       console.warn('Erro ao carregar status de autenticação:', e);
     }
@@ -173,7 +179,8 @@ export const App: React.FC = () => {
           ...prev,
           model: session.model || prev.model,
           subproject: session.subproject || '',
-          chatMode: session.chatMode || prev.chatMode || 'agent'
+          chatMode: session.chatMode || prev.chatMode || 'agent',
+          accountEmail: session.accountEmail || undefined
         }));
       } else {
         setMessages([]);
@@ -535,6 +542,7 @@ export const App: React.FC = () => {
         <OptionsBar
           options={options}
           availableModels={availableModels}
+          accounts={accounts}
           onChange={handleUpdateOptions}
           isOpen={isOptionsOpen}
         />

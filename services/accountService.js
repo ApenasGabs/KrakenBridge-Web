@@ -246,6 +246,56 @@ class AccountService {
       wasActive
     };
   }
+
+  /**
+   * Prepara um diretório de HOME isolado para executar o agy sob uma conta específica
+   * Retorna o caminho do HOME isolado para passar no env do spawn
+   */
+  async prepareAccountHome(email) {
+    if (!email) return process.env.HOME || '/root';
+
+    await this.init();
+    const targetFile = path.join(ACCOUNTS_DIR, `${sanitizeEmail(email)}.json`);
+    const exists = await fs.access(targetFile).then(() => true).catch(() => false);
+    if (!exists) {
+      console.warn(`[AccountService] Conta ${email} não encontrada para isolamento, usando HOME padrão.`);
+      return process.env.HOME || '/root';
+    }
+
+    try {
+      const content = await fs.readFile(targetFile, 'utf8');
+      const record = JSON.parse(content);
+      const safeDirName = sanitizeEmail(email);
+      const accountHome = path.join(DATA_DIR, 'account_homes', safeDirName);
+      const geminiDir = path.join(accountHome, '.gemini');
+      const cliDir = path.join(geminiDir, 'antigravity-cli');
+
+      await fs.mkdir(cliDir, { recursive: true });
+
+      // Garante que o config e skills sejam linkados ou copiados
+      const sourceConfig = path.join('/root', '.gemini', 'config');
+      const targetConfig = path.join(geminiDir, 'config');
+      try {
+        await fs.access(targetConfig);
+      } catch {
+        try {
+          await fs.symlink(sourceConfig, targetConfig, 'junction').catch(async () => {
+            // Se symlink falhar, ignora ou cria vazio
+          });
+        } catch {}
+      }
+
+      // Escreve o token específico desta conta
+      const isolatedTokenPath = path.join(cliDir, 'antigravity-oauth-token');
+      await fs.writeFile(isolatedTokenPath, record.raw, { encoding: 'utf8', mode: 0o600 });
+
+      return accountHome;
+    } catch (e) {
+      console.error(`[AccountService] Falha ao preparar HOME para ${email}:`, e.message);
+      return process.env.HOME || '/root';
+    }
+  }
 }
 
 export const accountService = new AccountService();
+
