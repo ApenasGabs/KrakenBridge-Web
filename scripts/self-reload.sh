@@ -38,7 +38,7 @@ fi
 echo "[SelfReload] Recarregando processo do servidor Node..." >> data/evolution.log 2>&1
 
 # 3. Mata o processo do servidor antigo (seja node dist-server/server.js ou o legado node server.js)
-NODE_PID=$(pgrep -f "server.js" | grep -v "$$" | grep -v "self-reload" | head -n 1)
+NODE_PID=$(pgrep -f "server.js" | grep -v "^1$" | grep -v "$$" | grep -v "self-reload" | head -n 1)
 
 if [ -n "$NODE_PID" ]; then
     echo "[SelfReload] Encerrando Node PID: $NODE_PID para reinício atômico..." >> data/evolution.log 2>&1
