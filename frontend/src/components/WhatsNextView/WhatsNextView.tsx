@@ -448,6 +448,52 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
     }
   };
 
+  // Aprovar diretamente para o Kraken e abrir chat para merge/execução
+  const handleApproveForKraken = async (pr: GithubPullRequestItem) => {
+    const repo = pr.repository?.nameWithOwner;
+    if (!repo) return;
+    const prKey = `${repo}#${pr.number}`;
+
+    setActioningPrKey(prKey);
+    setActionFeedback(null);
+
+    try {
+      // 1. Tentar registrar aprovação ou comentário no GitHub
+      await api.actionGithubPr(repo, pr.number, 'approve').catch(() => null);
+
+      // 2. Despachar instrução de aprovação para o Kraken
+      const res = await api.reviewGithubPr({
+        repo,
+        prNumber: pr.number,
+        prTitle: pr.title,
+        prUrl: pr.url,
+        branch: pr.headRefName,
+        comment: `O PR #${pr.number} está aprovado! Pode seguir com o merge e aplicar as alterações.`
+      });
+
+      if (res.success && res.conversationId) {
+        setActionFeedback({
+          type: 'success',
+          message: `PR #${pr.number} aprovada para o Kraken! Abrindo sessão no chat para merge...`
+        });
+
+        onReviewPr({
+          conversationId: res.conversationId,
+          subproject: res.subproject,
+          suggestedPrompt: res.suggestedPrompt
+        });
+      }
+    } catch (err) {
+      console.error('Erro ao aprovar para Kraken:', err);
+      setActionFeedback({
+        type: 'error',
+        message: (err as Error).message || `Falha ao aprovar PR #${pr.number} para o Kraken`
+      });
+    } finally {
+      setActioningPrKey(null);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-100">
       {/* Top Banner / Header do Dashboard */}
@@ -1067,15 +1113,25 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                         {/* Barra de Ações: Marcar como OK vs Mandar Revisar */}
                         <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-base-300/70">
                           {/* Ações de Aprovação & Merge */}
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
                               onClick={() => handlePrAction(pr, 'approve')}
                               disabled={isActioning}
                               className="btn btn-xs sm:btn-sm btn-outline btn-success gap-1 text-xs"
-                              title="Aprovar Pull Request no GitHub"
+                              title="Aprovar Pull Request no GitHub (ou registrar validação oficial se for PR próprio)"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>Aprovar PR</span>
+                              <span>Aprovar no GitHub</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleApproveForKraken(pr)}
+                              disabled={isActioning}
+                              className="btn btn-xs sm:btn-sm btn-primary gap-1.5 text-xs shadow-xs"
+                              title="Aprovar diretamente para o Kraken e abrir chat para merge e implementação"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-primary-content" />
+                              <span>Aprovar para Kraken</span>
                             </button>
 
                             {confirmMergePrKey === prKey ? (

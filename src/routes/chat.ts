@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import readline from 'readline';
 import { randomUUID } from 'crypto';
 import path from 'path';
+import fs from 'fs';
 import { historyService } from '../services/historyService.js';
 import { quotaService } from '../services/quotaService.js';
 import { accountService } from '../services/accountService.js';
@@ -171,8 +172,27 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     }
   }
 
-  // Configuração do diretório de trabalho
-  const workDir = activeSubproject ? path.join(WORKSPACE_DIR, activeSubproject) : WORKSPACE_DIR;
+  // Configuração resiliente do diretório de trabalho
+  let workDir = WORKSPACE_DIR;
+  if (activeSubproject === 'KrakenBridge-Web' || activeSubproject === 'app') {
+    workDir = '/app';
+  } else if (activeSubproject) {
+    if (path.isAbsolute(activeSubproject) && fs.existsSync(activeSubproject)) {
+      workDir = activeSubproject;
+    } else {
+      const candidate = path.join(WORKSPACE_DIR, activeSubproject);
+      if (fs.existsSync(candidate)) {
+        workDir = candidate;
+      } else {
+        workDir = WORKSPACE_DIR;
+      }
+    }
+  }
+
+  // Garantia absoluta de que workDir existe para evitar erro ENOENT no spawn
+  if (!fs.existsSync(workDir)) {
+    workDir = fs.existsSync(WORKSPACE_DIR) ? WORKSPACE_DIR : '/app';
+  }
 
   // Salvar mensagem do usuário no histórico com accountEmail
   await historyService.addMessage(conversationId, {

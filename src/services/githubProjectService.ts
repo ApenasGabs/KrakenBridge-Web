@@ -606,10 +606,25 @@ class GithubProjectService {
   async approveOrMergePR(repo: string, prNumber: number, action: 'approve' | 'merge', mergeMethod = 'squash'): Promise<{ success: boolean; message: string }> {
     try {
       if (action === 'approve') {
-        await execAsync(`gh pr review ${prNumber} --repo "${repo}" --approve --body "Aprovado via KrakenBridge Dashboard"`, {
-          timeout: 12000
-        });
-        return { success: true, message: `PR #${prNumber} em ${repo} aprovado com sucesso!` };
+        try {
+          await execAsync(`gh pr review ${prNumber} --repo "${repo}" --approve --body "Aprovado via KrakenBridge Dashboard"`, {
+            timeout: 12000
+          });
+          return { success: true, message: `PR #${prNumber} em ${repo} aprovado com sucesso!` };
+        } catch (reviewErr) {
+          const errMsg = (reviewErr as Error).message || '';
+          if (errMsg.includes('Can not approve your own pull request') || errMsg.includes('own pull request')) {
+            // O GitHub não permite aprovação formal do próprio autor. Registra comentário oficial de aprovação:
+            await execAsync(`gh pr comment ${prNumber} --repo "${repo}" --body "✅ **Validação & Aprovação pelo Autor**: Aprovado via KrakenBridge Dashboard."`, {
+              timeout: 12000
+            });
+            return {
+              success: true,
+              message: `PR #${prNumber} em ${repo} validada e registrada como aprovada pelo autor no GitHub!`
+            };
+          }
+          throw reviewErr;
+        }
       } else {
         const methodFlag = mergeMethod === 'merge' ? '--merge' : mergeMethod === 'rebase' ? '--rebase' : '--squash';
         await execAsync(`gh pr merge ${prNumber} --repo "${repo}" ${methodFlag}`, {
@@ -653,7 +668,10 @@ class GithubProjectService {
       subproject
     });
 
-    const promptText = `Estou revisando o PR #${prNumber} ("${prTitle}") no repositório ${repo}${branch ? ` (branch: ${branch})` : ''} - [Ver PR](${prUrl}).\n\nPor favor, implemente o seguinte ajuste solicitado:\n\n${comment.trim()}`;
+    const isApproval = comment.toLowerCase().includes('aprovad');
+    const promptText = isApproval
+      ? `Estou revisando o PR #${prNumber} ("${prTitle}") no repositório ${repo}${branch ? ` (branch: ${branch})` : ''} - [Ver PR](${prUrl}).\n\n✅ **Aprovado pelo usuário!**\n\n${comment.trim()}\n\nPor favor, realize o merge e execute o ciclo de implementação/deploy necessário.`
+      : `Estou revisando o PR #${prNumber} ("${prTitle}") no repositório ${repo}${branch ? ` (branch: ${branch})` : ''} - [Ver PR](${prUrl}).\n\nPor favor, implemente o seguinte ajuste solicitado:\n\n${comment.trim()}`;
 
     if (linked) {
       return {
