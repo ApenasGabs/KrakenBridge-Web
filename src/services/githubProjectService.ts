@@ -75,7 +75,8 @@ interface PersistentCacheData {
 class GithubProjectService {
   private memoryCache: PersistentCacheData = { timestamp: 0 };
   private isSafeDirectoryConfigured = false;
-  private isFetching = false;
+  private issuesPromise: Promise<GithubIssueItem[]> | null = null;
+  private prsPromise: Promise<GithubPullRequestItem[]> | null = null;
 
   constructor() {
     this.loadCacheFromDisk().catch(() => {});
@@ -135,8 +136,9 @@ class GithubProjectService {
     } catch {}
 
     try {
-      const { stdout } = await execAsync('gh auth status', { timeout: 6000 });
-      const match = stdout.match(/account\s+([a-zA-Z0-9_\-]+)/i) || stdout.match(/as\s+([a-zA-Z0-9_\-]+)/i);
+      const { stdout, stderr } = await execAsync('gh auth status || true', { timeout: 6000 });
+      const text = `${stdout || ''} ${stderr || ''}`;
+      const match = text.match(/account\s+([a-zA-Z0-9_\-]+)/i) || text.match(/as\s+([a-zA-Z0-9_\-]+)/i);
       if (match) return match[1];
     } catch {}
 
@@ -235,113 +237,126 @@ class GithubProjectService {
       return this.memoryCache.issues!;
     }
 
-    try {
-      const repos = await this.getLocalGitRepositories();
-      const repoMap = new Map<string, GithubRepoInfo>();
-      for (const r of repos) {
-        repoMap.set(r.ownerRepo.toLowerCase(), r);
-      }
+    if (this.issuesPromise) {
+      return this.issuesPromise;
+    }
 
-      const username = await this.getAuthenticatedUser();
-      const issueMap = new Map<string, GithubIssueItem>();
+    this.issuesPromise = (async () => {
+      try {
+        const repos = await this.getLocalGitRepositories();
+        const repoMap = new Map<string, GithubRepoInfo>();
+        for (const r of repos) {
+          repoMap.set(r.ownerRepo.toLowerCase(), r);
+        }
 
-      // 1. Coleta direta e em lote nas issues dos repositórios locais detectados
-      const localPromises = repos.map(async (r) => {
+        const username = await this.getAuthenticatedUser();
+        const issueMap = new Map<string, GithubIssueItem>();
+
+        // 1. Coleta direta e em lote nas issues dos repositórios locais detectados
+        const localPromises = repos.map(async (r) => {
+          try {
+            const { stdout } = await execAsync(
+              `gh issue list --repo "${r.ownerRepo}" --state open --json number,title,labels,createdAt,updatedAt,url,body,author --limit 50`,
+              { timeout: 9000 }
+            );
+            const list = JSON.parse(stdout || '[]') as any[];
+            for (const item of list) {
+              const key = `${r.ownerRepo.toLowerCase()}#${item.number}`;
+              issueMap.set(key, {
+                number: item.number,
+                title: item.title,
+                body: item.body || '',
+                url: item.url,
+                labels: Array.isArray(item.labels) ? item.labels : [],
+                author: (item.author && item.author.login) ? { login: item.author.login, name: item.author.name } : { login: 'desconhecido' },
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt,
+                repository: {
+                  name: r.name,
+                  nameWithOwner: r.ownerRepo
+                },
+                subproject: r.subproject,
+                isLocalWorkspace: true
+              });
+            }
+          } catch {}
+        });
+
+        await Promise.all(localPromises);
+
+        // 2. Coleta abrangente usando @me e owner para repositórios fora do workspace
         try {
-          const { stdout } = await execAsync(
-            `gh issue list --repo "${r.ownerRepo}" --state open --json number,title,labels,createdAt,updatedAt,url,body,author --limit 30`,
-            { timeout: 9000 }
+          const queries: string[] = [
+            '--author @me',
+            '--assignee @me',
+            '--involves @me'
+          ];
+          if (username) {
+            queries.push(`--owner ${username}`);
+          }
+
+          const searchPromises = queries.map(q => 
+            execAsync(
+              `gh search issues --state open ${q} --sort updated --order desc --limit 100 --json repository,number,title,labels,createdAt,updatedAt,url,body,author`,
+              { timeout: 18000 }
+            ).then(r => JSON.parse(r.stdout || '[]') as any[]).catch(() => [] as any[])
           );
-          const list = JSON.parse(stdout || '[]') as any[];
-          for (const item of list) {
-            const key = `${r.ownerRepo.toLowerCase()}#${item.number}`;
+
+          const searchResults = await Promise.all(searchPromises);
+          const combined = searchResults.flat();
+
+          for (const item of combined) {
+            const repoNameWithOwner = item.repository?.nameWithOwner || '';
+            if (!repoNameWithOwner) continue;
+            const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
+            if (issueMap.has(key)) continue;
+
+            const local = repoMap.get(repoNameWithOwner.toLowerCase());
             issueMap.set(key, {
               number: item.number,
               title: item.title,
               body: item.body || '',
               url: item.url,
               labels: Array.isArray(item.labels) ? item.labels : [],
-              author: item.author || { login: username || 'user' },
+              author: (item.author && item.author.login) ? { login: item.author.login, name: item.author.name } : { login: 'desconhecido' },
               createdAt: item.createdAt,
               updatedAt: item.updatedAt,
               repository: {
-                name: r.name,
-                nameWithOwner: r.ownerRepo
+                name: item.repository?.name || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
+                nameWithOwner: repoNameWithOwner
               },
-              subproject: r.subproject,
-              isLocalWorkspace: true
+              subproject: local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
+              isLocalWorkspace: !!local
             });
           }
-        } catch {}
-      });
-
-      await Promise.all(localPromises);
-
-      // 2. Coleta abrangente usando @me e owner para repositórios fora do workspace
-      try {
-        const queries: string[] = ['--involves @me'];
-        if (username) {
-          queries.push(`--owner ${username}`);
+        } catch (err) {
+          console.warn('[GithubProjectService] Aviso na busca ampla de issues:', (err as Error).message);
         }
 
-        const searchPromises = queries.map(q => 
-          execAsync(
-            `gh search issues --state open ${q} --json repository,number,title,labels,createdAt,updatedAt,url,body,author --limit 50`,
-            { timeout: 15000 }
-          ).then(r => JSON.parse(r.stdout || '[]') as any[]).catch(() => [] as any[])
-        );
+        const issues = Array.from(issueMap.values());
 
-        const searchResults = await Promise.all(searchPromises);
-        const combined = searchResults.flat();
+        // Ordenação unificada por atividade mais recente (updatedAt ou createdAt)
+        issues.sort((a, b) => {
+          const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+          const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+          return timeB - timeA;
+        });
 
-        for (const item of combined) {
-          const repoNameWithOwner = item.repository?.nameWithOwner || '';
-          if (!repoNameWithOwner) continue;
-          const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
-          if (issueMap.has(key)) continue;
+        this.memoryCache.issues = issues;
+        this.memoryCache.timestamp = Date.now();
+        this.saveCacheToDisk().catch(() => {});
 
-          const local = repoMap.get(repoNameWithOwner.toLowerCase());
-          issueMap.set(key, {
-            number: item.number,
-            title: item.title,
-            body: item.body || '',
-            url: item.url,
-            labels: Array.isArray(item.labels) ? item.labels : [],
-            author: item.author || { login: username || 'user' },
-            createdAt: item.createdAt,
-            updatedAt: item.updatedAt,
-            repository: {
-              name: item.repository?.name || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
-              nameWithOwner: repoNameWithOwner
-            },
-            subproject: local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
-            isLocalWorkspace: !!local
-          });
-        }
+        return issues;
       } catch (err) {
-        console.warn('[GithubProjectService] Aviso na busca ampla de issues:', (err as Error).message);
+        console.error('[GithubProjectService] Erro ao buscar issues (usando fallback de cache):', (err as Error).message);
+        if (this.memoryCache.issues) return this.memoryCache.issues;
+        return [];
+      } finally {
+        this.issuesPromise = null;
       }
+    })();
 
-      const issues = Array.from(issueMap.values());
-
-      // Ordenação padrão: locais primeiro, mais recentes primeiro
-      issues.sort((a, b) => {
-        const aLocal = a.isLocalWorkspace ? 1 : 0;
-        const bLocal = b.isLocalWorkspace ? 1 : 0;
-        if (aLocal !== bLocal) return bLocal - aLocal;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
-
-      this.memoryCache.issues = issues;
-      this.memoryCache.timestamp = Date.now();
-      this.saveCacheToDisk().catch(() => {});
-
-      return issues;
-    } catch (err) {
-      console.error('[GithubProjectService] Erro ao buscar issues (usando fallback de cache):', (err as Error).message);
-      if (this.memoryCache.issues) return this.memoryCache.issues;
-      return [];
-    }
+    return this.issuesPromise;
   }
 
   /**
@@ -355,139 +370,153 @@ class GithubProjectService {
       return this.memoryCache.prs!;
     }
 
-    try {
-      const repos = await this.getLocalGitRepositories();
-      const repoMap = new Map<string, GithubRepoInfo>();
-      for (const r of repos) {
-        repoMap.set(r.ownerRepo.toLowerCase(), r);
-      }
+    if (this.prsPromise) {
+      return this.prsPromise;
+    }
 
-      const username = await this.getAuthenticatedUser();
-      const prMap = new Map<string, GithubPullRequestItem>();
+    this.prsPromise = (async () => {
+      try {
+        const repos = await this.getLocalGitRepositories();
+        const repoMap = new Map<string, GithubRepoInfo>();
+        for (const r of repos) {
+          repoMap.set(r.ownerRepo.toLowerCase(), r);
+        }
 
-      // 1. Busca em lote de todos os repositórios locais
-      // gh pr list já retorna headRefName e baseRefName em 1 chamada única!
-      const localPromises = repos.map(async (r) => {
+        const username = await this.getAuthenticatedUser();
+        const prMap = new Map<string, GithubPullRequestItem>();
+
+        // 1. Busca em lote de todos os repositórios locais
+        // gh pr list já retorna headRefName e baseRefName em 1 chamada única!
+        const localPromises = repos.map(async (r) => {
+          try {
+            const { stdout } = await execAsync(
+              `gh pr list --repo "${r.ownerRepo}" --state open --json number,title,labels,createdAt,updatedAt,url,body,isDraft,author,headRefName,baseRefName --limit 50`,
+              { timeout: 9000 }
+            );
+            const list = JSON.parse(stdout || '[]') as any[];
+            for (const item of list) {
+              const key = `${r.ownerRepo.toLowerCase()}#${item.number}`;
+              prMap.set(key, {
+                number: item.number,
+                title: item.title,
+                body: item.body || '',
+                url: item.url,
+                headRefName: item.headRefName || '',
+                baseRefName: item.baseRefName || 'main',
+                isDraft: !!item.isDraft,
+                labels: Array.isArray(item.labels) ? item.labels : [],
+                author: (item.author && item.author.login) ? { login: item.author.login, name: item.author.name } : { login: 'desconhecido' },
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt,
+                repository: {
+                  name: r.name,
+                  nameWithOwner: r.ownerRepo
+                },
+                subproject: r.subproject,
+                isLocalWorkspace: true
+              });
+            }
+          } catch {}
+        });
+
+        await Promise.all(localPromises);
+
+        // 2. Busca abrangente em lote para PRs de outras organizações/repositórios
         try {
-          const { stdout } = await execAsync(
-            `gh pr list --repo "${r.ownerRepo}" --state open --json number,title,labels,createdAt,updatedAt,url,body,isDraft,author,headRefName,baseRefName --limit 30`,
-            { timeout: 9000 }
+          const queries: string[] = [
+            '--author @me',
+            '--assignee @me',
+            '--review-requested @me',
+            '--involves @me'
+          ];
+          if (username) {
+            queries.push(`--owner ${username}`);
+          }
+
+          const searchPromises = queries.map(q =>
+            execAsync(
+              `gh search prs --state open ${q} --sort updated --order desc --limit 100 --json repository,number,title,labels,createdAt,updatedAt,url,body,isDraft,author`,
+              { timeout: 18000 }
+            ).then(r => JSON.parse(r.stdout || '[]') as any[]).catch(() => [] as any[])
           );
-          const list = JSON.parse(stdout || '[]') as any[];
-          for (const item of list) {
-            const key = `${r.ownerRepo.toLowerCase()}#${item.number}`;
+
+          const searchResults = await Promise.all(searchPromises);
+          const combined = searchResults.flat();
+
+          for (const item of combined) {
+            const repoNameWithOwner = item.repository?.nameWithOwner || '';
+            if (!repoNameWithOwner) continue;
+            const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
+            if (prMap.has(key)) continue;
+
+            const local = repoMap.get(repoNameWithOwner.toLowerCase());
             prMap.set(key, {
               number: item.number,
               title: item.title,
               body: item.body || '',
               url: item.url,
-              headRefName: item.headRefName || '',
-              baseRefName: item.baseRefName || 'main',
+              headRefName: '',
+              baseRefName: 'main',
               isDraft: !!item.isDraft,
               labels: Array.isArray(item.labels) ? item.labels : [],
-              author: item.author || { login: username || 'user' },
+              author: (item.author && item.author.login) ? { login: item.author.login, name: item.author.name } : { login: 'desconhecido' },
               createdAt: item.createdAt,
               updatedAt: item.updatedAt,
               repository: {
-                name: r.name,
-                nameWithOwner: r.ownerRepo
+                name: item.repository?.name || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
+                nameWithOwner: repoNameWithOwner
               },
-              subproject: r.subproject,
-              isLocalWorkspace: true
+              subproject: local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
+              isLocalWorkspace: !!local
             });
           }
-        } catch {}
-      });
-
-      await Promise.all(localPromises);
-
-      // 2. Busca abrangente em lote para PRs de outras organizações/repositórios
-      try {
-        const queries: string[] = ['--involves @me'];
-        if (username) {
-          queries.push(`--owner ${username}`);
+        } catch (err) {
+          console.warn('[GithubProjectService] Aviso na busca ampla de PRs:', (err as Error).message);
         }
 
-        const searchPromises = queries.map(q =>
-          execAsync(
-            `gh search prs --state open ${q} --json repository,number,title,labels,createdAt,updatedAt,url,body,isDraft,author --limit 50`,
-            { timeout: 15000 }
-          ).then(r => JSON.parse(r.stdout || '[]') as any[]).catch(() => [] as any[])
+        const prsList = Array.from(prMap.values());
+
+        // 3. Vinculação com sessões do Kraken em memória/disco
+        const sessions = await historyService.list().catch(() => []);
+
+        const prs = await Promise.all(
+          prsList.map(async (item) => {
+            const linkedConversation = await this.findLinkedConversation(sessions, {
+              prNumber: item.number,
+              prTitle: item.title,
+              branch: item.headRefName,
+              subproject: item.subproject
+            });
+
+            return {
+              ...item,
+              linkedConversation
+            };
+          })
         );
 
-        const searchResults = await Promise.all(searchPromises);
-        const combined = searchResults.flat();
+        // Ordenação unificada por atividade mais recente (updatedAt ou createdAt)
+        prs.sort((a, b) => {
+          const timeA = new Date(a.updatedAt || a.createdAt).getTime();
+          const timeB = new Date(b.updatedAt || b.createdAt).getTime();
+          return timeB - timeA;
+        });
 
-        for (const item of combined) {
-          const repoNameWithOwner = item.repository?.nameWithOwner || '';
-          if (!repoNameWithOwner) continue;
-          const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
-          if (prMap.has(key)) continue;
+        this.memoryCache.prs = prs;
+        this.memoryCache.timestamp = Date.now();
+        this.saveCacheToDisk().catch(() => {});
 
-          const local = repoMap.get(repoNameWithOwner.toLowerCase());
-          prMap.set(key, {
-            number: item.number,
-            title: item.title,
-            body: item.body || '',
-            url: item.url,
-            headRefName: '',
-            baseRefName: 'main',
-            isDraft: !!item.isDraft,
-            labels: Array.isArray(item.labels) ? item.labels : [],
-            author: item.author || { login: username || 'user' },
-            createdAt: item.createdAt,
-            updatedAt: item.updatedAt,
-            repository: {
-              name: item.repository?.name || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
-              nameWithOwner: repoNameWithOwner
-            },
-            subproject: local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
-            isLocalWorkspace: !!local
-          });
-        }
+        return prs;
       } catch (err) {
-        console.warn('[GithubProjectService] Aviso na busca ampla de PRs:', (err as Error).message);
+        console.error('[GithubProjectService] Erro ao buscar PRs (usando fallback de cache):', (err as Error).message);
+        if (this.memoryCache.prs) return this.memoryCache.prs;
+        return [];
+      } finally {
+        this.prsPromise = null;
       }
+    })();
 
-      const prsList = Array.from(prMap.values());
-
-      // 3. Vinculação com sessões do Kraken em memória/disco
-      const sessions = await historyService.list().catch(() => []);
-
-      const prs = await Promise.all(
-        prsList.map(async (item) => {
-          const linkedConversation = await this.findLinkedConversation(sessions, {
-            prNumber: item.number,
-            prTitle: item.title,
-            branch: item.headRefName,
-            subproject: item.subproject
-          });
-
-          return {
-            ...item,
-            linkedConversation
-          };
-        })
-      );
-
-      // Ordenação padrão: locais primeiro, mais recentes primeiro
-      prs.sort((a, b) => {
-        const aLocal = a.isLocalWorkspace ? 1 : 0;
-        const bLocal = b.isLocalWorkspace ? 1 : 0;
-        if (aLocal !== bLocal) return bLocal - aLocal;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
-
-      this.memoryCache.prs = prs;
-      this.memoryCache.timestamp = Date.now();
-      this.saveCacheToDisk().catch(() => {});
-
-      return prs;
-    } catch (err) {
-      console.error('[GithubProjectService] Erro ao buscar PRs (usando fallback de cache):', (err as Error).message);
-      if (this.memoryCache.prs) return this.memoryCache.prs;
-      return [];
-    }
+    return this.prsPromise;
   }
 
   /**

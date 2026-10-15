@@ -498,7 +498,12 @@ export const api = {
     if (!res.ok) {
       throw new Error(`Falha ao obter PRs do GitHub (${res.status})`);
     }
-    return res.json();
+    const data = await res.json();
+    const prsList = data.prs || data.pullRequests || [];
+    return {
+      prs: prsList,
+      count: typeof data.count === 'number' ? data.count : prsList.length
+    };
   },
 
   async actionGithubPr(

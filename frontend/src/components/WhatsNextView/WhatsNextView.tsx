@@ -61,17 +61,17 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
   const [authorFilter, setAuthorFilter] = useState<'all' | 'mine' | 'others'>('all');
   const [prStatusFilter, setPrStatusFilter] = useState<'all' | 'ready' | 'draft' | 'linked'>('all');
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'updated' | 'number' | 'repo'>('newest');
+  const [sortBy, setSortBy] = useState<'updated' | 'newest' | 'oldest' | 'number' | 'repo'>('updated');
 
   // Ações em Issues
   const [resolvingIssueNumber, setResolvingIssueNumber] = useState<number | null>(null);
 
-  // Ações em PRs
-  const [actioningPrNumber, setActioningPrNumber] = useState<number | null>(null);
-  const [confirmMergePrNumber, setConfirmMergePrNumber] = useState<number | null>(null);
-  const [expandedReviewPrId, setExpandedReviewPrId] = useState<number | null>(null);
-  const [reviewComments, setReviewComments] = useState<Record<number, string>>({});
-  const [submittingReviewPrId, setSubmittingReviewPrId] = useState<number | null>(null);
+  // Ações em PRs (usando prKey única: repo#number para evitar conflitos entre repositórios)
+  const [actioningPrKey, setActioningPrKey] = useState<string | null>(null);
+  const [confirmMergePrKey, setConfirmMergePrKey] = useState<string | null>(null);
+  const [expandedReviewPrKey, setExpandedReviewPrKey] = useState<string | null>(null);
+  const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
+  const [submittingReviewPrKey, setSubmittingReviewPrKey] = useState<string | null>(null);
 
   // Feedback de ações
   const [actionFeedback, setActionFeedback] = useState<{
@@ -97,7 +97,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
 
       if (overviewData) setOverview(overviewData);
       setIssues(issuesData.issues || []);
-      setPrs(prsData.prs || []);
+      setPrs(prsData.prs || (prsData as any).pullRequests || []);
     } catch (err) {
       console.error('Erro ao carregar dados do GitHub:', err);
       setError((err as Error).message || 'Falha ao sincronizar com GitHub');
@@ -186,7 +186,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
       authorFilter !== 'all' ||
       prStatusFilter !== 'all' ||
       selectedLabel !== null ||
-      sortBy !== 'newest'
+      sortBy !== 'updated'
     );
   }, [selectedRepo, searchQuery, scopeFilter, authorFilter, prStatusFilter, selectedLabel, sortBy]);
 
@@ -198,7 +198,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
     setAuthorFilter('all');
     setPrStatusFilter('all');
     setSelectedLabel(null);
-    setSortBy('newest');
+    setSortBy('updated');
   }, []);
 
   // Filtragem e Ordenação de Issues
@@ -371,8 +371,9 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
   const handlePrAction = async (pr: GithubPullRequestItem, action: 'approve' | 'merge') => {
     const repo = pr.repository?.nameWithOwner;
     if (!repo) return;
+    const prKey = `${repo}#${pr.number}`;
 
-    setActioningPrNumber(pr.number);
+    setActioningPrKey(prKey);
     setActionFeedback(null);
     try {
       const res = await api.actionGithubPr(repo, pr.number, action, 'squash');
@@ -383,7 +384,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
             ? `PR #${pr.number} aprovada com sucesso no GitHub!` 
             : `PR #${pr.number} mesclada com sucesso no GitHub!`
         });
-        setConfirmMergePrNumber(null);
+        setConfirmMergePrKey(null);
         loadData(true);
       }
     } catch (err) {
@@ -393,19 +394,20 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
         message: (err as Error).message || `Falha ao executar ação na PR #${pr.number}`
       });
     } finally {
-      setActioningPrNumber(null);
+      setActioningPrKey(null);
     }
   };
 
   // Submeter Revisão para Agente
   const handleSendReview = async (pr: GithubPullRequestItem) => {
-    const comment = reviewComments[pr.number]?.trim();
-    if (!comment) return;
-
     const repo = pr.repository?.nameWithOwner;
     if (!repo) return;
+    const prKey = `${repo}#${pr.number}`;
 
-    setSubmittingReviewPrId(pr.number);
+    const comment = reviewComments[prKey]?.trim();
+    if (!comment) return;
+
+    setSubmittingReviewPrKey(prKey);
     setActionFeedback(null);
 
     try {
@@ -426,8 +428,8 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
             : `Revisão direcionada para a conversa original da PR #${pr.number}!`
         });
 
-        setReviewComments(prev => ({ ...prev, [pr.number]: '' }));
-        setExpandedReviewPrId(null);
+        setReviewComments(prev => ({ ...prev, [prKey]: '' }));
+        setExpandedReviewPrKey(null);
 
         onReviewPr({
           conversationId: res.conversationId,
@@ -442,7 +444,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
         message: (err as Error).message || 'Falha ao enviar revisão para o agente'
       });
     } finally {
-      setSubmittingReviewPrId(null);
+      setSubmittingReviewPrKey(null);
     }
   };
 
@@ -669,9 +671,9 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                   onChange={(e) => setSortBy(e.target.value as any)}
                   className="select select-ghost select-xs text-xs font-normal px-1"
                 >
-                  <option value="newest">Mais recentes</option>
+                  <option value="updated">Atualizadas recentemente (Padrão)</option>
+                  <option value="newest">Mais recentes (Criação)</option>
                   <option value="oldest">Mais antigas</option>
-                  <option value="updated">Atualizadas recentemente</option>
                   <option value="number">Número (#ID)</option>
                   <option value="repo">Repositório (A-Z)</option>
                 </select>
@@ -930,14 +932,15 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
             ) : (
               <div className="grid grid-cols-1 gap-4">
                 {filteredPrs.map((pr) => {
-                  const isActioning = actioningPrNumber === pr.number;
-                  const isReviewOpen = expandedReviewPrId === pr.number;
-                  const isSubmittingReview = submittingReviewPrId === pr.number;
+                  const prKey = `${pr.repository?.nameWithOwner}#${pr.number}`;
+                  const isActioning = actioningPrKey === prKey;
+                  const isReviewOpen = expandedReviewPrKey === prKey;
+                  const isSubmittingReview = submittingReviewPrKey === prKey;
                   const hasLinkedConversation = !!pr.linkedConversation;
 
                   return (
                     <div
-                      key={`${pr.repository?.nameWithOwner}#${pr.number}`}
+                      key={prKey}
                       className="card bg-base-200/50 hover:bg-base-200 border border-base-300 transition-all shadow-sm"
                     >
                       <div className="card-body p-4 sm:p-5 space-y-3">
@@ -1075,7 +1078,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                               <span>Aprovar PR</span>
                             </button>
 
-                            {confirmMergePrNumber === pr.number ? (
+                            {confirmMergePrKey === prKey ? (
                               <div className="flex items-center gap-1.5 bg-warning/10 border border-warning/30 rounded-lg px-2 py-1">
                                 <span className="text-[11px] font-medium text-warning">Confirmar merge?</span>
                                 <button
@@ -1087,7 +1090,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                                   Sim, mesclar
                                 </button>
                                 <button
-                                  onClick={() => setConfirmMergePrNumber(null)}
+                                  onClick={() => setConfirmMergePrKey(null)}
                                   className="btn btn-ghost btn-xs text-xs"
                                 >
                                   Cancelar
@@ -1095,7 +1098,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                               </div>
                             ) : (
                               <button
-                                onClick={() => setConfirmMergePrNumber(pr.number)}
+                                onClick={() => setConfirmMergePrKey(prKey)}
                                 disabled={isActioning}
                                 className="btn btn-xs sm:btn-sm btn-outline gap-1 text-xs"
                                 title="Fazer Merge (Squash) da PR"
@@ -1108,7 +1111,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
 
                           {/* Botão para Mandar Revisar */}
                           <button
-                            onClick={() => setExpandedReviewPrId(isReviewOpen ? null : pr.number)}
+                            onClick={() => setExpandedReviewPrKey(isReviewOpen ? null : prKey)}
                             className={`btn btn-xs sm:btn-sm gap-1.5 text-xs transition-colors ${
                               isReviewOpen ? 'btn-primary' : 'btn-ghost text-primary hover:bg-primary/10'
                             }`}
@@ -1136,22 +1139,22 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
 
                             <textarea
                               rows={3}
-                              value={reviewComments[pr.number] || ''}
-                              onChange={(e) => setReviewComments(prev => ({ ...prev, [pr.number]: e.target.value }))}
+                              value={reviewComments[prKey] || ''}
+                              onChange={(e) => setReviewComments(prev => ({ ...prev, [prKey]: e.target.value }))}
                               placeholder="Descreva o que precisa ser ajustado (ex: 'Altere o nome da variável X, adicione validação no backend para Y e crie um teste unitário...')"
                               className="textarea textarea-bordered w-full text-xs font-sans focus:textarea-primary"
                             />
 
                             <div className="flex items-center justify-end gap-2">
                               <button
-                                onClick={() => setExpandedReviewPrId(null)}
+                                onClick={() => setExpandedReviewPrKey(null)}
                                 className="btn btn-xs btn-ghost text-xs"
                               >
                                 Cancelar
                               </button>
                               <button
                                 onClick={() => handleSendReview(pr)}
-                                disabled={!reviewComments[pr.number]?.trim() || isSubmittingReview}
+                                disabled={!reviewComments[prKey]?.trim() || isSubmittingReview}
                                 className="btn btn-xs sm:btn-sm btn-primary gap-1.5 text-xs shadow-sm"
                               >
                                 {isSubmittingReview ? (
