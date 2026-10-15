@@ -30,6 +30,10 @@ export interface SessionListItem {
   messageCount: number;
   lastMessageSnippet: string;
   isRunning?: boolean;
+  userQueries?: string[];
+  searchableText?: string;
+  relevanceScore?: number;
+  matchedSnippet?: string;
 }
 
 export interface CreateSessionPayload {

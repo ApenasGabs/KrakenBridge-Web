@@ -8,8 +8,10 @@ import {
   FolderGit2, 
   Clock, 
   X,
-  KeyRound
+  KeyRound,
+  Sparkles
 } from 'lucide-react';
+import { filterAndRankConversations, highlightMatches } from '../../utils/searchUtils';
 
 interface SidebarProps {
   conversations: ConversationSession[];
@@ -41,20 +43,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenAuth
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const isSearching = searchTerm.trim().length > 0;
 
-  const filteredConversations = useMemo(() => {
-    if (!searchTerm.trim()) return conversations;
-    const term = searchTerm.toLowerCase();
-    return conversations.filter(c => 
-      c.title.toLowerCase().includes(term) ||
-      (c.subproject && c.subproject.toLowerCase().includes(term)) ||
-      (c.tags && c.tags.some(t => t.toLowerCase().includes(term))) ||
-      (c.lastMessageSnippet && c.lastMessageSnippet.toLowerCase().includes(term))
-    );
-  }, [conversations, searchTerm]);
+  // Conversas filtradas e ranqueadas por relevância no modo busca
+  const rankedConversations = useMemo(() => {
+    if (!isSearching) return [];
+    return filterAndRankConversations(conversations, searchTerm);
+  }, [conversations, searchTerm, isSearching]);
 
-  // Agrupamento temporal
+  // Agrupamento temporal para quando NÃO estiver em modo de busca
   const grouped = useMemo(() => {
+    if (isSearching) return [];
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
@@ -69,7 +69,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { label: 'Mais antigos', items: [] }
     ];
 
-    filteredConversations.forEach(c => {
+    conversations.forEach(c => {
       const date = new Date(c.updatedAt || c.createdAt);
       if (date >= today) {
         groups[0].items.push(c);
@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     });
 
     return groups.filter(g => g.items.length > 0);
-  }, [filteredConversations]);
+  }, [conversations, isSearching]);
 
   return (
     <>
@@ -124,29 +124,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Search className="w-4 h-4 absolute left-3 top-3 text-base-content/40" />
             <input
               type="text"
-              placeholder="Buscar conversas..."
+              placeholder="Buscar por título, tag ou assunto falado..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="input input-sm input-bordered w-full pl-9 bg-base-200/50"
+              className="input input-sm input-bordered w-full pl-9 pr-8 bg-base-200/50"
             />
+            {isSearching && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="btn btn-ghost btn-xs btn-circle absolute right-1.5 top-1.5 h-6 w-6 text-base-content/50 hover:text-base-content"
+                title="Limpar busca"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
         {/* Lista de Histórico */}
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-4">
-          {filteredConversations.length === 0 ? (
-            <div className="text-center py-8 text-base-content/50 text-sm">
-              <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              Nenhuma conversa encontrada
-            </div>
-          ) : (
-            grouped.map(group => (
-              <div key={group.label} className="space-y-1">
-                <div className="px-3 text-xs font-semibold text-base-content/50 uppercase tracking-wider flex items-center gap-1.5 pt-2">
-                  <Clock className="w-3 h-3" />
-                  {group.label}
+          {isSearching ? (
+            /* Modo de Busca Ativa: Lista Ordenada por Relevância Ponderada */
+            rankedConversations.length === 0 ? (
+              <div className="text-center py-8 text-base-content/50 text-sm px-4">
+                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p>Nenhuma conversa encontrada para <span className="font-semibold text-base-content/80 font-mono">"{searchTerm}"</span></p>
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="btn btn-ghost btn-xs text-primary mt-2"
+                >
+                  Limpar busca
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="px-3 text-xs font-semibold text-primary uppercase tracking-wider flex items-center justify-between pt-2">
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 text-primary animate-pulse" />
+                    Resultados ({rankedConversations.length})
+                  </span>
+                  <span className="badge badge-primary/15 text-primary badge-xs text-[9px] font-mono border-primary/25">
+                    Por Relevância
+                  </span>
                 </div>
-                {group.items.map(item => {
+                {rankedConversations.map(item => {
                   const isActive = item.id === activeId;
                   return (
                     <div
@@ -156,7 +179,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         if (window.innerWidth < 1024) onClose();
                       }}
                       className={`
-                        group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer
+                        group flex items-start justify-between px-3 py-2 rounded-lg cursor-pointer
                         transition-all text-sm
                         ${isActive 
                           ? 'bg-primary/10 text-primary font-medium border-l-4 border-primary' 
@@ -166,8 +189,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <div className="flex flex-col min-w-0 flex-1 gap-1">
                         <div className="flex items-center gap-2 min-w-0">
-                          <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-primary' : 'text-base-content/40'}`} />
-                          <span className="truncate">{item.title || 'Conversa sem título'}</span>
+                          <MessageSquare className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${isActive ? 'text-primary' : 'text-base-content/40'}`} />
+                          <span className="truncate">
+                            {highlightMatches(item.title || 'Conversa sem título', searchTerm)}
+                          </span>
                           {item.isRunning && (
                             <span className="relative flex h-2 w-2 shrink-0 ml-1" title="Executando em segundo plano">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
@@ -175,16 +200,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             </span>
                           )}
                         </div>
+
+                        {/* Snippet Contextual com Trecho Falado */}
+                        {item.matchedSnippet && (
+                          <div className="text-[11px] text-base-content/70 bg-base-200/90 rounded px-2 py-1 ml-5 border-l-2 border-primary/60 line-clamp-2 font-sans">
+                            <span className="opacity-60 mr-1 text-[10px]">💬</span>
+                            {highlightMatches(item.matchedSnippet, searchTerm)}
+                          </div>
+                        )}
+
                         {((item.tags && item.tags.length > 0) || item.subproject) && (
                           <div className="flex items-center gap-1 overflow-x-hidden pl-5 flex-wrap">
                             {item.subproject && (
                               <span className="badge badge-ghost badge-xs text-[9px] opacity-70 shrink-0 font-mono border-base-300">
-                                {item.subproject}
+                                {highlightMatches(item.subproject, searchTerm)}
                               </span>
                             )}
                             {item.tags?.slice(0, 3).map(tag => (
                               <span key={tag} className="badge badge-primary/15 text-primary border-primary/25 badge-xs text-[8.5px] font-mono shrink-0">
-                                #{tag}
+                                #{highlightMatches(tag, searchTerm)}
                               </span>
                             ))}
                           </div>
@@ -197,7 +231,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             onDelete(item.id);
                           }
                         }}
-                        className="opacity-0 group-hover:opacity-100 hover:text-error transition-opacity p-1 rounded"
+                        className="opacity-0 group-hover:opacity-100 hover:text-error transition-opacity p-1 rounded shrink-0 ml-1 mt-0.5"
                         title="Excluir conversa"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -206,7 +240,83 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   );
                 })}
               </div>
-            ))
+            )
+          ) : (
+            /* Modo Padrão: Agrupamento Temporal */
+            grouped.length === 0 ? (
+              <div className="text-center py-8 text-base-content/50 text-sm">
+                <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                Nenhuma conversa encontrada
+              </div>
+            ) : (
+              grouped.map(group => (
+                <div key={group.label} className="space-y-1">
+                  <div className="px-3 text-xs font-semibold text-base-content/50 uppercase tracking-wider flex items-center gap-1.5 pt-2">
+                    <Clock className="w-3 h-3" />
+                    {group.label}
+                  </div>
+                  {group.items.map(item => {
+                    const isActive = item.id === activeId;
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => {
+                          onSelect(item.id);
+                          if (window.innerWidth < 1024) onClose();
+                        }}
+                        className={`
+                          group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer
+                          transition-all text-sm
+                          ${isActive 
+                            ? 'bg-primary/10 text-primary font-medium border-l-4 border-primary' 
+                            : 'hover:bg-base-200 text-base-content/80'
+                          }
+                        `}
+                      >
+                        <div className="flex flex-col min-w-0 flex-1 gap-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-primary' : 'text-base-content/40'}`} />
+                            <span className="truncate">{item.title || 'Conversa sem título'}</span>
+                            {item.isRunning && (
+                              <span className="relative flex h-2 w-2 shrink-0 ml-1" title="Executando em segundo plano">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                              </span>
+                            )}
+                          </div>
+                          {((item.tags && item.tags.length > 0) || item.subproject) && (
+                            <div className="flex items-center gap-1 overflow-x-hidden pl-5 flex-wrap">
+                              {item.subproject && (
+                                <span className="badge badge-ghost badge-xs text-[9px] opacity-70 shrink-0 font-mono border-base-300">
+                                  {item.subproject}
+                                </span>
+                              )}
+                              {item.tags?.slice(0, 3).map(tag => (
+                                <span key={tag} className="badge badge-primary/15 text-primary border-primary/25 badge-xs text-[8.5px] font-mono shrink-0">
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm('Deseja excluir esta conversa?')) {
+                              onDelete(item.id);
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 hover:text-error transition-opacity p-1 rounded"
+                          title="Excluir conversa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))
+            )
           )}
         </div>
 

@@ -5,9 +5,10 @@ import { activeSessions } from '../services/sessionState.js';
 
 export const conversationsRouter = Router();
 
-// Listar todas as conversas
-conversationsRouter.get('/', async (_req: Request, res: Response) => {
-  const list = await historyService.list();
+// Listar todas as conversas (com suporte a busca e relevância via ?q=)
+conversationsRouter.get('/', async (req: Request, res: Response) => {
+  const query = typeof req.query.q === 'string' ? req.query.q.trim() : undefined;
+  const list = await historyService.list(query);
   const enriched = list.map(item => ({
     ...item,
     isRunning: activeSessions.has(item.id)
