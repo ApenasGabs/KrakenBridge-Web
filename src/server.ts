@@ -40,7 +40,8 @@ const pinAuthMiddleware = (req: Request, res: Response, next: NextFunction) => {
   if (
     fullPath.endsWith('/health') ||
     fullPath.endsWith('/auth/pin/status') ||
-    fullPath.endsWith('/auth/pin/verify')
+    fullPath.endsWith('/auth/pin/verify') ||
+    (fullPath.endsWith('/system/self-reload') && (req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1' || req.hostname === 'localhost'))
   ) {
     return next();
   }
