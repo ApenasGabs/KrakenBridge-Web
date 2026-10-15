@@ -250,6 +250,7 @@ export interface GithubIssueItem {
   updatedAt?: string;
   repository: { name: string; nameWithOwner: string };
   subproject?: string;
+  isLocalWorkspace?: boolean;
 }
 
 export interface GithubPullRequestItem {
@@ -266,6 +267,7 @@ export interface GithubPullRequestItem {
   updatedAt?: string;
   repository: { name: string; nameWithOwner: string };
   subproject?: string;
+  isLocalWorkspace?: boolean;
   linkedConversation?: {
     id: string;
     title: string;
@@ -279,5 +281,6 @@ export interface ProjectOverview {
   issuesCount: number;
   prsCount: number;
   lastUpdated: number;
+  fromCache?: boolean;
 }
 
