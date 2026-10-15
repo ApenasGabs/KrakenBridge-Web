@@ -32,7 +32,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   status,
   onRefreshStatus
 }) => {
-  const [activeTab, setActiveTab] = useState<'accounts' | 'google' | 'github' | 'apikey' | 'ide'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'google' | 'github' | 'vercel' | 'apikey' | 'ide'>('accounts');
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [switchingEmail, setSwitchingEmail] = useState<string | null>(null);
@@ -51,6 +51,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [ghPolling, setGhPolling] = useState(false);
   const [ghPatInput, setGhPatInput] = useState('');
   const [ghCopiedCode, setGhCopiedCode] = useState(false);
+
+  // Estados da Vercel
+  const [vcUserCode, setVcUserCode] = useState('');
+  const [vcVerifyUri, setVcVerifyUri] = useState('https://vercel.com/device');
+  const [vcVerifyUriComplete, setVcVerifyUriComplete] = useState('');
+  const [vcPolling, setVcPolling] = useState(false);
+  const [vcPatInput, setVcPatInput] = useState('');
+  const [vcCopiedCode, setVcCopiedCode] = useState(false);
 
   const loadAccountsList = async () => {
     setLoadingAccounts(true);
@@ -94,6 +102,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     return () => clearInterval(interval);
   }, [ghPolling, onRefreshStatus]);
+
+  // Polling automático enquanto vcPolling estiver ativo
+  useEffect(() => {
+    if (!vcPolling) return;
+    const interval = setInterval(async () => {
+      try {
+        const poll = await api.pollVercelDevice();
+        if (poll.status === 'success') {
+          setVcPolling(false);
+          setMessage({
+            text: `Vercel CLI conectada com sucesso para @${poll.username || poll.email || 'sua conta'}!`,
+            type: 'success'
+          });
+          onRefreshStatus();
+        } else if (poll.status === 'expired' || poll.status === 'denied' || poll.status === 'error') {
+          setVcPolling(false);
+          setMessage({ text: poll.error || 'Autenticação expirada ou recusada na Vercel.', type: 'error' });
+        }
+      } catch {
+        // Ignora erros temporários no polling
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [vcPolling, onRefreshStatus]);
 
   const handleSwitchAccount = async (email: string) => {
     setSwitchingEmail(email);
@@ -328,6 +361,89 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setTimeout(() => setGhCopiedCode(false), 2000);
   };
 
+  // Iniciar Device Code Flow da Vercel
+  const handleStartVercelDevice = async () => {
+    setLoading(true);
+    setMessage(null);
+    setVcUserCode('');
+    try {
+      const res = await api.startVercelDeviceFlow();
+      if (res.success && res.userCode) {
+        setVcUserCode(res.userCode);
+        setVcVerifyUri(res.verificationUri || 'https://vercel.com/device');
+        setVcVerifyUriComplete(
+          res.verificationUriComplete ||
+            `https://vercel.com/oauth/device?user_code=${encodeURIComponent(res.userCode)}`
+        );
+        setVcPolling(true);
+        setMessage({
+          text: `Código gerado! Acesse a Vercel e autorize a conexão.`,
+          type: 'info'
+        });
+      } else {
+        setMessage({ text: res.error || 'Falha ao iniciar login com Vercel.', type: 'error' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao conectar à Vercel.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Salvar Token PAT da Vercel
+  const handleSaveVercelToken = async () => {
+    if (!vcPatInput.trim()) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await api.saveVercelToken(vcPatInput.trim());
+      if (res.success) {
+        setMessage({
+          text: `Vercel autenticada como @${res.username || res.email || 'usuário'} com sucesso!`,
+          type: 'success'
+        });
+        setVcPatInput('');
+        onRefreshStatus();
+      } else {
+        setMessage({ text: res.error || 'Erro ao validar token da Vercel.', type: 'error' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar token da Vercel.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Desconectar Vercel
+  const handleLogoutVercel = async () => {
+    if (!window.confirm('Deseja realmente desconectar a conta da Vercel CLI?')) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      await api.logoutVercel();
+      setMessage({ text: 'Vercel CLI desconectada.', type: 'info' });
+      onRefreshStatus();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao desconectar Vercel.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyVercelCode = () => {
+    if (!vcUserCode) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(vcUserCode).catch(() => fallbackCopy(vcUserCode));
+    } else {
+      fallbackCopy(vcUserCode);
+    }
+    setVcCopiedCode(true);
+    setTimeout(() => setVcCopiedCode(false), 2000);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -415,6 +531,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <GitPullRequest className="w-3.5 h-3.5" />
             <span>GitHub</span>
             {status?.github?.authenticated && (
+              <span className="badge badge-xs badge-success">OK</span>
+            )}
+          </button>
+          <button
+            data-testid="auth-tab-vercel"
+            onClick={() => setActiveTab('vercel')}
+            className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'vercel' ? 'tab-active font-medium' : ''}`}
+          >
+            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+              <path d="M24 22.525H0l12-21.05 12 21.05z" />
+            </svg>
+            <span>Vercel</span>
+            {status?.vercel?.authenticated && (
               <span className="badge badge-xs badge-success">OK</span>
             )}
           </button>
@@ -735,6 +864,151 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <button
                   onClick={handleSaveGithubToken}
                   disabled={loading || !ghPatInput.trim()}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {loading ? <span className="loading loading-spinner loading-xs" /> : 'Salvar Token'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Aba Vercel: Device Flow & PAT */}
+        {activeTab === 'vercel' && (
+          <div className="space-y-4 text-xs">
+            {/* Status atual da Vercel */}
+            <div className="p-3 rounded-xl bg-base-200/50 border border-base-300 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-base-300/60 text-base-content">
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                    <path d="M24 22.525H0l12-21.05 12 21.05z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-semibold text-base-content flex items-center gap-1.5">
+                    <span>
+                      Vercel CLI (
+                      {status?.vercel?.authenticated
+                        ? `@${status.vercel.username || status.vercel.email}`
+                        : 'Não conectado'}
+                      )
+                    </span>
+                    {status?.vercel?.authenticated ? (
+                      <span className="badge badge-xs badge-success">Conectado</span>
+                    ) : (
+                      <span className="badge badge-xs badge-ghost">Pendente</span>
+                    )}
+                  </div>
+                  <p className="text-base-content/60 text-[11px] mt-0.5">
+                    Permite ao Kraken e ao Antigravity criar deploys, gerenciar projetos e variáveis na Vercel via CLI.
+                  </p>
+                </div>
+              </div>
+              {status?.vercel?.authenticated && (
+                <button
+                  onClick={handleLogoutVercel}
+                  disabled={loading}
+                  className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                >
+                  Desconectar
+                </button>
+              )}
+            </div>
+
+            {/* Opção 1: Device Code (Fluxo 1 clique sem senha nem token manual) */}
+            <div className="p-4 rounded-xl bg-base-200/30 border border-base-300 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-base-content flex items-center gap-1.5">
+                    <span>Opção 1: Conectar via Código (Recomendado)</span>
+                    <span className="badge badge-xs badge-primary">Fácil</span>
+                  </h4>
+                  <p className="text-base-content/60 text-[11px] mt-0.5">
+                    Gere um código de 8 dígitos, confirme no navegador e pronto!
+                  </p>
+                </div>
+                {!vcUserCode && (
+                  <button
+                    onClick={handleStartVercelDevice}
+                    disabled={loading}
+                    className="btn btn-primary btn-xs gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                      <path d="M24 22.525H0l12-21.05 12 21.05z" />
+                    </svg>
+                    {loading ? <span className="loading loading-spinner loading-xs" /> : 'Iniciar Conexão'}
+                  </button>
+                )}
+              </div>
+
+              {vcUserCode && (
+                <div className="mt-3 p-3 bg-base-100 rounded-lg border border-primary/30 space-y-3 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-medium text-base-content/70">Código de Autorização:</span>
+                    {vcPolling && (
+                      <span className="flex items-center gap-1.5 text-[11px] text-info">
+                        <span className="loading loading-spinner loading-xs" />
+                        Aguardando autorização na Vercel...
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between bg-base-200/80 px-4 py-2.5 rounded-lg border border-base-300">
+                    <span className="font-mono text-base font-extrabold tracking-widest text-primary">
+                      {vcUserCode}
+                    </span>
+                    <button
+                      onClick={copyVercelCode}
+                      className="btn btn-ghost btn-xs gap-1 text-base-content/70"
+                    >
+                      {vcCopiedCode ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{vcCopiedCode ? 'Copiado!' : 'Copiar'}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <a
+                      href={vcVerifyUriComplete || vcVerifyUri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-primary btn-sm gap-1.5 w-full justify-center"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Abrir Vercel e Autorizar Conexão
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Opção 2: Personal Access Token (PAT) */}
+            <div className="p-4 rounded-xl bg-base-200/30 border border-base-300 space-y-2.5">
+              <h4 className="font-semibold text-base-content">
+                Opção 2: Personal Access Token (PAT)
+              </h4>
+              <p className="text-base-content/60 text-[11px]">
+                Se preferir usar um token próprio, gere um em{' '}
+                <a
+                  href="https://vercel.com/account/tokens"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link link-primary inline-flex items-center gap-0.5"
+                >
+                  vercel.com/account/tokens <ExternalLink className="w-3 h-3 inline" />
+                </a>{' '}
+                e cole abaixo:
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  placeholder="Cole seu token da Vercel aqui..."
+                  value={vcPatInput}
+                  onChange={(e) => setVcPatInput(e.target.value)}
+                  className="input input-sm input-bordered flex-1 bg-base-100 font-mono text-xs"
+                />
+                <button
+                  onClick={handleSaveVercelToken}
+                  disabled={loading || !vcPatInput.trim()}
                   className="btn btn-secondary btn-sm"
                 >
                   {loading ? <span className="loading loading-spinner loading-xs" /> : 'Salvar Token'}
