@@ -118,10 +118,19 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  useEffect(() => {
+    const handleRequirePin = () => {
+      setIsPinModalOpen(true);
+    };
+    window.addEventListener('kraken:require-pin', handleRequirePin);
+    return () => window.removeEventListener('kraken:require-pin', handleRequirePin);
+  }, []);
+
   const checkPinAndInit = useCallback(async () => {
     try {
-      const pinStatus = await api.getPinStatus().catch(() => ({ required: false }));
-      if (pinStatus.required && !api.getStoredPinToken()) {
+      const pinStatus = await api.getPinStatus().catch(() => ({ required: false, authenticated: false }));
+      if (pinStatus.required && !pinStatus.authenticated) {
+        api.clearPinToken();
         setIsPinModalOpen(true);
         return;
       }
@@ -768,7 +777,11 @@ export const App: React.FC = () => {
       {/* Modal de Bloqueio por PIN */}
       <PinModal
         isOpen={isPinModalOpen}
-        onSuccess={() => checkPinAndInit()}
+        onSuccess={() => {
+          setIsPinModalOpen(false);
+          checkPinAndInit();
+          loadConversations();
+        }}
       />
     </div>
   );

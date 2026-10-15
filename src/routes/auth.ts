@@ -111,10 +111,21 @@ authRouter.post('/accounts/switch', async (req: Request, res: Response) => {
 });
 
 // Endpoint para Validar Status do PIN do App
-authRouter.get('/pin/status', (_req: Request, res: Response) => {
-  const pinConfigured = !!(process.env.KRAKEN_PIN && process.env.KRAKEN_PIN.trim());
+authRouter.get('/pin/status', (req: Request, res: Response) => {
+  const configuredPin = (process.env.KRAKEN_PIN || '').trim();
+  if (!configuredPin) {
+    return res.json({ required: false, authenticated: true });
+  }
+
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim() || (req.query.token as string | undefined);
+  const secret = process.env.APP_SECRET || configuredPin;
+  const expectedToken = crypto.createHmac('sha256', secret).update(`kraken_auth_${configuredPin}`).digest('hex');
+  const authenticated = !!(token && token === expectedToken);
+
   res.json({
-    required: pinConfigured
+    required: true,
+    authenticated
   });
 });
 

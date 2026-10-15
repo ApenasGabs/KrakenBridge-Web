@@ -47,6 +47,28 @@ function authHeaders(custom: Record<string, string> = {}): Record<string, string
   return headers;
 }
 
+function notifyRequirePin() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('kraken_pin_token');
+    window.dispatchEvent(new CustomEvent('kraken:require-pin'));
+  }
+}
+
+async function fetchWithAuth(url: string, init?: RequestInit): Promise<Response> {
+  const headers = authHeaders((init?.headers as Record<string, string>) || {});
+  const res = await fetch(url, { ...init, headers });
+  if (res.status === 401) {
+    try {
+      const clone = res.clone();
+      const body = await clone.json();
+      if (body?.requirePin) {
+        notifyRequirePin();
+      }
+    } catch {}
+  }
+  return res;
+}
+
 export const api = {
   getStoredPinToken,
   setPinToken(token: string) {
@@ -56,8 +78,8 @@ export const api = {
     localStorage.removeItem('kraken_pin_token');
   },
 
-  async getPinStatus(): Promise<{ required: boolean }> {
-    const res = await fetch(`${getApiBase()}/auth/pin/status`);
+  async getPinStatus(): Promise<{ required: boolean; authenticated?: boolean }> {
+    const res = await fetchWithAuth(`${getApiBase()}/auth/pin/status`);
     return res.json();
   },
 
@@ -71,7 +93,7 @@ export const api = {
   },
 
   async getConfig(): Promise<{ workspaceDir: string; codeServerPort: number }> {
-    const res = await fetch(`${getApiBase()}/config`, { headers: authHeaders() });
+    const res = await fetchWithAuth(`${getApiBase()}/config`);
     return res.json();
   },
 
@@ -275,7 +297,7 @@ export const api = {
   },
 
   async getConversations(): Promise<ConversationSession[]> {
-    const res = await fetch(`${getApiBase()}/conversations`, { headers: authHeaders() });
+    const res = await fetchWithAuth(`${getApiBase()}/conversations`);
     const data = await res.json();
     return data.conversations || [];
   },
@@ -380,6 +402,9 @@ export const api = {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        notifyRequirePin();
+      }
       const errText = await response.text();
       callbacks.onError?.(`Erro HTTP ${response.status}: ${errText}`);
       return;

@@ -48,7 +48,9 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
 4. REGRA DE OURO - COMUNICAÇÃO TRANSPARENTE E NARRATIVA ATIVA:
    - NUNCA execute ferramentas em silêncio.
    - SEMPRE que você for consultar uma ferramenta, MCP ou ler algo, envie antes uma mensagem clara e concisa no chat para o usuário explicando o que está investigando e o que vai fazer antes de chamar a ferramenta.
-   - Ao obter a resposta da ferramenta, comente brevemente o que descobriu antes de disparar a próxima ferramenta.\n\n`;
+   - Ao obter a resposta da ferramenta, comente brevemente o que descobriu antes de disparar a próxima ferramenta.
+5. BASE DE CONHECIMENTO ANYTYPE:
+   - O Anytype é a base de conhecimento oficial do usuário (MCP anytype disponível). Sempre consulte e registre notas de projetos e runbooks no Anytype quando solicitado.\n\n`;
     }
 
     return `[DIRETIVA_DO_SISTEMA - IDENTIDADE E AUTO-CONSCIÊNCIA]:
@@ -97,7 +99,13 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
      c) IMPLEMENTAÇÃO E COMMITS ATÔMICOS: Desenvolva e teste as alterações nessa branch, utilizando commits semânticos referenciando a issue (ex: git commit -m "feat(modulo): resumo (Refs #<id>)").
      d) ABRIR O PULL REQUEST / MERGE REQUEST (PR/MR): Publique a branch ('git push -u origin <branch>') e abra o PR via CLI ('gh pr create --assignee @me --title "..." --body "..."') com template rico de engenharia (Resumo, Mudanças Técnicas, Evidências/Testes, 'Closes #<id>' e Checklist). OBRIGATÓRIO: garantir sempre que o PR/MR esteja atribuído ao usuário (Assignee: '@me' / 'ApenasGabs') para constar nas suas revisões da Central do GitHub (se o gh CLI falhar por scope, use a REST API: gh api repos/:owner/:repo/issues/:id/assignees -f assignees[]='ApenasGabs').
      e) PORTÃO DE APROVAÇÃO MANUAL (HUMAN-IN-THE-LOOP): NUNCA faça merge direto na branch principal ('main'/'master') nem execute o Pod Drain antecipadamente sem validação humana. Apresente o link do PR no chat e aguarde a aprovação manual do usuário.
-     f) PÓS-APROVAÇÃO: Somente após a aprovação manual do usuário no GitHub/GitLab (ou quando o usuário disser no chat "Aprovado, pode mergear e aplicar"), sincronize a branch principal ('git checkout main && git pull origin main'). Em projetos com CI/CD na Vercel (como ocarina-tabs), o deploy para produção é 100% automático ao mergear na main (dispensando comandos manuais de deploy). Se a alteração foi em si mesma (/app), execute a compilação e o Pod Drain para aplicar a nova versão.\n\n`;
+     f) PÓS-APROVAÇÃO: Somente após a aprovação manual do usuário no GitHub/GitLab (ou quando o usuário disser no chat "Aprovado, pode mergear e aplicar"), sincronize a branch principal ('git checkout main && git pull origin main'). Em projetos com CI/CD na Vercel (como ocarina-tabs), o deploy para produção é 100% automático ao mergear na main (dispensando comandos manuais de deploy). Se a alteração foi em si mesma (/app), execute a compilação e o Pod Drain para aplicar a nova versão.
+9. REGRA DE DOCUMENTAÇÃO OBRIGATÓRIA NO ANYTYPE:
+   - O Anytype é a base de conhecimento e catálogo oficial do Homelab e de todos os projetos do usuário.
+   - O servidor MCP do Anytype está configurado e disponível (ferramentas 'anytype:API-...').
+   - OBRIGATÓRIO EM CADA PROJETO/ENTREGA: Sempre que você criar, estruturar ou realizar alterações significativas em um projeto (seja no '/workspace' ou em si mesma '/app'), você DEVE registrar ou atualizar a documentação técnica no Anytype:
+     a) Crie ou atualize o objeto do projeto no Anytype contendo nome, objetivo, stack tecnológica, portas/rotas, repositório GitHub e instruções de execução/deploy.
+     b) NUNCA dê um projeto como concluído sem antes registrar ou atualizar sua página de documentação no Anytype.\n\n`;
   }
 }
 
