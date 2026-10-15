@@ -58,6 +58,10 @@ export interface ConversationSession {
   messages?: ChatMessage[];
   lastMessageSnippet?: string;
   isRunning?: boolean;
+  userQueries?: string[];
+  searchableText?: string;
+  relevanceScore?: number;
+  matchedSnippet?: string;
 }
 
 export interface AccountInfo {

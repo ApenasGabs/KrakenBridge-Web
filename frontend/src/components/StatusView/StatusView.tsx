@@ -15,6 +15,7 @@ import {
 import { RootNode, ProjectNode, AgentNode } from '../HubView/HubNodes';
 import { StatsDashboard } from './StatsDashboard';
 import type { ConversationSession, ProjectWorkspace } from '../../types';
+import { calculateRelevance } from '../../utils/searchUtils';
 import { 
   Network, 
   Plus, 
@@ -63,21 +64,27 @@ const StatusContent: React.FC<StatusViewProps> = ({
     localStorage.setItem('kraken_status_layout_mode', mode);
   };
 
-  // Filtragem de conversas
+  // Filtragem e ordenação de conversas por relevância
   const filteredConversations = useMemo(() => {
-    return conversations.filter(c => {
+    const list = conversations.filter(c => {
       if (onlyRunning && !c.isRunning) return false;
       if (searchTerm.trim()) {
-        const term = searchTerm.toLowerCase();
-        return (
-          c.title.toLowerCase().includes(term) ||
-          (c.subproject && c.subproject.toLowerCase().includes(term)) ||
-          (c.tags && c.tags.some(t => t.toLowerCase().includes(term))) ||
-          (c.model && c.model.toLowerCase().includes(term))
-        );
+        const { score } = calculateRelevance(c, searchTerm);
+        return score > 0;
       }
       return true;
     });
+
+    if (searchTerm.trim()) {
+      return [...list].sort((a, b) => {
+        const scoreA = calculateRelevance(a, searchTerm).score;
+        const scoreB = calculateRelevance(b, searchTerm).score;
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        return new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime();
+      });
+    }
+
+    return list;
   }, [conversations, onlyRunning, searchTerm]);
 
   // Estatísticas do Hub
