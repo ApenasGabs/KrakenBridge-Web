@@ -90,9 +90,9 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
 
     try {
       const [overviewData, issuesData, prsData] = await Promise.all([
-        api.getGithubOverview(force).catch(() => null),
-        api.getGithubIssues(force).catch(() => ({ issues: [], count: 0 })),
-        api.getGithubPrs(force).catch(() => ({ prs: [], count: 0 }))
+        api.getGithubOverview(force),
+        api.getGithubIssues(force),
+        api.getGithubPrs(force)
       ]);
 
       if (overviewData) setOverview(overviewData);

@@ -75,8 +75,11 @@ interface PersistentCacheData {
 class GithubProjectService {
   private memoryCache: PersistentCacheData = { timestamp: 0 };
   private isSafeDirectoryConfigured = false;
-  private issuesPromise: Promise<GithubIssueItem[]> | null = null;
-  private prsPromise: Promise<GithubPullRequestItem[]> | null = null;
+  private syncPromise: Promise<{
+    overview: ProjectOverview;
+    issues: GithubIssueItem[];
+    prs: GithubPullRequestItem[];
+  }> | null = null;
 
   constructor() {
     this.loadCacheFromDisk().catch(() => {});
@@ -113,6 +116,102 @@ class GithubProjectService {
   }
 
   /**
+   * Obtém token de autenticação do GitHub (variáveis de ambiente ou hosts.yml)
+   */
+  async getGithubToken(): Promise<string | null> {
+    if (process.env.GITHUB_TOKEN && process.env.GITHUB_TOKEN.trim()) {
+      return process.env.GITHUB_TOKEN.trim();
+    }
+    if (process.env.GH_TOKEN && process.env.GH_TOKEN.trim()) {
+      return process.env.GH_TOKEN.trim();
+    }
+    try {
+      const ghDir = process.env.GH_CONFIG_DIR || '/root/.config/gh';
+      const hostFile = path.join(ghDir, 'hosts.yml');
+      const content = await fs.readFile(hostFile, 'utf8').catch(() => '');
+      const match = content.match(/oauth_token:\s*([^\r\n]+)/);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    } catch {}
+    return null;
+  }
+
+  /**
+   * Executa consulta nativa na API GraphQL do GitHub
+   */
+  async executeGraphQL<T>(query: string, variables?: Record<string, any>): Promise<T> {
+    const token = await this.getGithubToken();
+    if (!token) {
+      throw new Error('Nenhuma credencial do GitHub encontrada. Conecte sua conta em Configurações > Autenticação.');
+    }
+
+    const response = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'KrakenBridge-Web'
+      },
+      body: JSON.stringify({ query, variables })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      if (response.status === 401) {
+        throw new Error('Token do GitHub expirado ou inválido (401 Unauthorized). Reconecte sua conta.');
+      }
+      if (response.status === 403) {
+        throw new Error(`Limite de requisições do GitHub atingido (403 Forbidden): ${errText}`);
+      }
+      throw new Error(`Erro na API do GitHub (${response.status}): ${errText}`);
+    }
+
+    const json = (await response.json()) as { data?: T; errors?: Array<{ message: string }> };
+    if (json.errors && json.errors.length > 0 && !json.data) {
+      throw new Error(`Erro GraphQL do GitHub: ${json.errors.map(e => e.message).join('; ')}`);
+    }
+
+    return json.data as T;
+  }
+
+  /**
+   * Executa requisição na API REST do GitHub para mutações e chamadas pontuais
+   */
+  async executeRest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const token = await this.getGithubToken();
+    if (!token) {
+      throw new Error('Nenhuma credencial do GitHub encontrada.');
+    }
+
+    const url = endpoint.startsWith('http') ? endpoint : `https://api.github.com/${endpoint.replace(/^\//, '')}`;
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'User-Agent': 'KrakenBridge-Web',
+      ...(options.headers as Record<string, string> || {})
+    };
+
+    const res = await fetch(url, {
+      ...options,
+      headers
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      let parsedMsg = errBody;
+      try {
+        const j = JSON.parse(errBody);
+        parsedMsg = j.message || errBody;
+      } catch {}
+      throw new Error(`GitHub REST Error (${res.status}): ${parsedMsg}`);
+    }
+
+    const text = await res.text();
+    return (text ? JSON.parse(text) : {}) as T;
+  }
+
+  /**
    * Garante que o Git não bloqueie diretórios com permissões diferentes (dubious ownership)
    */
   private async ensureSafeDirectory(): Promise<void> {
@@ -126,20 +225,27 @@ class GithubProjectService {
   }
 
   /**
-   * Obtém o login do usuário atualmente autenticado no GitHub CLI de maneira 100% dinâmica
+   * Obtém o login do usuário autenticado no GitHub
    */
   async getAuthenticatedUser(): Promise<string> {
-    try {
-      const { stdout } = await execAsync('gh api user --jq .login', { timeout: 6000 });
-      const user = stdout.trim();
-      if (user) return user;
-    } catch {}
+    // 1. Tenta obter via GraphQL/REST
+    const token = await this.getGithubToken();
+    if (token) {
+      try {
+        const userData = await this.executeRest<{ login?: string }>('user');
+        if (userData?.login) return userData.login;
+      } catch {}
+    }
 
+    // 2. Fallback para arquivo de configuração hosts.yml
     try {
-      const { stdout, stderr } = await execAsync('gh auth status || true', { timeout: 6000 });
-      const text = `${stdout || ''} ${stderr || ''}`;
-      const match = text.match(/account\s+([a-zA-Z0-9_\-]+)/i) || text.match(/as\s+([a-zA-Z0-9_\-]+)/i);
-      if (match) return match[1];
+      const ghDir = process.env.GH_CONFIG_DIR || '/root/.config/gh';
+      const hostFile = path.join(ghDir, 'hosts.yml');
+      const content = await fs.readFile(hostFile, 'utf8').catch(() => '');
+      const match = content.match(/user:\s*([^\r\n]+)/);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
     } catch {}
 
     return '';
@@ -147,7 +253,6 @@ class GithubProjectService {
 
   /**
    * Varre recursivamente diretórios de /workspace (nível 1 e 2) e /app
-   * Totalmente agnóstico a nomes de projetos e proprietários
    */
   async getLocalGitRepositories(): Promise<GithubRepoInfo[]> {
     await this.ensureSafeDirectory();
@@ -186,7 +291,7 @@ class GithubProjectService {
     // 1. Repositório da própria aplicação
     await checkDir('/app', 'KrakenBridge-Web');
 
-    // 2. Subprojetos em /workspace (varredura profunda até nível 2)
+    // 2. Subprojetos em /workspace (varredura até nível 2)
     try {
       const entries = await fs.readdir(WORKSPACE_DIR, { withFileTypes: true });
       for (const entry of entries) {
@@ -227,21 +332,33 @@ class GithubProjectService {
   }
 
   /**
-   * Obtém lista consolidada de Issues abertas com proteção contra Rate Limit e Cache
+   * Sincroniza dados unificados do GitHub em uma única consulta GraphQL eficiente
    */
-  async getIssues(force = false): Promise<GithubIssueItem[]> {
+  async syncGithubData(force = false): Promise<{
+    overview: ProjectOverview;
+    issues: GithubIssueItem[];
+    prs: GithubPullRequestItem[];
+  }> {
     const now = Date.now();
-    const hasValidCache = !!this.memoryCache.issues && (now - this.memoryCache.timestamp < CACHE_TTL_MS);
+    const hasValidCache =
+      !!this.memoryCache.overview &&
+      !!this.memoryCache.issues &&
+      !!this.memoryCache.prs &&
+      now - this.memoryCache.timestamp < CACHE_TTL_MS;
 
     if (!force && hasValidCache) {
-      return this.memoryCache.issues!;
+      return {
+        overview: { ...this.memoryCache.overview!, fromCache: true },
+        issues: this.memoryCache.issues!,
+        prs: this.memoryCache.prs!
+      };
     }
 
-    if (this.issuesPromise) {
-      return this.issuesPromise;
+    if (this.syncPromise) {
+      return this.syncPromise;
     }
 
-    this.issuesPromise = (async () => {
+    this.syncPromise = (async () => {
       try {
         const repos = await this.getLocalGitRepositories();
         const repoMap = new Map<string, GithubRepoInfo>();
@@ -250,237 +367,262 @@ class GithubProjectService {
         }
 
         const username = await this.getAuthenticatedUser();
-        const issueMap = new Map<string, GithubIssueItem>();
+        const token = await this.getGithubToken();
 
-        // 1. Coleta direta e em lote nas issues dos repositórios locais detectados
-        const localPromises = repos.map(async (r) => {
-          try {
-            const { stdout } = await execAsync(
-              `gh issue list --repo "${r.ownerRepo}" --state open --json number,title,labels,createdAt,updatedAt,url,body,author --limit 50`,
-              { timeout: 9000 }
-            );
-            const list = JSON.parse(stdout || '[]') as any[];
-            for (const item of list) {
-              const key = `${r.ownerRepo.toLowerCase()}#${item.number}`;
-              issueMap.set(key, {
-                number: item.number,
-                title: item.title,
-                body: item.body || '',
-                url: item.url,
-                labels: Array.isArray(item.labels) ? item.labels : [],
-                author: (item.author && item.author.login) ? { login: item.author.login, name: item.author.name } : { login: 'desconhecido' },
-                createdAt: item.createdAt,
-                updatedAt: item.updatedAt,
-                repository: {
-                  name: r.name,
-                  nameWithOwner: r.ownerRepo
-                },
-                subproject: r.subproject,
-                isLocalWorkspace: true
-              });
+        if (!token) {
+          console.warn('[GithubProjectService] Token não encontrado, retornando dados vazios.');
+          const emptyOverview: ProjectOverview = {
+            authenticatedUser: '',
+            repositories: repos,
+            issuesCount: 0,
+            prsCount: 0,
+            lastUpdated: Date.now(),
+            fromCache: false
+          };
+          return { overview: emptyOverview, issues: [], prs: [] };
+        }
+
+        // Identifica repositórios locais que pertencem a outras organizações/usuários (ex: FGL-Labs)
+        const externalRepos = repos.filter(
+          r => username && !r.ownerRepo.toLowerCase().startsWith(`${username.toLowerCase()}/`)
+        );
+        const extraRepoQuery = externalRepos.map(r => `repo:${r.ownerRepo}`).join(' ');
+
+        // Constrói a consulta GraphQL consolidada
+        const extraIssuesPart = extraRepoQuery
+          ? `extraIssues: search(query: "is:open is:issue ${extraRepoQuery} sort:updated-desc", type: ISSUE, first: 40) { nodes { ... on Issue { number title body url createdAt updatedAt repository { name nameWithOwner } author { login ... on User { name } } labels(first: 10) { nodes { name color description } } } } }`
+          : '';
+
+        const extraPrsPart = extraRepoQuery
+          ? `extraPrs: search(query: "is:open is:pr ${extraRepoQuery} sort:updated-desc", type: ISSUE, first: 40) { nodes { ... on PullRequest { number title body url headRefName baseRefName isDraft createdAt updatedAt repository { name nameWithOwner } author { login ... on User { name } } labels(first: 10) { nodes { name color description } } } } }`
+          : '';
+
+        const graphqlQuery = `query GetGithubBacklog {
+          viewer {
+            login
+            name
+          }
+          userIssues: search(query: "is:open is:issue user:@me sort:updated-desc", type: ISSUE, first: 100) {
+            nodes {
+              ... on Issue {
+                number
+                title
+                body
+                url
+                createdAt
+                updatedAt
+                repository {
+                  name
+                  nameWithOwner
+                }
+                author {
+                  login
+                  ... on User {
+                    name
+                  }
+                }
+                labels(first: 10) {
+                  nodes {
+                    name
+                    color
+                    description
+                  }
+                }
+              }
             }
-          } catch {}
-        });
-
-        await Promise.all(localPromises);
-
-        // 2. Coleta abrangente usando @me e owner para repositórios fora do workspace
-        try {
-          const queries: string[] = [
-            '--author @me',
-            '--assignee @me',
-            '--involves @me'
-          ];
-          if (username) {
-            queries.push(`--owner ${username}`);
           }
-
-          const searchPromises = queries.map(q => 
-            execAsync(
-              `gh search issues --state open ${q} --sort updated --order desc --limit 100 --json repository,number,title,labels,createdAt,updatedAt,url,body,author`,
-              { timeout: 18000 }
-            ).then(r => JSON.parse(r.stdout || '[]') as any[]).catch(() => [] as any[])
-          );
-
-          const searchResults = await Promise.all(searchPromises);
-          const combined = searchResults.flat();
-
-          for (const item of combined) {
-            const repoNameWithOwner = item.repository?.nameWithOwner || '';
-            if (!repoNameWithOwner) continue;
-            const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
-            if (issueMap.has(key)) continue;
-
-            const local = repoMap.get(repoNameWithOwner.toLowerCase());
-            issueMap.set(key, {
-              number: item.number,
-              title: item.title,
-              body: item.body || '',
-              url: item.url,
-              labels: Array.isArray(item.labels) ? item.labels : [],
-              author: (item.author && item.author.login) ? { login: item.author.login, name: item.author.name } : { login: 'desconhecido' },
-              createdAt: item.createdAt,
-              updatedAt: item.updatedAt,
-              repository: {
-                name: item.repository?.name || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
-                nameWithOwner: repoNameWithOwner
-              },
-              subproject: local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
-              isLocalWorkspace: !!local
-            });
+          involvesIssues: search(query: "is:open is:issue involves:@me -user:@me sort:updated-desc", type: ISSUE, first: 50) {
+            nodes {
+              ... on Issue {
+                number
+                title
+                body
+                url
+                createdAt
+                updatedAt
+                repository {
+                  name
+                  nameWithOwner
+                }
+                author {
+                  login
+                  ... on User {
+                    name
+                  }
+                }
+                labels(first: 10) {
+                  nodes {
+                    name
+                    color
+                    description
+                  }
+                }
+              }
+            }
           }
-        } catch (err) {
-          console.warn('[GithubProjectService] Aviso na busca ampla de issues:', (err as Error).message);
+          ${extraIssuesPart}
+          userPrs: search(query: "is:open is:pr user:@me sort:updated-desc", type: ISSUE, first: 100) {
+            nodes {
+              ... on PullRequest {
+                number
+                title
+                body
+                url
+                headRefName
+                baseRefName
+                isDraft
+                createdAt
+                updatedAt
+                repository {
+                  name
+                  nameWithOwner
+                }
+                author {
+                  login
+                  ... on User {
+                    name
+                  }
+                }
+                labels(first: 10) {
+                  nodes {
+                    name
+                    color
+                    description
+                  }
+                }
+              }
+            }
+          }
+          involvesPrs: search(query: "is:open is:pr involves:@me -user:@me sort:updated-desc", type: ISSUE, first: 50) {
+            nodes {
+              ... on PullRequest {
+                number
+                title
+                body
+                url
+                headRefName
+                baseRefName
+                isDraft
+                createdAt
+                updatedAt
+                repository {
+                  name
+                  nameWithOwner
+                }
+                author {
+                  login
+                  ... on User {
+                    name
+                  }
+                }
+                labels(first: 10) {
+                  nodes {
+                    name
+                    color
+                    description
+                  }
+                }
+              }
+            }
+          }
+          ${extraPrsPart}
+        }`;
+
+        const data = await this.executeGraphQL<any>(graphqlQuery);
+        const resolvedUser = data.viewer?.login || username || '';
+
+        // 1. Processamento e deduplicação de Issues
+        const issueMap = new Map<string, GithubIssueItem>();
+        const allIssueNodes = [
+          ...(data.userIssues?.nodes || []),
+          ...(data.involvesIssues?.nodes || []),
+          ...(data.extraIssues?.nodes || [])
+        ];
+
+        for (const item of allIssueNodes) {
+          if (!item || !item.repository?.nameWithOwner) continue;
+          const repoNameWithOwner = item.repository.nameWithOwner;
+          const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
+          if (issueMap.has(key)) continue;
+
+          const local = repoMap.get(repoNameWithOwner.toLowerCase());
+          const cleanSubproject =
+            local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner);
+
+          issueMap.set(key, {
+            number: item.number,
+            title: item.title,
+            body: item.body || '',
+            url: item.url,
+            labels: Array.isArray(item.labels?.nodes) ? item.labels.nodes : [],
+            author: item.author?.login
+              ? { login: item.author.login, name: item.author.name }
+              : { login: 'desconhecido' },
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt || item.createdAt,
+            repository: {
+              name: item.repository.name,
+              nameWithOwner: repoNameWithOwner
+            },
+            subproject: cleanSubproject,
+            isLocalWorkspace: !!local
+          });
         }
 
         const issues = Array.from(issueMap.values());
-
-        // Ordenação unificada por atividade mais recente (updatedAt ou createdAt)
         issues.sort((a, b) => {
           const timeA = new Date(a.updatedAt || a.createdAt).getTime();
           const timeB = new Date(b.updatedAt || b.createdAt).getTime();
           return timeB - timeA;
         });
 
-        this.memoryCache.issues = issues;
-        this.memoryCache.timestamp = Date.now();
-        this.saveCacheToDisk().catch(() => {});
-
-        return issues;
-      } catch (err) {
-        console.error('[GithubProjectService] Erro ao buscar issues (usando fallback de cache):', (err as Error).message);
-        if (this.memoryCache.issues) return this.memoryCache.issues;
-        return [];
-      } finally {
-        this.issuesPromise = null;
-      }
-    })();
-
-    return this.issuesPromise;
-  }
-
-  /**
-   * Obtém lista consolidada de PRs abertos com lote otimizado (zero N+1) e cache
-   */
-  async getPullRequests(force = false): Promise<GithubPullRequestItem[]> {
-    const now = Date.now();
-    const hasValidCache = !!this.memoryCache.prs && (now - this.memoryCache.timestamp < CACHE_TTL_MS);
-
-    if (!force && hasValidCache) {
-      return this.memoryCache.prs!;
-    }
-
-    if (this.prsPromise) {
-      return this.prsPromise;
-    }
-
-    this.prsPromise = (async () => {
-      try {
-        const repos = await this.getLocalGitRepositories();
-        const repoMap = new Map<string, GithubRepoInfo>();
-        for (const r of repos) {
-          repoMap.set(r.ownerRepo.toLowerCase(), r);
-        }
-
-        const username = await this.getAuthenticatedUser();
+        // 2. Processamento e deduplicação de Pull Requests
         const prMap = new Map<string, GithubPullRequestItem>();
+        const allPrNodes = [
+          ...(data.userPrs?.nodes || []),
+          ...(data.involvesPrs?.nodes || []),
+          ...(data.extraPrs?.nodes || [])
+        ];
 
-        // 1. Busca em lote de todos os repositórios locais
-        // gh pr list já retorna headRefName e baseRefName em 1 chamada única!
-        const localPromises = repos.map(async (r) => {
-          try {
-            const { stdout } = await execAsync(
-              `gh pr list --repo "${r.ownerRepo}" --state open --json number,title,labels,createdAt,updatedAt,url,body,isDraft,author,headRefName,baseRefName --limit 50`,
-              { timeout: 9000 }
-            );
-            const list = JSON.parse(stdout || '[]') as any[];
-            for (const item of list) {
-              const key = `${r.ownerRepo.toLowerCase()}#${item.number}`;
-              prMap.set(key, {
-                number: item.number,
-                title: item.title,
-                body: item.body || '',
-                url: item.url,
-                headRefName: item.headRefName || '',
-                baseRefName: item.baseRefName || 'main',
-                isDraft: !!item.isDraft,
-                labels: Array.isArray(item.labels) ? item.labels : [],
-                author: (item.author && item.author.login) ? { login: item.author.login, name: item.author.name } : { login: 'desconhecido' },
-                createdAt: item.createdAt,
-                updatedAt: item.updatedAt,
-                repository: {
-                  name: r.name,
-                  nameWithOwner: r.ownerRepo
-                },
-                subproject: r.subproject,
-                isLocalWorkspace: true
-              });
-            }
-          } catch {}
-        });
+        for (const item of allPrNodes) {
+          if (!item || !item.repository?.nameWithOwner) continue;
+          const repoNameWithOwner = item.repository.nameWithOwner;
+          const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
+          if (prMap.has(key)) continue;
 
-        await Promise.all(localPromises);
+          const local = repoMap.get(repoNameWithOwner.toLowerCase());
+          const cleanSubproject =
+            local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner);
 
-        // 2. Busca abrangente em lote para PRs de outras organizações/repositórios
-        try {
-          const queries: string[] = [
-            '--author @me',
-            '--assignee @me',
-            '--review-requested @me',
-            '--involves @me'
-          ];
-          if (username) {
-            queries.push(`--owner ${username}`);
-          }
-
-          const searchPromises = queries.map(q =>
-            execAsync(
-              `gh search prs --state open ${q} --sort updated --order desc --limit 100 --json repository,number,title,labels,createdAt,updatedAt,url,body,isDraft,author`,
-              { timeout: 18000 }
-            ).then(r => JSON.parse(r.stdout || '[]') as any[]).catch(() => [] as any[])
-          );
-
-          const searchResults = await Promise.all(searchPromises);
-          const combined = searchResults.flat();
-
-          for (const item of combined) {
-            const repoNameWithOwner = item.repository?.nameWithOwner || '';
-            if (!repoNameWithOwner) continue;
-            const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
-            if (prMap.has(key)) continue;
-
-            const local = repoMap.get(repoNameWithOwner.toLowerCase());
-            prMap.set(key, {
-              number: item.number,
-              title: item.title,
-              body: item.body || '',
-              url: item.url,
-              headRefName: '',
-              baseRefName: 'main',
-              isDraft: !!item.isDraft,
-              labels: Array.isArray(item.labels) ? item.labels : [],
-              author: (item.author && item.author.login) ? { login: item.author.login, name: item.author.name } : { login: 'desconhecido' },
-              createdAt: item.createdAt,
-              updatedAt: item.updatedAt,
-              repository: {
-                name: item.repository?.name || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
-                nameWithOwner: repoNameWithOwner
-              },
-              subproject: local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
-              isLocalWorkspace: !!local
-            });
-          }
-        } catch (err) {
-          console.warn('[GithubProjectService] Aviso na busca ampla de PRs:', (err as Error).message);
+          prMap.set(key, {
+            number: item.number,
+            title: item.title,
+            body: item.body || '',
+            url: item.url,
+            headRefName: item.headRefName || '',
+            baseRefName: item.baseRefName || 'main',
+            isDraft: !!item.isDraft,
+            labels: Array.isArray(item.labels?.nodes) ? item.labels.nodes : [],
+            author: item.author?.login
+              ? { login: item.author.login, name: item.author.name }
+              : { login: 'desconhecido' },
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt || item.createdAt,
+            repository: {
+              name: item.repository.name,
+              nameWithOwner: repoNameWithOwner
+            },
+            subproject: cleanSubproject,
+            isLocalWorkspace: !!local
+          });
         }
 
         const prsList = Array.from(prMap.values());
 
-        // 3. Vinculação com sessões do Kraken em memória/disco
+        // 3. Vinculação com conversas locais do Kraken
         const sessions = await historyService.list().catch(() => []);
-
         const prs = await Promise.all(
-          prsList.map(async (item) => {
+          prsList.map(async item => {
             const linkedConversation = await this.findLinkedConversation(sessions, {
               prNumber: item.number,
               prTitle: item.title,
@@ -495,28 +637,71 @@ class GithubProjectService {
           })
         );
 
-        // Ordenação unificada por atividade mais recente (updatedAt ou createdAt)
         prs.sort((a, b) => {
           const timeA = new Date(a.updatedAt || a.createdAt).getTime();
           const timeB = new Date(b.updatedAt || b.createdAt).getTime();
           return timeB - timeA;
         });
 
-        this.memoryCache.prs = prs;
-        this.memoryCache.timestamp = Date.now();
+        // 4. Overview consolidado
+        const overview: ProjectOverview = {
+          authenticatedUser: resolvedUser,
+          repositories: repos,
+          issuesCount: issues.length,
+          prsCount: prs.length,
+          lastUpdated: Date.now(),
+          fromCache: false
+        };
+
+        this.memoryCache = {
+          overview,
+          issues,
+          prs,
+          timestamp: Date.now()
+        };
         this.saveCacheToDisk().catch(() => {});
 
-        return prs;
+        return { overview, issues, prs };
       } catch (err) {
-        console.error('[GithubProjectService] Erro ao buscar PRs (usando fallback de cache):', (err as Error).message);
-        if (this.memoryCache.prs) return this.memoryCache.prs;
-        return [];
+        console.error('[GithubProjectService] Erro ao sincronizar dados do GitHub:', (err as Error).message);
+        if (this.memoryCache.overview && this.memoryCache.issues && this.memoryCache.prs) {
+          return {
+            overview: { ...this.memoryCache.overview, fromCache: true },
+            issues: this.memoryCache.issues,
+            prs: this.memoryCache.prs
+          };
+        }
+        throw err;
       } finally {
-        this.prsPromise = null;
+        this.syncPromise = null;
       }
     })();
 
-    return this.prsPromise;
+    return this.syncPromise;
+  }
+
+  /**
+   * Obtém lista consolidada de Issues abertas
+   */
+  async getIssues(force = false): Promise<GithubIssueItem[]> {
+    const { issues } = await this.syncGithubData(force);
+    return issues;
+  }
+
+  /**
+   * Obtém lista consolidada de PRs abertos
+   */
+  async getPullRequests(force = false): Promise<GithubPullRequestItem[]> {
+    const { prs } = await this.syncGithubData(force);
+    return prs;
+  }
+
+  /**
+   * Obtém overview geral dos projetos
+   */
+  async getOverview(force = false): Promise<ProjectOverview> {
+    const { overview } = await this.syncGithubData(force);
+    return overview;
   }
 
   /**
@@ -536,12 +721,16 @@ class GithubProjectService {
       if (s.tags && s.tags.includes(prTag)) {
         return { id: s.id, title: s.title, subproject: s.subproject };
       }
-      if (s.title && (s.title.includes(prStr) || (branchLower && branchLower.length > 3 && s.title.toLowerCase().includes(branchLower)))) {
+      if (
+        s.title &&
+        (s.title.includes(prStr) ||
+          (branchLower && branchLower.length > 3 && s.title.toLowerCase().includes(branchLower)))
+      ) {
         return { id: s.id, title: s.title, subproject: s.subproject };
       }
     }
 
-    // 2. Busca profunda nos arquivos de sessão do subprojeto correspondente
+    // 2. Busca nos arquivos de sessão do subprojeto correspondente
     const sessionsDir = path.resolve('data/sessions');
     for (const s of sessions) {
       if (s.subproject && info.subproject && s.subproject.toLowerCase() !== info.subproject.toLowerCase()) {
@@ -564,73 +753,66 @@ class GithubProjectService {
   }
 
   /**
-   * Overview geral com suporte a cache e rate-limit shield
+   * Aprova ou efetua merge de um Pull Request via API REST oficial do GitHub
    */
-  async getOverview(force = false): Promise<ProjectOverview> {
-    const now = Date.now();
-    const hasValidCache = !!this.memoryCache.overview && (now - this.memoryCache.timestamp < CACHE_TTL_MS);
-
-    if (!force && hasValidCache) {
-      return {
-        ...this.memoryCache.overview!,
-        fromCache: true
-      };
-    }
-
-    const [user, repos, issues, prs] = await Promise.all([
-      this.getAuthenticatedUser(),
-      this.getLocalGitRepositories(),
-      this.getIssues(force),
-      this.getPullRequests(force)
-    ]);
-
-    const overview: ProjectOverview = {
-      authenticatedUser: user,
-      repositories: repos,
-      issuesCount: issues.length,
-      prsCount: prs.length,
-      lastUpdated: Date.now(),
-      fromCache: false
-    };
-
-    this.memoryCache.overview = overview;
-    this.memoryCache.timestamp = Date.now();
-    this.saveCacheToDisk().catch(() => {});
-
-    return overview;
-  }
-
-  /**
-   * Aprova ou efetua merge de um Pull Request via GitHub CLI
-   */
-  async approveOrMergePR(repo: string, prNumber: number, action: 'approve' | 'merge', mergeMethod = 'squash'): Promise<{ success: boolean; message: string }> {
+  async approveOrMergePR(
+    repo: string,
+    prNumber: number,
+    action: 'approve' | 'merge',
+    mergeMethod = 'squash'
+  ): Promise<{ success: boolean; message: string }> {
     try {
       if (action === 'approve') {
         try {
-          await execAsync(`gh pr review ${prNumber} --repo "${repo}" --approve --body "Aprovado via KrakenBridge Dashboard"`, {
-            timeout: 12000
+          await this.executeRest(`repos/${repo}/pulls/${prNumber}/reviews`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event: 'APPROVE',
+              body: 'Aprovado via KrakenBridge Dashboard'
+            })
           });
+          // Invalida cache de PRs para refletir imediatamente
+          this.memoryCache.prs = undefined;
+          this.memoryCache.timestamp = 0;
           return { success: true, message: `PR #${prNumber} em ${repo} aprovado com sucesso!` };
         } catch (reviewErr) {
           const errMsg = (reviewErr as Error).message || '';
-          if (errMsg.includes('Can not approve your own pull request') || errMsg.includes('own pull request')) {
-            // O GitHub não permite aprovação formal do próprio autor. Registra comentário oficial de aprovação:
-            await execAsync(`gh pr comment ${prNumber} --repo "${repo}" --body "✅ **Validação & Aprovação pelo Autor**: Aprovado via KrakenBridge Dashboard."`, {
-              timeout: 12000
+          if (
+            errMsg.includes('own pull request') ||
+            errMsg.includes('Unprocessable Entity') ||
+            errMsg.includes('422')
+          ) {
+            // O GitHub não permite auto-aprovação formal; registra comentário oficial
+            await this.executeRest(`repos/${repo}/issues/${prNumber}/comments`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                body: '✅ **Validação & Aprovação pelo Autor**: Aprovado via KrakenBridge Dashboard.'
+              })
             });
             return {
               success: true,
-              message: `PR #${prNumber} em ${repo} validada e registrada como aprovada pelo autor no GitHub!`
+              message: `PR #${prNumber} em ${repo} validado e registrado como aprovado pelo autor no GitHub!`
             };
           }
           throw reviewErr;
         }
       } else {
-        const methodFlag = mergeMethod === 'merge' ? '--merge' : mergeMethod === 'rebase' ? '--rebase' : '--squash';
-        await execAsync(`gh pr merge ${prNumber} --repo "${repo}" ${methodFlag}`, {
-          timeout: 20000
-        });
-        return { success: true, message: `PR #${prNumber} em ${repo} mesclado com sucesso!` };
+        const res = await this.executeRest<{ merged?: boolean; message?: string }>(
+          `repos/${repo}/pulls/${prNumber}/merge`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              merge_method: mergeMethod === 'merge' ? 'merge' : mergeMethod === 'rebase' ? 'rebase' : 'squash'
+            })
+          }
+        );
+        // Invalida cache de PRs
+        this.memoryCache.prs = undefined;
+        this.memoryCache.timestamp = 0;
+        return { success: true, message: res.message || `PR #${prNumber} em ${repo} mesclado com sucesso!` };
       }
     } catch (err) {
       throw new Error(`Falha ao executar ${action} no PR #${prNumber}: ${(err as Error).message}`);
@@ -638,8 +820,7 @@ class GithubProjectService {
   }
 
   /**
-   * Despacha uma solicitação de revisão para o PR:
-   * Localiza a conversa original ou cria uma nova já contextualizada
+   * Despacha uma solicitação de revisão para o PR
    */
   async dispatchReview(params: {
     repo: string;
