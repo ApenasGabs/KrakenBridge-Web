@@ -8,13 +8,16 @@ import { randomUUID } from 'crypto';
 const execAsync = promisify(exec);
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
+const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
+const CACHE_FILE = path.join(DATA_DIR, 'github_cache.json');
+const CACHE_TTL_MS = Number(process.env.GITHUB_CACHE_TTL_MS) || 180000; // 3 minutos de cache padrão
 
 export interface GithubRepoInfo {
   name: string;
   path: string;
   remoteUrl: string;
-  ownerRepo: string; // ex: 'ApenasGabs/ocarina-tabs'
-  subproject: string; // ex: 'ocarina-tabs' ou 'KrakenBridge-Web'
+  ownerRepo: string;
+  subproject: string;
 }
 
 export interface GithubIssueItem {
@@ -28,6 +31,7 @@ export interface GithubIssueItem {
   updatedAt?: string;
   repository: { name: string; nameWithOwner: string };
   subproject?: string;
+  isLocalWorkspace?: boolean;
 }
 
 export interface GithubPullRequestItem {
@@ -44,6 +48,7 @@ export interface GithubPullRequestItem {
   updatedAt?: string;
   repository: { name: string; nameWithOwner: string };
   subproject?: string;
+  isLocalWorkspace?: boolean;
   linkedConversation?: {
     id: string;
     title: string;
@@ -57,81 +62,158 @@ export interface ProjectOverview {
   issuesCount: number;
   prsCount: number;
   lastUpdated: number;
+  fromCache?: boolean;
+}
+
+interface PersistentCacheData {
+  overview?: ProjectOverview;
+  issues?: GithubIssueItem[];
+  prs?: GithubPullRequestItem[];
+  timestamp: number;
 }
 
 class GithubProjectService {
-  private cachedOverview: ProjectOverview | null = null;
-  private cachedIssues: GithubIssueItem[] | null = null;
-  private cachedPrs: GithubPullRequestItem[] | null = null;
-  private lastFetchTime = 0;
-  private readonly CACHE_TTL_MS = 25000; // 25s de cache
+  private memoryCache: PersistentCacheData = { timestamp: 0 };
+  private isSafeDirectoryConfigured = false;
+  private isFetching = false;
+
+  constructor() {
+    this.loadCacheFromDisk().catch(() => {});
+  }
 
   /**
-   * Obtém o login do usuário autenticado no GitHub CLI
+   * Carrega cache persistido em disco para resposta instantânea mesmo após reinício
    */
-  async getAuthenticatedUser(): Promise<string> {
+  private async loadCacheFromDisk(): Promise<void> {
     try {
-      const { stdout } = await execAsync('gh api user --jq .login', { timeout: 8000 });
-      return stdout.trim() || 'ApenasGabs';
-    } catch {
-      return 'ApenasGabs';
+      const exists = await fs.stat(CACHE_FILE).catch(() => null);
+      if (exists) {
+        const raw = await fs.readFile(CACHE_FILE, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.timestamp === 'number') {
+          this.memoryCache = parsed;
+        }
+      }
+    } catch (err) {
+      console.warn('[GithubProjectService] Aviso ao carregar cache do disco:', (err as Error).message);
     }
   }
 
   /**
-   * Mapeia repositórios locais em /workspace e /app com remote git
+   * Salva cache atual em disco de forma assíncrona sem travar requisições
    */
-  async getLocalGitRepositories(): Promise<GithubRepoInfo[]> {
-    const repos: GithubRepoInfo[] = [];
-
-    // 1. Repositório do próprio Kraken
+  private async saveCacheToDisk(): Promise<void> {
     try {
-      const { stdout } = await execAsync('git config --get remote.origin.url', { cwd: '/app', timeout: 3000 });
-      const remote = stdout.trim();
-      const ownerRepo = this.parseOwnerRepo(remote);
-      if (ownerRepo) {
-        repos.push({
-          name: 'KrakenBridge-Web',
-          path: '/app',
-          remoteUrl: remote,
-          ownerRepo,
-          subproject: 'KrakenBridge-Web'
-        });
-      }
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      await fs.writeFile(CACHE_FILE, JSON.stringify(this.memoryCache, null, 2), 'utf8');
+    } catch (err) {
+      console.warn('[GithubProjectService] Aviso ao gravar cache no disco:', (err as Error).message);
+    }
+  }
+
+  /**
+   * Garante que o Git não bloqueie diretórios com permissões diferentes (dubious ownership)
+   */
+  private async ensureSafeDirectory(): Promise<void> {
+    if (this.isSafeDirectoryConfigured) return;
+    try {
+      await execAsync('git config --global --add safe.directory "*"');
+      this.isSafeDirectoryConfigured = true;
+    } catch {
+      // Ignora erro caso git global já esteja configurado
+    }
+  }
+
+  /**
+   * Obtém o login do usuário atualmente autenticado no GitHub CLI de maneira 100% dinâmica
+   */
+  async getAuthenticatedUser(): Promise<string> {
+    try {
+      const { stdout } = await execAsync('gh api user --jq .login', { timeout: 6000 });
+      const user = stdout.trim();
+      if (user) return user;
     } catch {}
 
-    // 2. Subprojetos em /workspace
+    try {
+      const { stdout } = await execAsync('gh auth status', { timeout: 6000 });
+      const match = stdout.match(/account\s+([a-zA-Z0-9_\-]+)/i) || stdout.match(/as\s+([a-zA-Z0-9_\-]+)/i);
+      if (match) return match[1];
+    } catch {}
+
+    return '';
+  }
+
+  /**
+   * Varre recursivamente diretórios de /workspace (nível 1 e 2) e /app
+   * Totalmente agnóstico a nomes de projetos e proprietários
+   */
+  async getLocalGitRepositories(): Promise<GithubRepoInfo[]> {
+    await this.ensureSafeDirectory();
+
+    const repos: GithubRepoInfo[] = [];
+    const visitedDirs = new Set<string>();
+    const seenOwnerRepos = new Set<string>();
+
+    const checkDir = async (dirPath: string, subprojectName: string) => {
+      if (visitedDirs.has(dirPath)) return false;
+      visitedDirs.add(dirPath);
+
+      try {
+        const gitDir = path.join(dirPath, '.git');
+        const stat = await fs.stat(gitDir).catch(() => null);
+        if (stat) {
+          const { stdout } = await execAsync('git config --get remote.origin.url', { cwd: dirPath, timeout: 3000 });
+          const remote = stdout.trim();
+          const ownerRepo = this.parseOwnerRepo(remote);
+          if (ownerRepo && !seenOwnerRepos.has(ownerRepo.toLowerCase())) {
+            seenOwnerRepos.add(ownerRepo.toLowerCase());
+            repos.push({
+              name: path.basename(dirPath),
+              path: dirPath,
+              remoteUrl: remote,
+              ownerRepo,
+              subproject: subprojectName
+            });
+            return true;
+          }
+        }
+      } catch {}
+      return false;
+    };
+
+    // 1. Repositório da própria aplicação
+    await checkDir('/app', 'KrakenBridge-Web');
+
+    // 2. Subprojetos em /workspace (varredura profunda até nível 2)
     try {
       const entries = await fs.readdir(WORKSPACE_DIR, { withFileTypes: true });
       for (const entry of entries) {
         if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
-        if (entry.name.startsWith('.')) continue;
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
 
-        const dirPath = path.join(WORKSPACE_DIR, entry.name);
-        try {
-          const { stdout } = await execAsync('git config --get remote.origin.url', { cwd: dirPath, timeout: 3000 });
-          const remote = stdout.trim();
-          const ownerRepo = this.parseOwnerRepo(remote);
-          if (ownerRepo) {
-            repos.push({
-              name: entry.name,
-              path: dirPath,
-              remoteUrl: remote,
-              ownerRepo,
-              subproject: entry.name
-            });
-          }
-        } catch {}
+        const p1 = path.join(WORKSPACE_DIR, entry.name);
+        const isGit = await checkDir(p1, entry.name);
+        if (!isGit) {
+          try {
+            const subEntries = await fs.readdir(p1, { withFileTypes: true });
+            for (const sub of subEntries) {
+              if (!sub.isDirectory() && !sub.isSymbolicLink()) continue;
+              if (sub.name.startsWith('.') || sub.name === 'node_modules') continue;
+              const p2 = path.join(p1, sub.name);
+              await checkDir(p2, `${entry.name}/${sub.name}`);
+            }
+          } catch {}
+        }
       }
     } catch (err) {
-      console.warn('[GithubProjectService] Erro ao ler /workspace:', (err as Error).message);
+      console.warn('[GithubProjectService] Erro ao varrer workspace:', (err as Error).message);
     }
 
     return repos;
   }
 
   /**
-   * Extrai owner/repo de URLs https ou git@github.com
+   * Extrai owner/repo de URLs HTTPS ou SSH git@github.com de forma genérica
    */
   private parseOwnerRepo(remoteUrl: string): string | null {
     if (!remoteUrl) return null;
@@ -143,145 +225,269 @@ class GithubProjectService {
   }
 
   /**
-   * Obtém a lista consolidada de Issues abertas dos projetos
+   * Obtém lista consolidada de Issues abertas com proteção contra Rate Limit e Cache
    */
   async getIssues(force = false): Promise<GithubIssueItem[]> {
     const now = Date.now();
-    if (!force && this.cachedIssues && now - this.lastFetchTime < this.CACHE_TTL_MS) {
-      return this.cachedIssues;
-    }
+    const hasValidCache = !!this.memoryCache.issues && (now - this.memoryCache.timestamp < CACHE_TTL_MS);
 
-    const repos = await this.getLocalGitRepositories();
-    const repoMap = new Map<string, GithubRepoInfo>();
-    for (const r of repos) {
-      repoMap.set(r.ownerRepo.toLowerCase(), r);
+    if (!force && hasValidCache) {
+      return this.memoryCache.issues!;
     }
-
-    const username = await this.getAuthenticatedUser();
-    let issues: GithubIssueItem[] = [];
 
     try {
-      const cmd = `gh search issues --state open --owner ${username} --json repository,number,title,labels,createdAt,updatedAt,url,body,author --limit 50`;
-      const { stdout } = await execAsync(cmd, { timeout: 15000 });
-      const raw = JSON.parse(stdout || '[]') as any[];
+      const repos = await this.getLocalGitRepositories();
+      const repoMap = new Map<string, GithubRepoInfo>();
+      for (const r of repos) {
+        repoMap.set(r.ownerRepo.toLowerCase(), r);
+      }
 
-      issues = raw.map(item => {
-        const repoNameWithOwner = item.repository?.nameWithOwner || '';
-        const local = repoMap.get(repoNameWithOwner.toLowerCase());
-        return {
-          number: item.number,
-          title: item.title,
-          body: item.body || '',
-          url: item.url,
-          labels: Array.isArray(item.labels) ? item.labels : [],
-          author: item.author || { login: username },
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-          repository: {
-            name: item.repository?.name || '',
-            nameWithOwner: repoNameWithOwner
-          },
-          subproject: local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner)
-        };
+      const username = await this.getAuthenticatedUser();
+      const issueMap = new Map<string, GithubIssueItem>();
+
+      // 1. Coleta direta e em lote nas issues dos repositórios locais detectados
+      const localPromises = repos.map(async (r) => {
+        try {
+          const { stdout } = await execAsync(
+            `gh issue list --repo "${r.ownerRepo}" --state open --json number,title,labels,createdAt,updatedAt,url,body,author --limit 30`,
+            { timeout: 9000 }
+          );
+          const list = JSON.parse(stdout || '[]') as any[];
+          for (const item of list) {
+            const key = `${r.ownerRepo.toLowerCase()}#${item.number}`;
+            issueMap.set(key, {
+              number: item.number,
+              title: item.title,
+              body: item.body || '',
+              url: item.url,
+              labels: Array.isArray(item.labels) ? item.labels : [],
+              author: item.author || { login: username || 'user' },
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+              repository: {
+                name: r.name,
+                nameWithOwner: r.ownerRepo
+              },
+              subproject: r.subproject,
+              isLocalWorkspace: true
+            });
+          }
+        } catch {}
       });
 
-      // Prioriza issues dos repositórios que estão montados localmente no workspace
-      issues.sort((a, b) => {
-        const aLocal = repoMap.has(a.repository.nameWithOwner.toLowerCase()) ? 1 : 0;
-        const bLocal = repoMap.has(b.repository.nameWithOwner.toLowerCase()) ? 1 : 0;
-        if (aLocal !== bLocal) return bLocal - aLocal;
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
+      await Promise.all(localPromises);
 
-      this.cachedIssues = issues;
-      this.lastFetchTime = now;
-    } catch (err) {
-      console.error('[GithubProjectService] Erro ao buscar issues:', (err as Error).message);
-      if (this.cachedIssues) return this.cachedIssues;
-    }
+      // 2. Coleta abrangente usando @me e owner para repositórios fora do workspace
+      try {
+        const queries: string[] = ['--involves @me'];
+        if (username) {
+          queries.push(`--owner ${username}`);
+        }
 
-    return issues;
-  }
+        const searchPromises = queries.map(q => 
+          execAsync(
+            `gh search issues --state open ${q} --json repository,number,title,labels,createdAt,updatedAt,url,body,author --limit 50`,
+            { timeout: 15000 }
+          ).then(r => JSON.parse(r.stdout || '[]') as any[]).catch(() => [] as any[])
+        );
 
-  /**
-   * Obtém a lista consolidada de PRs abertos e vincula com sessões ativas do Kraken
-   */
-  async getPullRequests(force = false): Promise<GithubPullRequestItem[]> {
-    const now = Date.now();
-    if (!force && this.cachedPrs && now - this.lastFetchTime < this.CACHE_TTL_MS) {
-      return this.cachedPrs;
-    }
+        const searchResults = await Promise.all(searchPromises);
+        const combined = searchResults.flat();
 
-    const repos = await this.getLocalGitRepositories();
-    const repoMap = new Map<string, GithubRepoInfo>();
-    for (const r of repos) {
-      repoMap.set(r.ownerRepo.toLowerCase(), r);
-    }
-
-    const username = await this.getAuthenticatedUser();
-    let prs: GithubPullRequestItem[] = [];
-
-    try {
-      const cmd = `gh search prs --state open --owner ${username} --json repository,number,title,labels,createdAt,updatedAt,url,body,isDraft,author --limit 40`;
-      const { stdout } = await execAsync(cmd, { timeout: 15000 });
-      const raw = JSON.parse(stdout || '[]') as any[];
-
-      // Carrega sessões de histórico para correlacionar
-      const sessions = await historyService.list().catch(() => []);
-
-      prs = await Promise.all(
-        raw.map(async item => {
+        for (const item of combined) {
           const repoNameWithOwner = item.repository?.nameWithOwner || '';
+          if (!repoNameWithOwner) continue;
+          const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
+          if (issueMap.has(key)) continue;
+
           const local = repoMap.get(repoNameWithOwner.toLowerCase());
-          const subproject = local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner);
-
-          // Tenta buscar a headRefName (branch) com comando rápido
-          let headRefName = '';
-          try {
-            const { stdout: prDetails } = await execAsync(
-              `gh pr view ${item.number} --repo ${repoNameWithOwner} --json headRefName --jq .headRefName`,
-              { timeout: 4000 }
-            );
-            headRefName = prDetails.trim();
-          } catch {}
-
-          // Encontra conversa vinculada por branch, id do PR ou subprojeto + título
-          const linkedConversation = await this.findLinkedConversation(sessions, {
-            prNumber: item.number,
-            prTitle: item.title,
-            branch: headRefName,
-            subproject
-          });
-
-          return {
+          issueMap.set(key, {
             number: item.number,
             title: item.title,
             body: item.body || '',
             url: item.url,
-            headRefName,
-            isDraft: !!item.isDraft,
             labels: Array.isArray(item.labels) ? item.labels : [],
-            author: item.author || { login: username },
+            author: item.author || { login: username || 'user' },
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
             repository: {
-              name: item.repository?.name || '',
+              name: item.repository?.name || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
               nameWithOwner: repoNameWithOwner
             },
-            subproject,
+            subproject: local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
+            isLocalWorkspace: !!local
+          });
+        }
+      } catch (err) {
+        console.warn('[GithubProjectService] Aviso na busca ampla de issues:', (err as Error).message);
+      }
+
+      const issues = Array.from(issueMap.values());
+
+      // Ordenação padrão: locais primeiro, mais recentes primeiro
+      issues.sort((a, b) => {
+        const aLocal = a.isLocalWorkspace ? 1 : 0;
+        const bLocal = b.isLocalWorkspace ? 1 : 0;
+        if (aLocal !== bLocal) return bLocal - aLocal;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+
+      this.memoryCache.issues = issues;
+      this.memoryCache.timestamp = Date.now();
+      this.saveCacheToDisk().catch(() => {});
+
+      return issues;
+    } catch (err) {
+      console.error('[GithubProjectService] Erro ao buscar issues (usando fallback de cache):', (err as Error).message);
+      if (this.memoryCache.issues) return this.memoryCache.issues;
+      return [];
+    }
+  }
+
+  /**
+   * Obtém lista consolidada de PRs abertos com lote otimizado (zero N+1) e cache
+   */
+  async getPullRequests(force = false): Promise<GithubPullRequestItem[]> {
+    const now = Date.now();
+    const hasValidCache = !!this.memoryCache.prs && (now - this.memoryCache.timestamp < CACHE_TTL_MS);
+
+    if (!force && hasValidCache) {
+      return this.memoryCache.prs!;
+    }
+
+    try {
+      const repos = await this.getLocalGitRepositories();
+      const repoMap = new Map<string, GithubRepoInfo>();
+      for (const r of repos) {
+        repoMap.set(r.ownerRepo.toLowerCase(), r);
+      }
+
+      const username = await this.getAuthenticatedUser();
+      const prMap = new Map<string, GithubPullRequestItem>();
+
+      // 1. Busca em lote de todos os repositórios locais
+      // gh pr list já retorna headRefName e baseRefName em 1 chamada única!
+      const localPromises = repos.map(async (r) => {
+        try {
+          const { stdout } = await execAsync(
+            `gh pr list --repo "${r.ownerRepo}" --state open --json number,title,labels,createdAt,updatedAt,url,body,isDraft,author,headRefName,baseRefName --limit 30`,
+            { timeout: 9000 }
+          );
+          const list = JSON.parse(stdout || '[]') as any[];
+          for (const item of list) {
+            const key = `${r.ownerRepo.toLowerCase()}#${item.number}`;
+            prMap.set(key, {
+              number: item.number,
+              title: item.title,
+              body: item.body || '',
+              url: item.url,
+              headRefName: item.headRefName || '',
+              baseRefName: item.baseRefName || 'main',
+              isDraft: !!item.isDraft,
+              labels: Array.isArray(item.labels) ? item.labels : [],
+              author: item.author || { login: username || 'user' },
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+              repository: {
+                name: r.name,
+                nameWithOwner: r.ownerRepo
+              },
+              subproject: r.subproject,
+              isLocalWorkspace: true
+            });
+          }
+        } catch {}
+      });
+
+      await Promise.all(localPromises);
+
+      // 2. Busca abrangente em lote para PRs de outras organizações/repositórios
+      try {
+        const queries: string[] = ['--involves @me'];
+        if (username) {
+          queries.push(`--owner ${username}`);
+        }
+
+        const searchPromises = queries.map(q =>
+          execAsync(
+            `gh search prs --state open ${q} --json repository,number,title,labels,createdAt,updatedAt,url,body,isDraft,author --limit 50`,
+            { timeout: 15000 }
+          ).then(r => JSON.parse(r.stdout || '[]') as any[]).catch(() => [] as any[])
+        );
+
+        const searchResults = await Promise.all(searchPromises);
+        const combined = searchResults.flat();
+
+        for (const item of combined) {
+          const repoNameWithOwner = item.repository?.nameWithOwner || '';
+          if (!repoNameWithOwner) continue;
+          const key = `${repoNameWithOwner.toLowerCase()}#${item.number}`;
+          if (prMap.has(key)) continue;
+
+          const local = repoMap.get(repoNameWithOwner.toLowerCase());
+          prMap.set(key, {
+            number: item.number,
+            title: item.title,
+            body: item.body || '',
+            url: item.url,
+            headRefName: '',
+            baseRefName: 'main',
+            isDraft: !!item.isDraft,
+            labels: Array.isArray(item.labels) ? item.labels : [],
+            author: item.author || { login: username || 'user' },
+            createdAt: item.createdAt,
+            updatedAt: item.updatedAt,
+            repository: {
+              name: item.repository?.name || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
+              nameWithOwner: repoNameWithOwner
+            },
+            subproject: local?.subproject || (repoNameWithOwner.includes('/') ? repoNameWithOwner.split('/')[1] : repoNameWithOwner),
+            isLocalWorkspace: !!local
+          });
+        }
+      } catch (err) {
+        console.warn('[GithubProjectService] Aviso na busca ampla de PRs:', (err as Error).message);
+      }
+
+      const prsList = Array.from(prMap.values());
+
+      // 3. Vinculação com sessões do Kraken em memória/disco
+      const sessions = await historyService.list().catch(() => []);
+
+      const prs = await Promise.all(
+        prsList.map(async (item) => {
+          const linkedConversation = await this.findLinkedConversation(sessions, {
+            prNumber: item.number,
+            prTitle: item.title,
+            branch: item.headRefName,
+            subproject: item.subproject
+          });
+
+          return {
+            ...item,
             linkedConversation
           };
         })
       );
 
-      prs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      this.cachedPrs = prs;
-    } catch (err) {
-      console.error('[GithubProjectService] Erro ao buscar PRs:', (err as Error).message);
-      if (this.cachedPrs) return this.cachedPrs;
-    }
+      // Ordenação padrão: locais primeiro, mais recentes primeiro
+      prs.sort((a, b) => {
+        const aLocal = a.isLocalWorkspace ? 1 : 0;
+        const bLocal = b.isLocalWorkspace ? 1 : 0;
+        if (aLocal !== bLocal) return bLocal - aLocal;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
 
-    return prs;
+      this.memoryCache.prs = prs;
+      this.memoryCache.timestamp = Date.now();
+      this.saveCacheToDisk().catch(() => {});
+
+      return prs;
+    } catch (err) {
+      console.error('[GithubProjectService] Erro ao buscar PRs (usando fallback de cache):', (err as Error).message);
+      if (this.memoryCache.prs) return this.memoryCache.prs;
+      return [];
+    }
   }
 
   /**
@@ -296,20 +502,19 @@ class GithubProjectService {
     const prUrlPattern = `pull/${info.prNumber}`;
     const branchLower = (info.branch || '').toLowerCase();
 
-    // 1. Match direto por tag ou título do resumo da sessão
+    // 1. Match direto por tag ou título da sessão
     for (const s of sessions) {
       if (s.tags && s.tags.includes(prTag)) {
         return { id: s.id, title: s.title, subproject: s.subproject };
       }
-      if (s.title && (s.title.includes(prStr) || (branchLower && s.title.toLowerCase().includes(branchLower)))) {
+      if (s.title && (s.title.includes(prStr) || (branchLower && branchLower.length > 3 && s.title.toLowerCase().includes(branchLower)))) {
         return { id: s.id, title: s.title, subproject: s.subproject };
       }
     }
 
-    // 2. Busca profunda rápida nos arquivos de sessão do subprojeto correspondente
+    // 2. Busca profunda nos arquivos de sessão do subprojeto correspondente
     const sessionsDir = path.resolve('data/sessions');
     for (const s of sessions) {
-      // Prioriza sessões do mesmo subprojeto ou gerais
       if (s.subproject && info.subproject && s.subproject.toLowerCase() !== info.subproject.toLowerCase()) {
         continue;
       }
@@ -330,9 +535,19 @@ class GithubProjectService {
   }
 
   /**
-   * Overview geral para o Dashboard What's Next
+   * Overview geral com suporte a cache e rate-limit shield
    */
   async getOverview(force = false): Promise<ProjectOverview> {
+    const now = Date.now();
+    const hasValidCache = !!this.memoryCache.overview && (now - this.memoryCache.timestamp < CACHE_TTL_MS);
+
+    if (!force && hasValidCache) {
+      return {
+        ...this.memoryCache.overview!,
+        fromCache: true
+      };
+    }
+
     const [user, repos, issues, prs] = await Promise.all([
       this.getAuthenticatedUser(),
       this.getLocalGitRepositories(),
@@ -345,28 +560,33 @@ class GithubProjectService {
       repositories: repos,
       issuesCount: issues.length,
       prsCount: prs.length,
-      lastUpdated: Date.now()
+      lastUpdated: Date.now(),
+      fromCache: false
     };
 
-    this.cachedOverview = overview;
+    this.memoryCache.overview = overview;
+    this.memoryCache.timestamp = Date.now();
+    this.saveCacheToDisk().catch(() => {});
+
     return overview;
   }
 
   /**
    * Aprova ou efetua merge de um Pull Request via GitHub CLI
    */
-  async approveOrMergePR(repo: string, prNumber: number, action: 'approve' | 'merge'): Promise<{ success: boolean; message: string }> {
+  async approveOrMergePR(repo: string, prNumber: number, action: 'approve' | 'merge', mergeMethod = 'squash'): Promise<{ success: boolean; message: string }> {
     try {
       if (action === 'approve') {
-        await execAsync(`gh pr review ${prNumber} --repo ${repo} --approve --body "Aprovado via KrakenBridge Dashboard"`, {
+        await execAsync(`gh pr review ${prNumber} --repo "${repo}" --approve --body "Aprovado via KrakenBridge Dashboard"`, {
           timeout: 12000
         });
         return { success: true, message: `PR #${prNumber} em ${repo} aprovado com sucesso!` };
       } else {
-        await execAsync(`gh pr merge ${prNumber} --repo ${repo} --merge`, {
+        const methodFlag = mergeMethod === 'merge' ? '--merge' : mergeMethod === 'rebase' ? '--rebase' : '--squash';
+        await execAsync(`gh pr merge ${prNumber} --repo "${repo}" ${methodFlag}`, {
           timeout: 20000
         });
-        return { success: true, message: `PR #${prNumber} em ${repo} mergeado com sucesso!` };
+        return { success: true, message: `PR #${prNumber} em ${repo} mesclado com sucesso!` };
       }
     } catch (err) {
       throw new Error(`Falha ao executar ${action} no PR #${prNumber}: ${(err as Error).message}`);
