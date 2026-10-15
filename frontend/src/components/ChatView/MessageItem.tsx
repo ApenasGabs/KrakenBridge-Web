@@ -70,7 +70,7 @@ const CodeBlock: React.FC<{ children: React.ReactNode; className?: string }> = (
 const ToolItem: React.FC<{ tool: ToolCall; codeServerPort?: number }> = ({ tool, codeServerPort }) => {
   const fileOp = parseFileOperation(tool);
   if (fileOp) {
-    return <FileOperationCard data={fileOp} codeServerPort={codeServerPort} />;
+    return <FileOperationCard data={fileOp} codeServerPort={codeServerPort} toolState={tool.state} />;
   }
 
   const [showOutput, setShowOutput] = useState(false);

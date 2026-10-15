@@ -113,6 +113,28 @@ Showing lines 1 to 3
     expect(parsed?.lines[2].text).toBe('  "version": "1.0.0"');
   });
 
+  it('deve analisar view_file com conteúdo puro sem números de linha (fallback de robustez)', () => {
+    const tool = {
+      name: 'view_file',
+      parameters: {
+        AbsolutePath: '/workspace/VisualFingeringPicker.tsx',
+        StartLine: 1
+      },
+      output: `File Path: file:///workspace/VisualFingeringPicker.tsx
+Total Lines: 2
+import React from 'react';
+export const VisualFingeringPicker = () => null;`
+    };
+
+    const parsed = parseFileOperation(tool);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.kind).toBe('view');
+    expect(parsed?.fileName).toBe('VisualFingeringPicker.tsx');
+    expect(parsed?.lines.length).toBe(2);
+    expect(parsed?.lines[0].text).toBe("import React from 'react';");
+    expect(parsed?.lines[1].text).toBe("export const VisualFingeringPicker = () => null;");
+  });
+
   it('deve retornar null para comandos de terminal comuns', () => {
     const tool = {
       name: 'run_command',

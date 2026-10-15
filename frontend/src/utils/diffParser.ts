@@ -317,6 +317,31 @@ function parseViewFileOutput(output: string, fallbackStartLine: number): ParsedD
     }
   }
 
+  // Fallback de robustez: se a saída não continha prefixos 'N: linha' (ex: texto puro de arquivo sem números de linha)
+  if (lines.length === 0 && output.trim().length > 0) {
+    let lineNum = fallbackStartLine;
+    for (const raw of rawLines) {
+      if (
+        raw.includes('Showing lines') ||
+        raw.includes('The following code') ||
+        raw.includes('Created At') ||
+        raw.includes('Completed At') ||
+        raw.includes('File Path:') ||
+        raw.includes('Total Lines:') ||
+        raw.includes('Total Bytes:')
+      ) {
+        continue;
+      }
+      lines.push({
+        kind: 'context',
+        text: raw,
+        oldLineNumber: lineNum,
+        newLineNumber: lineNum
+      });
+      lineNum++;
+    }
+  }
+
   // Remove linhas vazias finais se houverem
   while (lines.length > 0 && lines[lines.length - 1].text.trim() === '' && lines[lines.length - 1].oldLineNumber === undefined) {
     lines.pop();

@@ -15,14 +15,18 @@ import type { FileOperationData, ParsedDiffLine } from '../../utils/diffParser';
 interface FileOperationCardProps {
   data: FileOperationData;
   codeServerPort?: number;
+  toolState?: string;
 }
 
 export const FileOperationCard: React.FC<FileOperationCardProps> = ({ 
   data, 
-  codeServerPort = 8089 
+  codeServerPort = 8089,
+  toolState
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  const isRunning = toolState === 'ACTIVE' || toolState === 'RUNNING';
 
   const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
   const ideFileUrl = `http://${hostname}:${codeServerPort}/?file=${encodeURIComponent(data.filePath)}`;
@@ -97,7 +101,8 @@ export const FileOperationCard: React.FC<FileOperationCardProps> = ({
 
           {config.icon}
 
-          <span className={`badge badge-xs font-semibold uppercase tracking-wider ${config.badgeClass} text-[9px]`}>
+          <span className={`badge badge-xs font-semibold uppercase tracking-wider ${config.badgeClass} text-[9px] flex items-center gap-1`}>
+            {isRunning && <span className="loading loading-spinner w-2.5 h-2.5"></span>}
             {config.label}
           </span>
 
@@ -182,7 +187,12 @@ export const FileOperationCard: React.FC<FileOperationCardProps> = ({
       {/* Corpo com o Diff ou Código com Gutter */}
       {isExpanded && (
         <div className="border-t border-base-300/60 bg-[#0d1117] text-neutral-200 font-mono text-[11px] leading-relaxed max-h-80 overflow-auto">
-          {data.lines.length === 0 ? (
+          {isRunning ? (
+            <div className="p-4 flex items-center justify-center gap-2 text-info font-sans text-xs">
+              <span className="loading loading-spinner loading-xs"></span>
+              <span>Lendo / executando operação no arquivo...</span>
+            </div>
+          ) : data.lines.length === 0 ? (
             <div className="p-3 text-neutral-500 italic text-center">
               Nenhuma linha para exibir.
             </div>
