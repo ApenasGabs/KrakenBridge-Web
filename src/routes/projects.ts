@@ -37,7 +37,7 @@ projectsRouter.get('/github/prs', async (req: Request, res: Response) => {
   try {
     const force = req.query.force === 'true';
     const pullRequests = await githubProjectService.getPullRequests(force);
-    res.json({ pullRequests, count: pullRequests.length });
+    res.json({ prs: pullRequests, pullRequests, count: pullRequests.length });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
