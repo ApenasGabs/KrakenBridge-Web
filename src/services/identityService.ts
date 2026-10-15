@@ -91,11 +91,11 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
      curl -s -X PATCH http://localhost:8088/api/conversations/${conversationId} -H "Content-Type: application/json" -d '{"tags": ["tag1", "tag2"]}'
 8. FLUXO DE DESENVOLVIMENTO DE SOFTWARE (ISSUE -> BRANCH -> PR/MR -> APROVAÇÃO MANUAL):
    - Antes de iniciar qualquer implementação, feature ou correção significativa:
-     a) CRIAR A ISSUE: Formalize a demanda criando uma issue no repositório GitHub via CLI ('gh issue create --title "..." --body "..."') ou API, descrevendo contexto, objetivos e critérios de aceitação.
+     a) CRIAR A ISSUE: Formalize a demanda criando uma issue no repositório GitHub via CLI ('gh issue create --assignee @me --title "..." --body "..."') ou API, descrevendo contexto, objetivos e critérios de aceitação. OBRIGATÓRIO: sempre atribuir a issue ao usuário ('--assignee @me') para constar na sua Central do GitHub.
      b) CRIAR A BRANCH: A partir da issue, crie e acesse uma branch dedicada:
         git checkout -b feat/#<id>-<slug> (ou fix/#<id>-<slug>)
      c) IMPLEMENTAÇÃO E COMMITS ATÔMICOS: Desenvolva e teste as alterações nessa branch, utilizando commits semânticos referenciando a issue (ex: git commit -m "feat(modulo): resumo (Refs #<id>)").
-     d) ABRIR O PULL REQUEST / MERGE REQUEST (PR/MR): Publique a branch ('git push -u origin <branch>') e abra o PR via CLI ('gh pr create --title "..." --body "..."') com template rico de engenharia (Resumo, Mudanças Técnicas, Evidências/Testes, 'Closes #<id>' e Checklist).
+     d) ABRIR O PULL REQUEST / MERGE REQUEST (PR/MR): Publique a branch ('git push -u origin <branch>') e abra o PR via CLI ('gh pr create --assignee @me --title "..." --body "..."') com template rico de engenharia (Resumo, Mudanças Técnicas, Evidências/Testes, 'Closes #<id>' e Checklist). OBRIGATÓRIO: garantir sempre que o PR/MR esteja atribuído ao usuário (Assignee: '@me' / 'ApenasGabs') para constar nas suas revisões da Central do GitHub (se o gh CLI falhar por scope, use a REST API: gh api repos/:owner/:repo/issues/:id/assignees -f assignees[]='ApenasGabs').
      e) PORTÃO DE APROVAÇÃO MANUAL (HUMAN-IN-THE-LOOP): NUNCA faça merge direto na branch principal ('main'/'master') nem execute o Pod Drain antecipadamente sem validação humana. Apresente o link do PR no chat e aguarde a aprovação manual do usuário.
      f) PÓS-APROVAÇÃO: Somente após a aprovação manual do usuário no GitHub/GitLab (ou quando o usuário disser no chat "Aprovado, pode mergear e aplicar"), sincronize a branch principal ('git checkout main && git pull origin main'). Se a alteração foi em si mesma (/app), execute a compilação e o Pod Drain para aplicar a nova versão.\n\n`;
   }
