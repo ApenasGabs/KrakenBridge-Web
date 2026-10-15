@@ -12,12 +12,13 @@ import {
   Boxes,
   Activity,
   MoreVertical,
-  Palette
+  Palette,
+  Compass
 } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'status' | 'chat' | 'ide';
-  onTabChange: (tab: 'status' | 'chat' | 'ide') => void;
+  activeTab: 'status' | 'whatsnext' | 'chat' | 'ide';
+  onTabChange: (tab: 'status' | 'whatsnext' | 'chat' | 'ide') => void;
   onToggleSidebar: () => void;
   isOptionsOpen: boolean;
   onToggleOptions: () => void;
@@ -72,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Tabs Centrais: Status vs Chat vs IDE */}
+        {/* Tabs Centrais: Status vs What's Next vs Chat vs IDE */}
         <div className="inline-flex items-center bg-base-200/80 rounded-lg p-0.5 ml-0.5 sm:ml-2 shrink-0">
           <button
             data-testid="tab-status"
@@ -86,6 +87,20 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Activity className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden min-[400px]:inline sm:inline">Status</span>
+          </button>
+
+          <button
+            data-testid="tab-whatsnext"
+            onClick={() => onTabChange('whatsnext')}
+            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+              activeTab === 'whatsnext' 
+                ? 'bg-primary text-primary-content shadow-sm' 
+                : 'text-base-content/70 hover:text-base-content'
+            }`}
+            title="What's Next (Backlog de Issues) e Central de Revisão de PRs"
+          >
+            <Compass className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden min-[480px]:inline sm:inline">What's Next</span>
           </button>
 
           <button

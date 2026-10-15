@@ -1,4 +1,18 @@
-import type { AccountInfo, AuthStatus, ChatOptions, ConversationSession, McpServer, ModelsConfig, ProjectWorkspace, QuotaStats, ToolCall, TurnTokens } from '../types';
+import type { 
+  AccountInfo, 
+  AuthStatus, 
+  ChatOptions, 
+  ConversationSession, 
+  McpServer, 
+  ModelsConfig, 
+  ProjectWorkspace, 
+  QuotaStats, 
+  ToolCall, 
+  TurnTokens,
+  GithubIssueItem,
+  GithubPullRequestItem,
+  ProjectOverview
+} from '../types';
 
 export interface SSECallbacks {
   onSessionStart?: (data: { conversation_id: string; reqId: string; subproject?: string; tags?: string[] }) => void;
@@ -454,5 +468,94 @@ export const api = {
         }
       }
     }
+  },
+
+  // Métodos do Dashboard What's Next & Central de Revisão de PRs
+  async getGithubOverview(force = false): Promise<ProjectOverview> {
+    const res = await fetch(`${getApiBase()}/projects/github/overview${force ? '?force=true' : ''}`, {
+      headers: authHeaders()
+    });
+    if (!res.ok) {
+      throw new Error(`Falha ao obter overview de projetos do GitHub (${res.status})`);
+    }
+    return res.json();
+  },
+
+  async getGithubIssues(force = false): Promise<{ issues: GithubIssueItem[]; count: number }> {
+    const res = await fetch(`${getApiBase()}/projects/github/issues${force ? '?force=true' : ''}`, {
+      headers: authHeaders()
+    });
+    if (!res.ok) {
+      throw new Error(`Falha ao obter issues do GitHub (${res.status})`);
+    }
+    return res.json();
+  },
+
+  async getGithubPrs(force = false): Promise<{ prs: GithubPullRequestItem[]; count: number }> {
+    const res = await fetch(`${getApiBase()}/projects/github/prs${force ? '?force=true' : ''}`, {
+      headers: authHeaders()
+    });
+    if (!res.ok) {
+      throw new Error(`Falha ao obter PRs do GitHub (${res.status})`);
+    }
+    return res.json();
+  },
+
+  async actionGithubPr(
+    repo: string, 
+    prNumber: number, 
+    action: 'approve' | 'merge', 
+    mergeMethod?: string
+  ): Promise<{ success: boolean; message?: string; output?: string }> {
+    const res = await fetch(`${getApiBase()}/projects/github/prs/action`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ repo, prNumber, action, mergeMethod })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || `Falha ao executar ação ${action} na PR #${prNumber}`);
+    }
+    return data;
+  },
+
+  async reviewGithubPr(data: {
+    repo: string;
+    prNumber: number;
+    prTitle?: string;
+    prUrl?: string;
+    branch?: string;
+    comment: string;
+  }): Promise<{ success: boolean; conversationId: string; isNewSession: boolean; subproject?: string; suggestedPrompt: string }> {
+    const res = await fetch(`${getApiBase()}/projects/github/prs/review`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || `Falha ao enviar revisão para a PR #${data.prNumber}`);
+    }
+    return result;
+  },
+
+  async resolveGithubIssue(data: {
+    repo: string;
+    issueNumber: number;
+    title: string;
+    url?: string;
+    body?: string;
+    subproject?: string;
+  }): Promise<{ success: boolean; conversationId: string; subproject: string; suggestedPrompt: string }> {
+    const res = await fetch(`${getApiBase()}/projects/github/issues/resolve`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || `Falha ao iniciar resolução da Issue #${data.issueNumber}`);
+    }
+    return result;
   }
 };

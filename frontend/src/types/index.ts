@@ -231,3 +231,53 @@ export interface SlashCommand {
   category: 'workflow' | 'mode' | 'system';
 }
 
+export interface GithubRepoInfo {
+  name: string;
+  path: string;
+  remoteUrl: string;
+  ownerRepo: string;
+  subproject: string;
+}
+
+export interface GithubIssueItem {
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+  labels: Array<{ name: string; color: string; description?: string }>;
+  author: { login: string; name?: string };
+  createdAt: string;
+  updatedAt?: string;
+  repository: { name: string; nameWithOwner: string };
+  subproject?: string;
+}
+
+export interface GithubPullRequestItem {
+  number: number;
+  title: string;
+  body: string;
+  url: string;
+  headRefName?: string;
+  baseRefName?: string;
+  isDraft: boolean;
+  labels: Array<{ name: string; color: string; description?: string }>;
+  author: { login: string; name?: string };
+  createdAt: string;
+  updatedAt?: string;
+  repository: { name: string; nameWithOwner: string };
+  subproject?: string;
+  linkedConversation?: {
+    id: string;
+    title: string;
+    subproject?: string;
+  } | null;
+}
+
+export interface ProjectOverview {
+  authenticatedUser: string;
+  repositories: GithubRepoInfo[];
+  issuesCount: number;
+  prsCount: number;
+  lastUpdated: number;
+}
+

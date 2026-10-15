@@ -17,6 +17,7 @@ import { OptionsBar } from './components/OptionsBar/OptionsBar';
 import { ChatView } from './components/ChatView/ChatView';
 import { IdeView } from './components/IdeView/IdeView';
 import { StatusView } from './components/StatusView/StatusView';
+import { WhatsNextView } from './components/WhatsNextView/WhatsNextView';
 import { AuthModal } from './components/AuthModal/AuthModal';
 import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 import { McpModal } from './components/McpModal/McpModal';
@@ -38,7 +39,7 @@ export const App: React.FC = () => {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Layout & Abas (Inicia no Status por padrão)
-  const [activeTab, setActiveTab] = useState<'status' | 'chat' | 'ide'>('status');
+  const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide'>('status');
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
@@ -625,6 +626,27 @@ export const App: React.FC = () => {
     loadConversations();
   };
 
+  // Handlers para o Dashboard What's Next & Central de Revisão
+  const handleResolveIssue = useCallback(async (data: { conversationId: string; subproject: string; suggestedPrompt: string }) => {
+    await loadConversations();
+    await selectConversation(data.conversationId);
+    if (data.suggestedPrompt) {
+      executeTurn(data.suggestedPrompt, { subproject: data.subproject });
+    }
+  }, [loadConversations, selectConversation, executeTurn]);
+
+  const handleReviewPr = useCallback(async (data: { conversationId: string; subproject?: string; suggestedPrompt: string }) => {
+    await loadConversations();
+    await selectConversation(data.conversationId);
+    if (data.suggestedPrompt) {
+      executeTurn(data.suggestedPrompt, { subproject: data.subproject });
+    }
+  }, [loadConversations, selectConversation, executeTurn]);
+
+  const handleOpenConversation = useCallback(async (conversationId: string) => {
+    await selectConversation(conversationId);
+  }, [selectConversation]);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-base-100 text-base-content font-sans">
       {/* Sidebar de Histórico e Workspaces */}
@@ -670,7 +692,7 @@ export const App: React.FC = () => {
           isOpen={isOptionsOpen}
         />
 
-        {/* Visão de Status (Malha & Métricas) vs Visão de Chat vs Visão de IDE */}
+        {/* Visão de Status vs What's Next vs Chat vs IDE */}
         {activeTab === 'status' ? (
           <StatusView
             conversations={conversations}
@@ -679,6 +701,12 @@ export const App: React.FC = () => {
             onSelectConversation={selectConversation}
             onNewChatInProject={handleNewChatInProject}
             onNewChat={handleNewChat}
+          />
+        ) : activeTab === 'whatsnext' ? (
+          <WhatsNextView
+            onResolveIssue={handleResolveIssue}
+            onReviewPr={handleReviewPr}
+            onOpenConversation={handleOpenConversation}
           />
         ) : activeTab === 'chat' ? (
           <ChatView
