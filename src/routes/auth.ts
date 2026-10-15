@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { accountService } from '../services/accountService.js';
 import { quotaService } from '../services/quotaService.js';
 import { githubAuthService } from '../services/githubAuthService.js';
+import { vercelAuthService } from '../services/vercelAuthService.js';
 
 export const authRouter = Router();
 
@@ -67,6 +68,7 @@ authRouter.get('/status', async (_req: Request, res: Response) => {
 
   const isAuth = agyInfo.authenticated || !!process.env.GEMINI_API_KEY;
   const githubInfo = await githubAuthService.getStatus();
+  const vercelInfo = await vercelAuthService.getStatus();
 
   res.json({
     authenticated: isAuth,
@@ -77,6 +79,7 @@ authRouter.get('/status', async (_req: Request, res: Response) => {
     isKeyValid: isAuth,
     antigravity: agyInfo,
     github: githubInfo,
+    vercel: vercelInfo,
     claude: { hasKey: !!process.env.ANTHROPIC_API_KEY },
     aider: { hasKey: !!process.env.OPENAI_API_KEY }
   });
@@ -417,3 +420,66 @@ authRouter.post('/github/logout', async (_req: Request, res: Response) => {
     res.status(500).json({ error: (err as Error).message });
   }
 });
+
+// ==========================================
+// ENDPOINTS VERCEL AUTH & CLI CONFIGURATION
+// ==========================================
+
+// Obter status do Vercel CLI
+authRouter.get('/vercel/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await vercelAuthService.getStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Iniciar fluxo OAuth Device Code da Vercel
+authRouter.post('/vercel/device/start', async (_req: Request, res: Response) => {
+  try {
+    const data = await vercelAuthService.startDeviceFlow();
+    res.json({
+      success: true,
+      userCode: data.userCode,
+      verificationUri: data.verificationUri,
+      verificationUriComplete: data.verificationUriComplete,
+      interval: data.interval
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: (err as Error).message });
+  }
+});
+
+// Polling do código do dispositivo Vercel
+authRouter.get('/vercel/device/poll', async (_req: Request, res: Response) => {
+  try {
+    const result = await vercelAuthService.pollToken();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: (err as Error).message });
+  }
+});
+
+// Salvar PAT diretamente (opção alternativa)
+authRouter.post('/vercel/token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body || {};
+    if (!token) return res.status(400).json({ error: 'Token não informado.' });
+    const result = await vercelAuthService.saveToken(token);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// Desconectar Vercel CLI
+authRouter.post('/vercel/logout', async (_req: Request, res: Response) => {
+  try {
+    await vercelAuthService.logout();
+    res.json({ success: true, message: 'Vercel desconectada com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+

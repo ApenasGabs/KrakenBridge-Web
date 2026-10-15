@@ -225,6 +225,41 @@ export const api = {
     return res.json();
   },
 
+  async getVercelStatus(): Promise<{ authenticated: boolean; username?: string; email?: string; name?: string; hasToken?: boolean; error?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/vercel/status`, { headers: authHeaders() });
+    return res.json();
+  },
+
+  async startVercelDeviceFlow(): Promise<{ success: boolean; userCode?: string; verificationUri?: string; verificationUriComplete?: string; interval?: number; error?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/vercel/device/start`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+    return res.json();
+  },
+
+  async pollVercelDevice(): Promise<{ status: string; username?: string; email?: string; error?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/vercel/device/poll`, { headers: authHeaders() });
+    return res.json();
+  },
+
+  async saveVercelToken(token: string): Promise<{ success: boolean; username?: string; email?: string; error?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/vercel/token`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ token })
+    });
+    return res.json();
+  },
+
+  async logoutVercel(): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/vercel/logout`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+    return res.json();
+  },
+
   async getConversations(): Promise<ConversationSession[]> {
     const res = await fetch(`${getApiBase()}/conversations`, { headers: authHeaders() });
     const data = await res.json();

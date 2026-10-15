@@ -75,6 +75,15 @@ export interface GithubAuthStatus {
   hasToken?: boolean;
 }
 
+export interface VercelAuthStatus {
+  authenticated: boolean;
+  username?: string;
+  email?: string;
+  name?: string;
+  hasToken?: boolean;
+  error?: string;
+}
+
 export interface AuthStatus {
   authenticated: boolean;
   email?: string;
@@ -84,6 +93,7 @@ export interface AuthStatus {
   isKeyValid: boolean;
   type?: string;
   github?: GithubAuthStatus;
+  vercel?: VercelAuthStatus;
 }
 
 export interface ModelOption {
