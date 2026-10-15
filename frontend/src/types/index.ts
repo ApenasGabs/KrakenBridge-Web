@@ -286,5 +286,6 @@ export interface ProjectOverview {
   prsCount: number;
   lastUpdated: number;
   fromCache?: boolean;
+  isStale?: boolean;
 }
 

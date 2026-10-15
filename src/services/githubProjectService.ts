@@ -10,7 +10,7 @@ const execAsync = promisify(exec);
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const CACHE_FILE = path.join(DATA_DIR, 'github_cache.json');
-const CACHE_TTL_MS = Number(process.env.GITHUB_CACHE_TTL_MS) || 180000; // 3 minutos de cache padrão
+const CACHE_TTL_MS = Number(process.env.GITHUB_CACHE_TTL_MS) || 300000; // 5 minutos de cache padrão (300.000 ms)
 
 export interface GithubRepoInfo {
   name: string;
@@ -63,6 +63,7 @@ export interface ProjectOverview {
   prsCount: number;
   lastUpdated: number;
   fromCache?: boolean;
+  isStale?: boolean;
 }
 
 interface PersistentCacheData {
@@ -82,7 +83,19 @@ class GithubProjectService {
   }> | null = null;
 
   constructor() {
-    this.loadCacheFromDisk().catch(() => {});
+    this.loadCacheFromDisk()
+      .then(() => {
+        const now = Date.now();
+        if (!this.memoryCache.timestamp || now - this.memoryCache.timestamp >= CACHE_TTL_MS) {
+          this.fetchGithubData().catch(() => {});
+        }
+
+        const timer = setInterval(() => {
+          this.fetchGithubData().catch(() => {});
+        }, CACHE_TTL_MS);
+        if (timer.unref) timer.unref();
+      })
+      .catch(() => {});
   }
 
   /**
@@ -332,7 +345,7 @@ class GithubProjectService {
   }
 
   /**
-   * Sincroniza dados unificados do GitHub em uma única consulta GraphQL eficiente
+   * Sincroniza dados unificados do GitHub com suporte a Stale-While-Revalidate
    */
   async syncGithubData(force = false): Promise<{
     overview: ProjectOverview;
@@ -340,20 +353,49 @@ class GithubProjectService {
     prs: GithubPullRequestItem[];
   }> {
     const now = Date.now();
-    const hasValidCache =
+    const hasCache =
       !!this.memoryCache.overview &&
       !!this.memoryCache.issues &&
-      !!this.memoryCache.prs &&
-      now - this.memoryCache.timestamp < CACHE_TTL_MS;
+      !!this.memoryCache.prs;
+    const isFresh = hasCache && now - this.memoryCache.timestamp < CACHE_TTL_MS;
 
-    if (!force && hasValidCache) {
+    // Se temos cache válido e não foi forçado, retorna imediatamente
+    if (!force && isFresh) {
       return {
-        overview: { ...this.memoryCache.overview!, fromCache: true },
+        overview: { ...this.memoryCache.overview!, fromCache: true, isStale: false },
         issues: this.memoryCache.issues!,
         prs: this.memoryCache.prs!
       };
     }
 
+    // Padrão Stale-While-Revalidate:
+    // Se temos cache prévio em memória/disco e a requisição NÃO for forçada,
+    // entregamos os dados instantaneamente (<1ms) e revalidamos em segundo plano.
+    if (!force && hasCache) {
+      if (!this.syncPromise) {
+        this.fetchGithubData().catch(err => {
+          console.warn('[GithubProjectService] Revalidação silenciosa em segundo plano falhou:', (err as Error).message);
+        });
+      }
+      return {
+        overview: { ...this.memoryCache.overview!, fromCache: true, isStale: true },
+        issues: this.memoryCache.issues!,
+        prs: this.memoryCache.prs!
+      };
+    }
+
+    // Se for force=true ou se ainda não temos nenhum cache em memória, aguarda a busca completa
+    return this.fetchGithubData();
+  }
+
+  /**
+   * Executa a busca consolidada no GitHub via GraphQL e atualiza o cache
+   */
+  private async fetchGithubData(): Promise<{
+    overview: ProjectOverview;
+    issues: GithubIssueItem[];
+    prs: GithubPullRequestItem[];
+  }> {
     if (this.syncPromise) {
       return this.syncPromise;
     }

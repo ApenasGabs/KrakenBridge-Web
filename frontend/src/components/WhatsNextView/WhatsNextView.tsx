@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { 
   ProjectOverview, 
   GithubIssueItem, 
@@ -32,6 +32,14 @@ import {
   Globe
 } from 'lucide-react';
 
+import {
+  type WhatsNextCache,
+  loadLocalCache,
+  saveLocalCache,
+  isCacheStale,
+  REFRESH_INTERVAL_MS
+} from '../../utils/whatsNextCache';
+
 interface WhatsNextViewProps {
   onResolveIssue: (data: { conversationId: string; subproject: string; suggestedPrompt: string }) => void;
   onReviewPr: (data: { conversationId: string; subproject?: string; suggestedPrompt: string }) => void;
@@ -43,15 +51,26 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
   onReviewPr,
   onOpenConversation
 }) => {
+  // Inicialização síncrona pelo cache local: visual imediato sem spinner bloqueante!
+  const [cachedData] = useState<WhatsNextCache | null>(() => loadLocalCache());
+
   // Dados principais
-  const [overview, setOverview] = useState<ProjectOverview | null>(null);
-  const [issues, setIssues] = useState<GithubIssueItem[]>([]);
-  const [prs, setPrs] = useState<GithubPullRequestItem[]>([]);
+  const [overview, setOverview] = useState<ProjectOverview | null>(cachedData?.overview || null);
+  const [issues, setIssues] = useState<GithubIssueItem[]>(cachedData?.issues || []);
+  const [prs, setPrs] = useState<GithubPullRequestItem[]>(cachedData?.prs || []);
+  const [lastCacheTime, setLastCacheTime] = useState<number | null>(cachedData?.timestamp || null);
 
   // Estados de carregamento e erro
-  const [isLoading, setIsLoading] = useState(true);
+  const hasLocalData = !!(cachedData && ((cachedData.issues && cachedData.issues.length > 0) || (cachedData.prs && cachedData.prs.length > 0) || cachedData.overview));
+  const [isLoading, setIsLoading] = useState(!hasLocalData);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Ref estável para saber se já temos dados carregados na tela
+  const hasDataRef = useRef(hasLocalData);
+  useEffect(() => {
+    hasDataRef.current = issues.length > 0 || prs.length > 0 || !!overview;
+  }, [issues.length, prs.length, overview]);
 
   // Navegação e Filtros
   const [activeSubTab, setActiveSubTab] = useState<'issues' | 'prs'>('issues');
@@ -81,7 +100,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
 
   // Carregar dados da visão
   const loadData = useCallback(async (force = false) => {
-    if (force) {
+    if (force || hasDataRef.current) {
       setIsRefreshing(true);
     } else {
       setIsLoading(true);
@@ -95,12 +114,32 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
         api.getGithubPrs(force)
       ]);
 
+      const newIssues = issuesData?.issues || [];
+      const newPrs = prsData?.prs || (prsData as any)?.pullRequests || [];
+
       if (overviewData) setOverview(overviewData);
-      setIssues(issuesData.issues || []);
-      setPrs(prsData.prs || (prsData as any).pullRequests || []);
+      setIssues(newIssues);
+      setPrs(newPrs);
+
+      const now = Date.now();
+      setLastCacheTime(now);
+
+      saveLocalCache({
+        overview: overviewData || null,
+        issues: newIssues,
+        prs: newPrs,
+        timestamp: now
+      });
     } catch (err) {
       console.error('Erro ao carregar dados do GitHub:', err);
-      setError((err as Error).message || 'Falha ao sincronizar com GitHub');
+      if (hasDataRef.current) {
+        setActionFeedback({
+          type: 'error',
+          message: 'Não foi possível atualizar dados com o GitHub em segundo plano. Mantendo dados em cache.'
+        });
+      } else {
+        setError((err as Error).message || 'Falha ao sincronizar com GitHub');
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -108,7 +147,20 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
   }, []);
 
   useEffect(() => {
-    loadData();
+    const cache = loadLocalCache();
+    const isStale = !cache || isCacheStale(cache.timestamp);
+
+    // Se o cache local estiver ausente ou tiver mais de 5 minutos, sincroniza
+    if (isStale) {
+      loadData(false);
+    }
+
+    // Intervalo de revalidação periódica em segundo plano a cada 5 minutos
+    const interval = setInterval(() => {
+      loadData(false);
+    }, REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(interval);
   }, [loadData]);
 
   // Lista única de repositórios para o filtro
@@ -524,14 +576,29 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
               </div>
             )}
 
+            {lastCacheTime && (
+              <div 
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-base-200 border border-base-300 text-xs text-base-content/70"
+                title={`Dados locais em cache. Sincronização automática a cada 5 min. Última: ${new Date(lastCacheTime).toLocaleTimeString('pt-BR')}`}
+              >
+                <Clock className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>
+                  {isRefreshing
+                    ? 'Sincronizando...'
+                    : `Cache: ${new Date(lastCacheTime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}
+                </span>
+                <span className={`w-1.5 h-1.5 rounded-full ${isRefreshing ? 'bg-warning animate-pulse' : 'bg-success'}`}></span>
+              </div>
+            )}
+
             <button
               onClick={() => loadData(true)}
               disabled={isLoading || isRefreshing}
               className="btn btn-xs sm:btn-sm btn-outline gap-1.5 border-base-300 hover:bg-base-200"
-              title="Sincronizar dados do GitHub"
+              title="Sincronizar dados do GitHub agora"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-              <span>Sincronizar</span>
+              <span>{isRefreshing ? 'Sincronizando...' : 'Sincronizar'}</span>
             </button>
           </div>
         </div>
