@@ -11,6 +11,7 @@ import { identityService } from '../services/identityService.js';
 import { activeProcesses, activeSessions } from '../services/sessionState.js';
 import { evolutionService } from '../services/evolutionService.js';
 import { workspaceManager } from '../services/workspaceManager.js';
+import { pushNotificationService } from '../services/pushNotificationService.js';
 import type { AgentDriver, AgentType, ToolCall, ChatRequestBody } from '../types/chat.js';
 
 export const chatRouter = Router();
@@ -322,6 +323,13 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     workDir: effectiveWorkDir
   })}\n\n`);
 
+  // Disparo de notificação móvel de início de tarefa via Web Push
+  pushNotificationService.notifyTaskStart({
+    conversationId,
+    agent,
+    subproject: activeSubproject
+  }).catch(() => {});
+
   // Keep-alive heartbeat para conexões de longa duração
   const pingInterval = setInterval(() => {
     safeWrite(': ping\n\n');
@@ -418,6 +426,16 @@ chatRouter.post('/', async (req: Request, res: Response) => {
         }
         if (su.step_type === 'tool') {
           const params = su.tool_info?.parameters || {};
+
+          // Disparo de notificação móvel quando o agente mutar arquivos locais
+          if (params.TargetFile && (su.tool_name === 'write_to_file' || su.tool_name === 'replace_file_content')) {
+            pushNotificationService.notifyFileMutation({
+              conversationId,
+              agent,
+              file: params.TargetFile,
+              toolName: su.tool_name
+            }).catch(() => {});
+          }
           let cmd = params.CommandLine;
           if (!cmd) {
             if (params.TargetFile) {
@@ -591,6 +609,14 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     } catch (tagErr) {
       console.warn('[KrakenBridge] Aviso ao atualizar tags contextuais:', (tagErr as Error).message);
     }
+
+    // Disparo de notificação móvel de conclusão da tarefa
+    pushNotificationService.notifyTaskComplete({
+      conversationId,
+      agent,
+      success: code === 0,
+      durationMs: Date.now() - executionStartTime
+    }).catch(() => {});
 
     safeWrite(`data: ${JSON.stringify({ event: 'done', code, conversation_id: conversationId })}\n\n`);
     try {

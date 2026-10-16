@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="krakenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+    <linearGradient id="darkBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b" />
+      <stop offset="100%" stop-color="#09090b" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#darkBg)" stroke="#3f3f46" stroke-width="8"/>
+  <circle cx="256" cy="256" r="180" fill="url(#krakenGrad)" opacity="0.12"/>
+  <path d="M160 140 V372 M160 256 L310 140 M210 218 L330 372" 
+        stroke="url(#krakenGrad)" 
+        stroke-width="48" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none"/>
+  <circle cx="340" cy="140" r="18" fill="#38bdf8" />
+  <circle cx="360" cy="372" r="18" fill="#818cf8" />
+</svg>
