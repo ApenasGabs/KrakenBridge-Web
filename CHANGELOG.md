@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.4.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.4.0...v1.4.1) (2026-10-16)
+
+### 🐛 Bug Fixes
+
+* **infra:** instalar binario oficial gh no dockerfile e robustecer symlinks ([#30](https://github.com/ApenasGabs/KrakenBridge-Web/issues/30)) ([#60](https://github.com/ApenasGabs/KrakenBridge-Web/issues/60)) ([cb43588](https://github.com/ApenasGabs/KrakenBridge-Web/commit/cb4358826adcd480789fc5aa105237c03569191e))
+
 ## [1.4.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.3.0...v1.4.0) (2026-10-16)
 
 ### ✨ Features
