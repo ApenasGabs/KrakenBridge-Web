@@ -163,18 +163,21 @@ authRouter.delete('/accounts/:email', async (req: Request, res: Response) => {
   }
 });
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const GOOGLE_REDIRECT_URI = 'https://antigravity.google/oauth-callback';
-const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/cloud-platform',
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
-  'https://www.googleapis.com/auth/cclog',
-  'https://www.googleapis.com/auth/experimentsandconfigs',
-  'https://www.googleapis.com/auth/aicode',
-  'openid'
-].join(' ');
+import {
+  DEFAULT_GOOGLE_CLIENT_ID,
+  getGoogleClientId,
+  getGoogleClientSecret,
+  GOOGLE_REDIRECT_URI,
+  GOOGLE_SCOPES
+} from '../config/authConfig.js';
+
+export {
+  DEFAULT_GOOGLE_CLIENT_ID,
+  getGoogleClientId,
+  getGoogleClientSecret,
+  GOOGLE_REDIRECT_URI,
+  GOOGLE_SCOPES
+};
 
 function generatePKCE() {
   const verifier = crypto.randomBytes(32).toString('base64url');
@@ -199,12 +202,20 @@ authRouter.post('/antigravity/start', async (req: Request, res: Response) => {
     });
   }
 
+  const clientId = getGoogleClientId();
+  if (!clientId) {
+    return res.status(400).json({
+      status: 'error',
+      error: 'GOOGLE_CLIENT_ID não configurado no servidor. Defina a variável de ambiente GOOGLE_CLIENT_ID.'
+    });
+  }
+
   const { verifier, challenge, state } = generatePKCE();
 
   // Monta a URL oficial do Google OAuth com PKCE exato utilizado pelo agy
   const params = new URLSearchParams({
     access_type: 'offline',
-    client_id: GOOGLE_CLIENT_ID,
+    client_id: clientId,
     code_challenge: challenge,
     code_challenge_method: 'S256',
     prompt: 'consent',
@@ -247,14 +258,28 @@ authRouter.post('/antigravity/submit-code', async (req: Request, res: Response) 
   try {
     const verifier = currentAuthSession?.verifier;
 
+    const clientId = getGoogleClientId();
+    const clientSecret = getGoogleClientSecret();
+
+    if (!clientId) {
+      return res.status(400).json({
+        success: false,
+        status: 'error',
+        error: 'GOOGLE_CLIENT_ID não configurado no servidor.'
+      });
+    }
+
     // 1. Troca direta de código por tokens no Google OAuth
     const tokenParams = new URLSearchParams({
       code,
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
+      client_id: clientId,
       redirect_uri: GOOGLE_REDIRECT_URI,
       grant_type: 'authorization_code'
     });
+
+    if (clientSecret) {
+      tokenParams.set('client_secret', clientSecret);
+    }
 
     if (verifier) {
       tokenParams.set('code_verifier', verifier);

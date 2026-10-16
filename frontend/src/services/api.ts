@@ -207,13 +207,17 @@ export const api = {
     return res.json();
   },
 
-  async startAntigravityAuth(force?: boolean): Promise<{ authUrl?: string; message?: string; alreadyAuthenticated?: boolean; email?: string }> {
+  async startAntigravityAuth(force?: boolean): Promise<{ authUrl?: string; message?: string; alreadyAuthenticated?: boolean; email?: string; error?: string }> {
     const res = await fetch(`${getApiBase()}/auth/antigravity/start`, { 
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ force: !!force })
     });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok || data.status === 'error' || (data.error && !data.authUrl)) {
+      throw new Error(data.error || data.message || 'Falha ao iniciar autenticação');
+    }
+    return data;
   },
 
   async submitAntigravityCode(code: string): Promise<{ success: boolean; message: string }> {
