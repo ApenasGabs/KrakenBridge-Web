@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ChatMessage, ModelOption, ProjectWorkspace, QueuedMessage } from '../../types';
+import type { ChatMessage, ModelOption, ProjectWorkspace, QueuedMessage, EvolutionStatus } from '../../types';
 import { MessageItem } from './MessageItem';
 import { ChatInput } from './ChatInput';
 import { MessageQueueBanner } from './MessageQueueBanner';
+import { PodDrainBanner } from '../PodDrain';
 import { Bot, Sparkles, Terminal, Code2, ArrowDown, FolderGit2, ChevronDown, Check } from 'lucide-react';
 
 interface ChatViewProps {
@@ -13,6 +14,8 @@ interface ChatViewProps {
   onForceSubmit?: () => void;
   onStop: () => void;
   isLoading: boolean;
+  isDraining?: boolean;
+  evolutionStatus?: EvolutionStatus | null;
   onSelectSuggestion?: (prompt: string) => void;
   currentModel?: string;
   availableModels?: (string | ModelOption)[];
@@ -45,6 +48,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onForceSubmit,
   onStop,
   isLoading,
+  isDraining = false,
+  evolutionStatus = null,
   onSelectSuggestion,
   currentModel,
   availableModels,
@@ -271,6 +276,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
         />
       )}
 
+      {/* Banner de Pod Drain (aviso visual de drenagem de tarefas ativas) */}
+      {(isDraining || evolutionStatus?.isDraining || evolutionStatus?.status === 'draining') && (
+        <div className="px-4 pb-2">
+          <PodDrainBanner status={evolutionStatus} />
+        </div>
+      )}
+
       {/* Input de Envio de Mensagem com Seletor de Modelo, MCPs e Microfone */}
       <ChatInput
         prompt={prompt}
@@ -279,6 +291,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onForceSubmit={onForceSubmit}
         onStop={onStop}
         isLoading={isLoading}
+        isDraining={isDraining}
+        evolutionStatus={evolutionStatus}
         currentModel={currentModel}
         availableModels={availableModels}
         onModelChange={onModelChange}

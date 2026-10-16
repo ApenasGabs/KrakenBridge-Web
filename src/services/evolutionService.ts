@@ -15,6 +15,13 @@ class EvolutionService {
   private pendingReload: PendingReload | null = null;
 
   /**
+   * Indica se o sistema está em processo de Pod Drain ativo
+   */
+  isDrainingActive(): boolean {
+    return this.isDraining;
+  }
+
+  /**
    * Obtém o estado atual da última auto-evolução e do processo de draining
    */
   async getState(): Promise<EvolutionState> {
@@ -28,11 +35,14 @@ class EvolutionService {
     } catch {}
 
     const activeCount = getActiveSessionCount();
+    const currentStatus = this.isDraining 
+      ? 'draining' 
+      : (fileState.status || 'idle');
 
     return {
-      active: !!fileState.active,
-      status: fileState.status || (this.isDraining ? 'draining' : 'idle'),
+      active: !!fileState.active || this.isDraining,
       ...fileState,
+      status: currentStatus,
       isDraining: this.isDraining,
       activeTasksCount: activeCount,
       pendingReload: this.pendingReload

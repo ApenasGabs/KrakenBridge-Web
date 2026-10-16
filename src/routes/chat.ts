@@ -9,6 +9,7 @@ import { quotaService } from '../services/quotaService.js';
 import { accountService } from '../services/accountService.js';
 import { identityService } from '../services/identityService.js';
 import { activeProcesses, activeSessions } from '../services/sessionState.js';
+import { evolutionService } from '../services/evolutionService.js';
 import type { AgentDriver, AgentType, ToolCall, ChatRequestBody } from '../types/chat.js';
 
 export const chatRouter = Router();
@@ -113,6 +114,18 @@ chatRouter.post('/', async (req: Request, res: Response) => {
 
   if (!prompt || typeof prompt !== 'string') {
     return res.status(400).json({ error: 'Prompt é obrigatório' });
+  }
+
+  // Bloqueio preventivo durante Pod Drain ou Auto-Reload
+  const evoState = await evolutionService.getState();
+  if (evoState.isDraining || evoState.status === 'draining' || evoState.status === 'reloading') {
+    return res.status(503).json({
+      error: 'O sistema está em processo de reinício/drenagem (Pod Drain). O envio de novas mensagens está temporariamente pausado.',
+      isDraining: true,
+      status: evoState.status,
+      activeTasksCount: evoState.activeTasksCount,
+      taskDescription: evoState.taskDescription
+    });
   }
 
   if (clientConvId && activeSessions.has(clientConvId)) {
