@@ -142,10 +142,16 @@ export async function setupMockApi(page: Page, options: MockOptions = {}) {
 
   // Rota de PIN
   await page.route('**/api/auth/pin/status', async (route) => {
+    const authHeader = route.request().headers()['authorization'] || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    const authenticated = !pinRequired || (token === 'mock-pin-token-xyz');
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ required: pinRequired }),
+      body: JSON.stringify({
+        required: pinRequired,
+        authenticated,
+      }),
     });
   });
 

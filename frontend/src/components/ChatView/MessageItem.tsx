@@ -251,6 +251,53 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
     setTimeout(() => setCopiedMessage(false), 2000);
   };
 
+  const markdownComponents = useMemo(() => ({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    code({ className, children, ...props }: any) {
+      const childString = String(children);
+      const hasLanguage = /language-(\w+)/.test(className || '');
+      const isMultiline = childString.includes('\n');
+      const isInline = !hasLanguage && !isMultiline;
+
+      if (isInline) {
+        return (
+          <code className="bg-base-300/70 text-primary px-1.5 py-0.5 rounded text-[12px] font-mono mx-0.5 align-baseline inline-block font-semibold" {...props}>
+            {children}
+          </code>
+        );
+      }
+      return <CodeBlock className={className}>{children}</CodeBlock>;
+    },
+    // Intercepta links markdown file:/// para permitir abrir direto na IDE
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    a({ href, children, ...props }: any) {
+      if (href && (href.startsWith('file:///') || href.startsWith('file://'))) {
+        const cleanPath = href.replace(/^file:\/\/\/?/, '/');
+        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+        const ideUrl = `http://${hostname}:${codeServerPort || 8089}/?file=${encodeURIComponent(cleanPath)}`;
+        return (
+          <a
+            href={ideUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-primary font-mono text-[11px] hover:underline bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 align-baseline mx-0.5"
+            title={`Abrir ${cleanPath} na IDE`}
+            {...props}
+          >
+            <FileCode className="w-3 h-3 shrink-0" />
+            <span>{children}</span>
+            <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
+          </a>
+        );
+      }
+      return (
+        <a href={href} target="_blank" rel="noreferrer" className="text-primary hover:underline" {...props}>
+          {children}
+        </a>
+      );
+    }
+  }), [codeServerPort]);
+
   return (
     <div className={`chat ${isUser ? 'chat-end' : 'chat-start'} mb-4 animate-in fade-in duration-150`}>
       {/* Avatar do emissor */}
@@ -310,52 +357,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
         <div className="text-sm prose prose-sm max-w-none text-base-content leading-relaxed">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
-            components={{
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              code({ className, children, ...props }: any) {
-                const childString = String(children);
-                const hasLanguage = /language-(\w+)/.test(className || '');
-                const isMultiline = childString.includes('\n');
-                const isInline = !hasLanguage && !isMultiline;
-
-                if (isInline) {
-                  return (
-                    <code className="bg-base-300/70 text-primary px-1.5 py-0.5 rounded text-[12px] font-mono mx-0.5 align-baseline inline-block font-semibold" {...props}>
-                      {children}
-                    </code>
-                  );
-                }
-                return <CodeBlock className={className}>{children}</CodeBlock>;
-              },
-              // Intercepta links markdown file:/// para permitir abrir direto na IDE
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              a({ href, children, ...props }: any) {
-                if (href && (href.startsWith('file:///') || href.startsWith('file://'))) {
-                  const cleanPath = href.replace(/^file:\/\/\/?/, '/');
-                  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-                  const ideUrl = `http://${hostname}:${codeServerPort || 8089}/?file=${encodeURIComponent(cleanPath)}`;
-                  return (
-                    <a
-                      href={ideUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-primary font-mono text-[11px] hover:underline bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 align-baseline mx-0.5"
-                      title={`Abrir ${cleanPath} na IDE`}
-                      {...props}
-                    >
-                      <FileCode className="w-3 h-3 shrink-0" />
-                      <span>{children}</span>
-                      <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
-                    </a>
-                  );
-                }
-                return (
-                  <a href={href} target="_blank" rel="noreferrer" className="text-primary hover:underline" {...props}>
-                    {children}
-                  </a>
-                );
-              }
-            }}
+            components={markdownComponents}
           >
             {message.text || (!message.isStreaming && !isUser ? (message.thinking ? '*(Resposta concluída no acordeão de raciocínio acima)*' : '*(Sem resposta de texto emitida)*') : '')}
           </ReactMarkdown>

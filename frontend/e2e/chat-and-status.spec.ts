@@ -81,6 +81,7 @@ test.describe('E2E: Status, Chat, Cotas e Temas', () => {
     const mermaidCard = page.getByTestId('mermaid-card');
     await expect(mermaidCard).toBeVisible();
     await expect(page.getByTestId('mermaid-badge-type')).toContainText('Fluxograma');
+    await expect(page.getByTestId('mermaid-diagram-container')).toBeVisible();
 
     // Alterna para a aba de Código Mermaid
     const codeTab = page.getByTestId('mermaid-tab-code');
