@@ -1,11 +1,15 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import type { McpConfigFile, McpServerItem, McpAuthUrlResponse, McpExchangeResponse } from '../types/mcp.js';
 
 const execAsync = promisify(exec);
-const CONFIG_PATH = process.env.MCP_CONFIG_PATH || '/root/.gemini/config/mcp_config.json';
+
+function getConfigPath(): string {
+  return process.env.MCP_CONFIG_PATH || '/root/.gemini/config/mcp_config.json';
+}
 
 function extractAuthCodeOrToken(input: unknown): string {
   if (!input || typeof input !== 'string') return '';
@@ -35,10 +39,11 @@ function extractAuthCodeOrToken(input: unknown): string {
 
 class McpService {
   async readConfig(): Promise<McpConfigFile> {
+    const configPath = getConfigPath();
     try {
-      const exists = await fs.access(CONFIG_PATH).then(() => true).catch(() => false);
+      const exists = await fs.access(configPath).then(() => true).catch(() => false);
       if (exists) {
-        const raw = await fs.readFile(CONFIG_PATH, 'utf8');
+        const raw = await fs.readFile(configPath, 'utf8');
         return JSON.parse(raw) as McpConfigFile;
       }
     } catch (e) {
@@ -48,10 +53,11 @@ class McpService {
   }
 
   async writeConfig(config: McpConfigFile): Promise<boolean> {
+    const configPath = getConfigPath();
     try {
-      const dir = path.dirname(CONFIG_PATH);
+      const dir = path.dirname(configPath);
       await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+      await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
       return true;
     } catch (e) {
       console.error('[McpService] Erro ao salvar mcp_config.json:', (e as Error).message);
@@ -182,6 +188,50 @@ class McpService {
       success: true,
       message: `Servidor MCP "${name}" autenticado com sucesso!`,
       tokenSet: true
+    };
+  }
+
+  async ensureHomelabSqliteServers(): Promise<{ gabot: boolean; aiMemory: boolean }> {
+    const GABOT_DB = process.env.GABOT_DB_PATH || '/DATA/AppData/gabot/data/bot.db';
+    const AI_MEMORY_DB = process.env.AI_MEMORY_DB_PATH || '/DATA/AppData/ai-memory/db/memory.sqlite';
+
+    const gabotExists = fsSync.existsSync(GABOT_DB);
+    const aiMemoryExists = fsSync.existsSync(AI_MEMORY_DB);
+
+    if (!gabotExists && !aiMemoryExists) {
+      return { gabot: false, aiMemory: false };
+    }
+
+    const config = await this.readConfig();
+    if (!config.mcpServers) config.mcpServers = {};
+    let changed = false;
+
+    if (gabotExists && !config.mcpServers['sqlite-gabot']) {
+      config.mcpServers['sqlite-gabot'] = {
+        command: 'npx',
+        args: ['-y', 'mcp-server-sqlite-npx', GABOT_DB],
+        disabled: false
+      };
+      changed = true;
+    }
+
+    if (aiMemoryExists && !config.mcpServers['sqlite-ai-memory']) {
+      config.mcpServers['sqlite-ai-memory'] = {
+        command: 'npx',
+        args: ['-y', 'mcp-server-sqlite-npx', AI_MEMORY_DB],
+        disabled: false
+      };
+      changed = true;
+    }
+
+    if (changed) {
+      await this.writeConfig(config);
+      console.log('[McpService] Servidores MCP SQLite Homelab (sqlite-gabot / sqlite-ai-memory) provisionados com sucesso!');
+    }
+
+    return {
+      gabot: gabotExists && !!config.mcpServers['sqlite-gabot'],
+      aiMemory: aiMemoryExists && !!config.mcpServers['sqlite-ai-memory']
     };
   }
 }
