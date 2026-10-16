@@ -11,7 +11,10 @@ import type {
   TurnTokens,
   GithubIssueItem,
   GithubPullRequestItem,
-  ProjectOverview
+  ProjectOverview,
+  TelemetryStackStatus,
+  OutOfBoxSetupConfig,
+  ApplySetupPayload
 } from '../types';
 
 export interface SSECallbacks {
@@ -587,5 +590,64 @@ export const api = {
       throw new Error(result.error || `Falha ao iniciar resolução da Issue #${data.issueNumber}`);
     }
     return result;
+  },
+
+  async getTelemetryStatus(): Promise<TelemetryStackStatus> {
+    const res = await fetch(`${getApiBase()}/system/telemetry`, {
+      headers: authHeaders()
+    });
+    if (!res.ok) {
+      throw new Error(`Falha ao consultar telemetria (${res.status})`);
+    }
+    return res.json();
+  },
+
+  async provisionTelemetry(): Promise<{ success: boolean; message: string; enforcedCgroups?: string[] }> {
+    const res = await fetch(`${getApiBase()}/system/telemetry/provision`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' })
+    });
+    return res.json();
+  },
+
+  async getSetupConfig(): Promise<OutOfBoxSetupConfig> {
+    const res = await fetch(`${getApiBase()}/system/setup`, {
+      headers: authHeaders()
+    });
+    if (!res.ok) {
+      throw new Error(`Falha ao carregar configurações de setup (${res.status})`);
+    }
+    return res.json();
+  },
+
+  async applySetupConfig(payload: ApplySetupPayload): Promise<{
+    success: boolean;
+    config: OutOfBoxSetupConfig;
+    provisionResult?: { success: boolean; message: string };
+  }> {
+    const res = await fetch(`${getApiBase()}/system/setup/apply`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  },
+
+  async startSetupChat(customNotes?: string): Promise<{
+    success: boolean;
+    conversationId: string;
+    suggestedPrompt: string;
+  }> {
+    const res = await fetch(`${getApiBase()}/system/setup/start-chat`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ customNotes })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || 'Falha ao iniciar chat de configuração');
+    }
+    return result;
   }
 };
+

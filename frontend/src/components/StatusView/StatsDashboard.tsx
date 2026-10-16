@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { QuotaStats, DailyIntensityPoint } from '../../types';
 import { api } from '../../services/api';
+import { TelemetryAndSetupPanel } from './TelemetryAndSetupPanel';
 import { 
   Bot, 
   Clock, 
@@ -20,6 +21,7 @@ interface StatsDashboardProps {
   runningCount: number;
   totalConversations: number;
   totalWorkspaces: number;
+  onStartSetupChat?: (data: { conversationId: string; suggestedPrompt: string }) => void;
 }
 
 function formatTokens(value?: number): string {
@@ -61,7 +63,8 @@ const INTENSITY_CLASSES: Record<number, string> = {
 export const StatsDashboard: React.FC<StatsDashboardProps> = ({
   runningCount,
   totalConversations,
-  totalWorkspaces
+  totalWorkspaces,
+  onStartSetupChat
 }) => {
   const [stats, setStats] = useState<QuotaStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -229,6 +232,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* 1.5. TELEMETRIA SRE & CONTENÇÃO CGROUPS OUT-OF-THE-BOX */}
+      <TelemetryAndSetupPanel onStartSetupChat={onStartSetupChat} />
 
       {/* 2. HEATMAP DE INTENSIDADE DIÁRIA (42 DIAS - ORCA DAILY INTENSITY GRID) */}
       <div className="rounded-2xl border border-base-300/80 bg-base-200/30 p-4 sm:p-5 flex flex-col gap-3 shadow-xs">

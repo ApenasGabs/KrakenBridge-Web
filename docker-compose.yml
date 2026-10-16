@@ -22,7 +22,22 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - AUTO_PROVISION_TELEMETRY=${AUTO_PROVISION_TELEMETRY:-true}
+      - TELEMETRY_DIR=${TELEMETRY_DIR:-/DATA/AppData/telemetria}
+      - GRAFANA_PORT=${GRAFANA_PORT:-3003}
+      - UPTIME_KUMA_PORT=${UPTIME_KUMA_PORT:-3002}
+      - VICTORIAMETRICS_PORT=${VICTORIAMETRICS_PORT:-8428}
+      - CADVISOR_PORT=${CADVISOR_PORT:-8082}
+      - DEFAULT_CONTAINER_MEM_LIMIT=${DEFAULT_CONTAINER_MEM_LIMIT:-512M}
+      - DEFAULT_CONTAINER_CPU_LIMIT=${DEFAULT_CONTAINER_CPU_LIMIT:-1.0}
       - NODE_ENV=production
+    deploy:
+      resources:
+        limits:
+          cpus: '${KRAKEN_CPU_LIMIT:-1.5}'
+          memory: ${KRAKEN_MEMORY_LIMIT:-1536M}
+        reservations:
+          memory: 256M
     volumes:
       - "${WORKSPACE_PATH:-/DATA/Projetos}:/workspace"
       - "${KRAKEN_CONFIG_PATH:-/DATA/AppData/krakenbridge/config}:/root/.gemini"
@@ -45,6 +60,10 @@ services:
           description:
             en_US: OpenAI API Key (for Codex / Aider)
             pt_BR: Chave de API OpenAI (para Codex / Aider)
+        - container: AUTO_PROVISION_TELEMETRY
+          description:
+            en_US: Automatically provision telemetry stack (cAdvisor, VictoriaMetrics, Grafana, Uptime Kuma)
+            pt_BR: Provisionar automaticamente stack de telemetria (cAdvisor, VictoriaMetrics, Grafana, Uptime Kuma)
       volumes:
         - container: /workspace
           description:
@@ -86,6 +105,13 @@ services:
       - PASSWORD=${IDE_PASSWORD:-} # Deixe vazio para dispensar senha na rede local
       - SUDO_PASSWORD=${IDE_SUDO_PASSWORD:-password}
       - DEFAULT_WORKSPACE=/workspace
+    deploy:
+      resources:
+        limits:
+          cpus: '${IDE_CPU_LIMIT:-1.5}'
+          memory: ${IDE_MEMORY_LIMIT:-1024M}
+        reservations:
+          memory: 192M
     volumes:
       - "${WORKSPACE_PATH:-/DATA/Projetos}:/workspace"
       - "${CODE_SERVER_CONFIG:-/DATA/AppData/code-server-config}:/config"
