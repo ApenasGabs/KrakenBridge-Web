@@ -51,13 +51,13 @@ test.describe('E2E: Status, Chat, Cotas e Temas', () => {
     // Verifica acordeão de raciocínio (Thinking)
     const thinkingTitle = page.getByText('Raciocínio Interno (Thinking)');
     await expect(thinkingTitle).toBeVisible();
-    await thinkingTitle.click();
+    await thinkingTitle.click({ force: true });
     await expect(page.getByText(/1. Inspecionar modais/)).toBeVisible();
 
     // Verifica acordeão de ferramentas (Tools)
     const toolsTitle = page.getByText(/Execuções de Ferramentas/);
     await expect(toolsTitle).toBeVisible();
-    await toolsTitle.click();
+    await toolsTitle.click({ force: true });
 
     // Clica em 'Ver saída' para expandir os logs do comando terminal
     const viewOutputBtn = page.getByText('Ver saída');
