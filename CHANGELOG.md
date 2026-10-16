@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.10.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.9.0...v1.10.0) (2026-10-16)
+
+### ✨ Features
+
+* **pwa:** transformar frontend em PWA com Web Push e notificações móveis de agentes ([#69](https://github.com/ApenasGabs/KrakenBridge-Web/issues/69)) ([140d913](https://github.com/ApenasGabs/KrakenBridge-Web/commit/140d913b918056234eb05eb0b240c885b8bbb7ab))
+
 ## [1.9.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.8.0...v1.9.0) (2026-10-16)
 
 ### ✨ Features
