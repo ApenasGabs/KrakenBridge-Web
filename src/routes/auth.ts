@@ -163,26 +163,21 @@ authRouter.delete('/accounts/:email', async (req: Request, res: Response) => {
   }
 });
 
-const DEFAULT_GOOGLE_CLIENT_ID = '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
+import {
+  DEFAULT_GOOGLE_CLIENT_ID,
+  getGoogleClientId,
+  getGoogleClientSecret,
+  GOOGLE_REDIRECT_URI,
+  GOOGLE_SCOPES
+} from '../config/authConfig.js';
 
-export function getGoogleClientId(): string {
-  return process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID;
-}
-
-export function getGoogleClientSecret(): string {
-  return process.env.GOOGLE_CLIENT_SECRET || '';
-}
-
-const GOOGLE_REDIRECT_URI = 'https://antigravity.google/oauth-callback';
-const GOOGLE_SCOPES = [
-  'https://www.googleapis.com/auth/cloud-platform',
-  'https://www.googleapis.com/auth/userinfo.email',
-  'https://www.googleapis.com/auth/userinfo.profile',
-  'https://www.googleapis.com/auth/cclog',
-  'https://www.googleapis.com/auth/experimentsandconfigs',
-  'https://www.googleapis.com/auth/aicode',
-  'openid'
-].join(' ');
+export {
+  DEFAULT_GOOGLE_CLIENT_ID,
+  getGoogleClientId,
+  getGoogleClientSecret,
+  GOOGLE_REDIRECT_URI,
+  GOOGLE_SCOPES
+};
 
 function generatePKCE() {
   const verifier = crypto.randomBytes(32).toString('base64url');

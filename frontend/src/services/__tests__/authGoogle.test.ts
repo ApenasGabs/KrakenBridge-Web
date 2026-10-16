@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getGoogleClientId, getGoogleClientSecret } from '../../../../src/routes/auth';
+import { getGoogleClientId, getGoogleClientSecret } from '../../../../src/config/authConfig';
 import { api } from '../api';
 
 describe('Auth - Google Antigravity OAuth Client ID & Fallback (Issue #63)', () => {
