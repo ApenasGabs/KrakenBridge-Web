@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy } from 'react';
+import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage, ToolCall } from '../../types';
@@ -15,10 +15,23 @@ import {
   ChevronRight,
   ChevronDown,
   FileCode,
-  ExternalLink
+  ExternalLink,
+  Volume2,
+  Square,
+  ListOrdered,
+  Gauge,
+  Sparkles
 } from 'lucide-react';
 import { parseFileOperation } from '../../utils/diffParser';
 import { FileOperationCard } from './FileOperationCard';
+import { 
+  playSpeech, 
+  subscribeSpeechState, 
+  extractSectionsFromMarkdown, 
+  getSpeechRate, 
+  setSpeechRate,
+  type SpeechState
+} from '../../utils/speechUtils';
 
 // Carregamento dinâmico do MermaidBlock para não onerar o bundle inicial do chat
 const MermaidBlock = lazy(() => 
@@ -192,6 +205,51 @@ const ToolItem: React.FC<{ tool: ToolCall; codeServerPort?: number }> = ({ tool,
 
 export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPort }) => {
   const isUser = message.role === 'user';
+  const [speechState, setSpeechState] = useState<SpeechState>({
+    activeMessageId: null,
+    activeSectionId: null,
+    rate: getSpeechRate(),
+  });
+  const [copiedMessage, setCopiedMessage] = useState(false);
+
+  useEffect(() => {
+    return subscribeSpeechState((_activeId, state) => {
+      setSpeechState(state);
+    });
+  }, []);
+
+  const sections = useMemo(() => {
+    return extractSectionsFromMarkdown(message.text || '');
+  }, [message.text]);
+
+  const hasMultipleSections = sections.length > 1;
+  const finalSection = useMemo(() => {
+    return sections.find((s) => s.isFinal) || (sections.length > 0 ? sections[sections.length - 1] : null);
+  }, [sections]);
+
+  const isPlayingThisMessage = speechState.activeMessageId === message.id;
+
+  const handleToggleSpeech = (targetSectionId = 'all', targetText?: string) => {
+    const textToSpeak = targetText || message.text;
+    if (!textToSpeak) return;
+    playSpeech(message.id, textToSpeak, targetSectionId, { rate: speechState.rate });
+  };
+
+  const handleRateChange = (newRate: number) => {
+    setSpeechRate(newRate);
+    if (isPlayingThisMessage) {
+      const activeSec = sections.find((s) => s.id === speechState.activeSectionId);
+      const textToResume = activeSec ? activeSec.text : message.text;
+      playSpeech(message.id, textToResume, speechState.activeSectionId || 'all', { rate: newRate });
+    }
+  };
+
+  const handleCopyMessage = () => {
+    if (!message.text) return;
+    navigator.clipboard.writeText(message.text);
+    setCopiedMessage(true);
+    setTimeout(() => setCopiedMessage(false), 2000);
+  };
 
   return (
     <div className={`chat ${isUser ? 'chat-end' : 'chat-start'} mb-4 animate-in fade-in duration-150`}>
@@ -307,8 +365,219 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
           )}
         </div>
 
-        {/* Rodapé da Mensagem (Tokens) */}
-        {message.tokens && (
+        {/* Barra de Ações da Mensagem do Assistente (Ouvir resposta / TTS, Seções, Velocidade e Copiar) */}
+        {!isUser && !message.isStreaming && message.text && (
+          <div className="mt-2.5 pt-2 border-t border-base-300/40 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {/* Botão de Resposta Final / Conclusão (quando a mensagem possui múltiplas seções) */}
+              {hasMultipleSections && finalSection && (
+                <button
+                  type="button"
+                  onClick={() => handleToggleSpeech(finalSection.id, finalSection.text)}
+                  className={`btn btn-xs rounded-md transition-all flex items-center gap-1.5 ${
+                    isPlayingThisMessage && speechState.activeSectionId === finalSection.id
+                      ? 'btn-secondary text-secondary-content shadow-sm'
+                      : 'btn-ghost text-secondary hover:bg-secondary/15 font-medium'
+                  }`}
+                  title={
+                    isPlayingThisMessage && speechState.activeSectionId === finalSection.id
+                      ? 'Parar leitura da resposta final'
+                      : `Ouvir apenas a resposta final (${finalSection.title})`
+                  }
+                  aria-label="Ouvir resposta final"
+                  data-testid={`tts-final-btn-${message.id}`}
+                >
+                  {isPlayingThisMessage && speechState.activeSectionId === finalSection.id ? (
+                    <>
+                      <Square className="w-3 h-3 fill-current" />
+                      <span className="text-[11px] font-medium">Parar final</span>
+                      <span className="flex items-end gap-0.5 h-3 ml-0.5" aria-hidden="true">
+                        <span className="w-0.5 h-1.5 bg-current animate-pulse rounded-full" />
+                        <span className="w-0.5 h-3 bg-current animate-pulse rounded-full" style={{ animationDelay: '150ms' }} />
+                        <span className="w-0.5 h-2 bg-current animate-pulse rounded-full" style={{ animationDelay: '300ms' }} />
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3 text-secondary" />
+                      <span className="text-[11px]">Resposta Final</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Botão Principal: Ler Tudo / Ouvir resposta */}
+              <button
+                type="button"
+                onClick={() => handleToggleSpeech('all', message.text)}
+                className={`btn btn-xs rounded-md transition-all flex items-center gap-1.5 ${
+                  isPlayingThisMessage && speechState.activeSectionId === 'all'
+                    ? 'btn-secondary text-secondary-content shadow-sm'
+                    : 'btn-ghost text-base-content/70 hover:text-base-content hover:bg-base-300/60'
+                }`}
+                title={
+                  isPlayingThisMessage && speechState.activeSectionId === 'all'
+                    ? 'Parar leitura completa'
+                    : hasMultipleSections
+                    ? 'Ouvir mensagem completa'
+                    : 'Ouvir resposta (Modo Leitura por Voz)'
+                }
+                aria-label={
+                  isPlayingThisMessage && speechState.activeSectionId === 'all'
+                    ? 'Parar leitura'
+                    : 'Ouvir resposta'
+                }
+                data-testid={`tts-btn-${message.id}`}
+              >
+                {isPlayingThisMessage && speechState.activeSectionId === 'all' ? (
+                  <>
+                    <Square className="w-3 h-3 fill-current" />
+                    <span className="text-[11px] font-medium">Parar tudo</span>
+                    <span className="flex items-end gap-0.5 h-3 ml-0.5" aria-hidden="true">
+                      <span className="w-0.5 h-1.5 bg-current animate-pulse rounded-full" />
+                      <span className="w-0.5 h-3 bg-current animate-pulse rounded-full" style={{ animationDelay: '150ms' }} />
+                      <span className="w-0.5 h-2 bg-current animate-pulse rounded-full" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-secondary" />
+                    <span className="text-[11px]">{hasMultipleSections ? 'Ler Tudo' : 'Ouvir resposta'}</span>
+                  </>
+                )}
+              </button>
+
+              {/* Menu de Escolha de Seções */}
+              {hasMultipleSections && (
+                <div className="dropdown dropdown-top">
+                  <button
+                    tabIndex={0}
+                    role="button"
+                    className="btn btn-ghost btn-xs text-base-content/60 hover:text-base-content hover:bg-base-300/60 flex items-center gap-1 rounded-md"
+                    title="Escolher seção específica para ouvir"
+                    aria-label="Menu de seções"
+                    data-testid={`tts-sections-dropdown-${message.id}`}
+                  >
+                    <ListOrdered className="w-3 h-3" />
+                    <span className="text-[11px]">Seções ({sections.length})</span>
+                    <ChevronDown className="w-2.5 h-2.5 opacity-60" />
+                  </button>
+                  <ul
+                    tabIndex={0}
+                    className="dropdown-content menu menu-xs z-30 p-1.5 shadow-lg bg-base-200 border border-base-300 rounded-box w-64 max-h-60 overflow-y-auto mb-1"
+                  >
+                    <li className="menu-title px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-base-content/50">
+                      Escolha uma seção para ouvir:
+                    </li>
+                    {sections.map((sec, idx) => {
+                      const isSecPlaying = isPlayingThisMessage && speechState.activeSectionId === sec.id;
+                      return (
+                        <li key={sec.id}>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSpeech(sec.id, sec.text)}
+                            className={`flex items-center justify-between text-[11px] py-1.5 px-2 rounded-md ${
+                              isSecPlaying ? 'active font-semibold' : ''
+                            }`}
+                            data-testid={`tts-sec-btn-${sec.id}`}
+                          >
+                            <div className="flex items-center gap-1.5 truncate">
+                              {isSecPlaying ? (
+                                <Square className="w-3 h-3 text-secondary fill-current shrink-0" />
+                              ) : (
+                                <Volume2 className="w-3 h-3 text-secondary shrink-0" />
+                              )}
+                              <span className="truncate">
+                                {idx + 1}. {sec.title}
+                              </span>
+                            </div>
+                            {sec.isFinal && (
+                              <span className="badge badge-secondary badge-xs shrink-0 text-[9px]">Final</span>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {/* Seletor de Velocidade da Fala */}
+              <div className="dropdown dropdown-top">
+                <button
+                  tabIndex={0}
+                  role="button"
+                  className="btn btn-ghost btn-xs text-base-content/60 hover:text-base-content hover:bg-base-300/60 font-mono text-[11px] px-1.5 rounded-md flex items-center gap-0.5"
+                  title="Alterar velocidade da fala"
+                  aria-label="Velocidade da fala"
+                  data-testid={`tts-speed-btn-${message.id}`}
+                >
+                  <Gauge className="w-3 h-3 opacity-70" />
+                  <span>{speechState.rate}x</span>
+                </button>
+                <ul
+                  tabIndex={0}
+                  className="dropdown-content menu menu-xs z-30 p-1 shadow-lg bg-base-200 border border-base-300 rounded-box w-28 mb-1"
+                >
+                  <li className="menu-title px-2 py-0.5 text-[9px] uppercase font-bold text-base-content/50">
+                    Velocidade
+                  </li>
+                  {[0.75, 1.0, 1.25, 1.5, 1.75, 2.0].map((r) => (
+                    <li key={r}>
+                      <button
+                        type="button"
+                        onClick={() => handleRateChange(r)}
+                        className={`text-[11px] py-1 px-2 font-mono flex items-center justify-between ${
+                          speechState.rate === r ? 'active font-bold text-primary' : ''
+                        }`}
+                        data-testid={`tts-speed-option-${r}`}
+                      >
+                        <span>{r}x</span>
+                        {r === 1.0 && <span className="text-[9px] opacity-60">Padrão</span>}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Botão Copiar */}
+              <button
+                type="button"
+                onClick={handleCopyMessage}
+                className="btn btn-ghost btn-xs text-base-content/60 hover:text-base-content hover:bg-base-300/60 flex items-center gap-1 rounded-md"
+                title="Copiar texto da resposta"
+                aria-label="Copiar texto da resposta"
+                data-testid={`copy-msg-btn-${message.id}`}
+              >
+                {copiedMessage ? (
+                  <>
+                    <Check className="w-3 h-3 text-success" />
+                    <span className="text-[11px] text-success">Copiado</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span className="text-[11px]">Copiar</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Contagem total resumida de tokens no canto direito da barra de ações */}
+            {message.tokens && (
+              <div className="text-[10px] text-base-content/50 flex items-center gap-2 font-mono ml-auto">
+                {message.tokens.total_tokens !== undefined && (
+                  <span className="font-semibold text-primary">
+                    {message.tokens.total_tokens.toLocaleString()} tok
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rodapé detalhado de tokens quando a barra de ações não é exibida (ex: mensagens do usuário ou em streaming) */}
+        {message.tokens && (!message.text || message.isStreaming || isUser) && (
           <div className="mt-2 pt-1 border-t border-base-300/40 text-[10px] text-base-content/50 flex items-center gap-3 font-mono">
             {message.tokens.input_tokens !== undefined && (
               <span>In: {message.tokens.input_tokens.toLocaleString()}</span>

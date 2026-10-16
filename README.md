@@ -24,6 +24,7 @@ Assim como o mítico **Kraken**, a aplicação controla múltiplos motores e fer
 4. **📊 Status Dashboard & Topology Mesh:** Monitoramento da malha de servidores domésticos (ZimaOS `gabisa`, `servidor` GPU, etc.) e medidores de quotas de tokens em tempo real estilo Orca.
 5. **🐙 Suporte Multi-Motor & Multi-Contas:** Selecione o motor de IA ativo (**Google Antigravity**, **Claude Code**, **Codex / Aider**) e autentique rapidamente via **GitHub CLI Device Code Flow** ou PATs isolados por sessão.
 6. **🔄 Workspace Unificado & Isolamento Seguro:** Separação estrita entre o código do próprio sistema (`/app`) e os projetos do usuário (`/workspace`), permitindo que a IA edite repositórios com segurança total.
+7. **🗣️ Modo Leitura por Voz (Text-to-Speech Nativo):** Ouça a leitura falada das respostas geradas pelo assistente com um clique direto no balão do chat. Conta com sanitização inteligente de Markdown (omite blocos de código/diagramas da voz e limpa links), suporte a português (`pt-BR`) e controle ativo de reprodução/interrupção.
 
 ---
 
