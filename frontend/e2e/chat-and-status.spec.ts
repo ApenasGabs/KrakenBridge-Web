@@ -51,16 +51,13 @@ test.describe('E2E: Status, Chat, Cotas e Temas', () => {
     // Verifica acordeão de raciocínio (Thinking)
     const thinkingTitle = page.getByText('Raciocínio Interno (Thinking)');
     await expect(thinkingTitle).toBeVisible();
-    // No DaisyUI collapse, o input checkbox controla a abertura
-    const thinkingCheckbox = page.locator('.collapse input[type="checkbox"]').first();
-    await thinkingCheckbox.setChecked(true, { force: true });
+    await thinkingTitle.click();
     await expect(page.getByText(/1. Inspecionar modais/)).toBeVisible();
 
     // Verifica acordeão de ferramentas (Tools)
     const toolsTitle = page.getByText(/Execuções de Ferramentas/);
     await expect(toolsTitle).toBeVisible();
-    const toolsCheckbox = page.locator('.collapse input[type="checkbox"]').nth(1);
-    await toolsCheckbox.setChecked(true, { force: true });
+    await toolsTitle.click();
 
     // Clica em 'Ver saída' para expandir os logs do comando terminal
     const viewOutputBtn = page.getByText('Ver saída');

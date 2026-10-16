@@ -53,7 +53,7 @@ test.describe('Validação Responsiva & Regressão de Layout (Issue #49)', () =>
 
       // 5. ChatView e Input: formulário ajusta ao viewport sem quebrar
       await page.getByTestId('tab-chat').click();
-      const promptInput = page.getByPlaceholder(/Digite sua instrução/i);
+      const promptInput = page.getByTestId('chat-textarea');
       await expect(promptInput).toBeVisible();
 
       const promptBox = await promptInput.boundingBox();
