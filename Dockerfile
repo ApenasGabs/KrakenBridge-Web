@@ -9,7 +9,7 @@ RUN npm run build
 # Stage 2: Imagem de Produção Final
 FROM node:22-bookworm-slim
 
-# Instalar dependências essenciais de desenvolvimento e Git
+# Instalar dependências essenciais de desenvolvimento, Git e GitHub CLI oficial (gh)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
@@ -19,6 +19,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     build-essential \
     bash \
+    && mkdir -p -m 755 /etc/apt/keyrings \
+    && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
 # Configurar Git para aceitar diretórios montados sem erro de dubious ownership
