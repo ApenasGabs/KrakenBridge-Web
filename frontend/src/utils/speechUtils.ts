@@ -9,11 +9,45 @@ export interface SpeechOptions {
   pitch?: number;
 }
 
-type SpeechListener = (activeId: string | null) => void;
+export interface SpeechState {
+  activeMessageId: string | null;
+  activeSectionId: string | null;
+  rate: number;
+}
+
+export interface MessageSection {
+  id: string;
+  title: string;
+  text: string;
+  isFinal: boolean;
+}
+
+export type SpeechListener = (activeId: string | null, state: SpeechState) => void;
+
+const STORAGE_KEY_RATE = 'kraken_tts_speed';
+const DEFAULT_RATE = 1.0;
 
 let activeId: string | null = null;
+let activeSectionId: string | null = null;
 let activeUtterances: SpeechSynthesisUtterance[] = [];
 const listeners = new Set<SpeechListener>();
+
+let currentRate: number = (() => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY_RATE);
+      if (stored) {
+        const val = parseFloat(stored);
+        if (!isNaN(val) && val >= 0.5 && val <= 3.0) {
+          return val;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return DEFAULT_RATE;
+})();
 
 /**
  * Retorna as instâncias ativas de SpeechSynthesisUtterance retidas na memória.
@@ -22,10 +56,42 @@ export function getActiveUtterances(): readonly SpeechSynthesisUtterance[] {
   return activeUtterances;
 }
 
+/**
+ * Retorna a velocidade de fala preferida atual.
+ */
+export function getSpeechRate(): number {
+  return currentRate;
+}
+
+/**
+ * Define e persiste a velocidade de fala.
+ */
+export function setSpeechRate(rate: number): void {
+  const safeRate = Math.max(0.5, Math.min(3.0, Number(rate.toFixed(2))));
+  currentRate = safeRate;
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY_RATE, safeRate.toString());
+    } catch {
+      // ignore
+    }
+  }
+  notifyListeners();
+}
+
+function getSpeechState(): SpeechState {
+  return {
+    activeMessageId: activeId,
+    activeSectionId,
+    rate: currentRate,
+  };
+}
+
 function notifyListeners(): void {
+  const state = getSpeechState();
   listeners.forEach((listener) => {
     try {
-      listener(activeId);
+      listener(activeId, state);
     } catch (err) {
       console.warn('[speechUtils] Erro ao notificar listener de speech:', err);
     }
@@ -101,6 +167,85 @@ export function cleanMarkdownForSpeech(text: string): string {
 }
 
 /**
+ * Extrai seções lógicas da resposta a partir dos cabeçalhos Markdown (#, ##, ###)
+ * e linhas separadoras, permitindo leitura segmentada e acesso direto à resposta final.
+ */
+export function extractSectionsFromMarkdown(markdownText: string): MessageSection[] {
+  if (!markdownText || !markdownText.trim()) return [];
+
+  const lines = markdownText.split('\n');
+  const sections: MessageSection[] = [];
+  let currentTitle = 'Introdução';
+  let currentLines: string[] = [];
+  let sectionIndex = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const headingMatch = line.match(/^\s{0,3}#{1,6}\s+(.+)$/);
+    const isDivider = /^\s{0,3}[-*_]{3,}\s*$/.test(line);
+
+    if (headingMatch || (isDivider && currentLines.length > 0)) {
+      const content = currentLines.join('\n').trim();
+      if (content) {
+        sections.push({
+          id: `sec-${sectionIndex++}`,
+          title: cleanMarkdownForSpeech(currentTitle).replace(/[:.]\s*$/, '').trim() || `Seção ${sectionIndex}`,
+          text: content,
+          isFinal: false,
+        });
+      }
+
+      currentLines = [];
+      if (headingMatch) {
+        currentTitle = headingMatch[1].trim();
+        currentLines.push(line);
+      } else {
+        currentTitle = `Seção ${sectionIndex + 1}`;
+      }
+    } else {
+      currentLines.push(line);
+    }
+  }
+
+  const lastContent = currentLines.join('\n').trim();
+  if (lastContent) {
+    sections.push({
+      id: `sec-${sectionIndex++}`,
+      title: cleanMarkdownForSpeech(currentTitle).replace(/[:.]\s*$/, '').trim() || `Seção ${sectionIndex}`,
+      text: lastContent,
+      isFinal: false,
+    });
+  }
+
+  // Identifica a seção de resposta final / conclusão
+  if (sections.length > 0) {
+    const finalKeywords = [
+      'final',
+      'conclus',
+      'resultado',
+      'aprova',
+      'resumo',
+      'próximos passos',
+      'proximos passos',
+      'decisão',
+      'decisao',
+      'checklist',
+    ];
+    let finalIdx = sections.length - 1;
+    for (let i = sections.length - 1; i >= 0; i--) {
+      const lower = sections[i].title.toLowerCase();
+      if (finalKeywords.some((k) => lower.includes(k))) {
+        finalIdx = i;
+        break;
+      }
+    }
+    sections[finalIdx].isFinal = true;
+  }
+
+  return sections;
+}
+
+/**
  * Divide o texto em fragmentos menores respeitando a pontuação.
  * Isso contorna o problema histórico do Chromium de pausar falas após ~15 segundos.
  */
@@ -110,7 +255,6 @@ export function splitTextIntoChunks(text: string, maxChunkLength = 160): string[
   if (trimmedText.length <= maxChunkLength) return [trimmedText];
 
   const chunks: string[] = [];
-  // Divide primariamente por terminadores de frase (. ! ? ou novas frases)
   const sentences = trimmedText.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [trimmedText];
 
   let currentChunk = '';
@@ -124,7 +268,6 @@ export function splitTextIntoChunks(text: string, maxChunkLength = 160): string[
         chunks.push(currentChunk.trim());
         currentChunk = '';
       }
-      // Se a frase for mais longa que o limite máximo, divide por palavras
       const words = trimmed.split(/\s+/);
       let subChunk = '';
       for (const word of words) {
@@ -165,24 +308,30 @@ export function stopSpeech(): void {
     }
   }
   activeUtterances = [];
-  if (activeId !== null) {
+  if (activeId !== null || activeSectionId !== null) {
     activeId = null;
+    activeSectionId = null;
     notifyListeners();
   }
 }
 
 /**
- * Inicia ou alterna a leitura em voz alta de uma mensagem.
- * Se a mensagem informada já estiver em reprodução, a leitura é pausada/cancelada.
+ * Inicia ou alterna a leitura em voz alta de uma mensagem (ou seção específica).
+ * Se a mesma mensagem e seção já estiverem em reprodução, a leitura é pausada/cancelada.
  */
-export function playSpeech(id: string, text: string, options?: SpeechOptions): void {
+export function playSpeech(
+  id: string,
+  text: string,
+  sectionId = 'all',
+  options?: SpeechOptions
+): void {
   if (!isSpeechSynthesisSupported()) {
     console.warn('[speechUtils] Web Speech API não suportada neste ambiente.');
     return;
   }
 
-  // Se já estiver tocando a mesma mensagem, atua como botão de stop/toggle
-  if (activeId === id) {
+  // Se já estiver tocando a mesma mensagem e seção, atua como botão de stop/toggle
+  if (activeId === id && activeSectionId === sectionId) {
     stopSpeech();
     return;
   }
@@ -197,9 +346,11 @@ export function playSpeech(id: string, text: string, options?: SpeechOptions): v
   if (chunks.length === 0) return;
 
   activeId = id;
+  activeSectionId = sectionId;
   notifyListeners();
 
   const targetLang = options?.lang || 'pt-BR';
+  const targetRate = options?.rate ?? currentRate;
   let voices: SpeechSynthesisVoice[] = [];
   try {
     voices = window.speechSynthesis.getVoices();
@@ -207,7 +358,6 @@ export function playSpeech(id: string, text: string, options?: SpeechOptions): v
     voices = [];
   }
 
-  // Busca voz brasileira ou portuguesa prioritariamente
   const voice =
     voices.find((v) => v.lang === targetLang) ||
     voices.find((v) => v.lang.startsWith('pt')) ||
@@ -216,9 +366,10 @@ export function playSpeech(id: string, text: string, options?: SpeechOptions): v
   let currentChunkIndex = 0;
 
   function speakNextChunk(): void {
-    if (activeId !== id || currentChunkIndex >= chunks.length) {
-      if (activeId === id) {
+    if (activeId !== id || activeSectionId !== sectionId || currentChunkIndex >= chunks.length) {
+      if (activeId === id && activeSectionId === sectionId) {
         activeId = null;
+        activeSectionId = null;
         activeUtterances = [];
         notifyListeners();
       }
@@ -231,7 +382,7 @@ export function playSpeech(id: string, text: string, options?: SpeechOptions): v
     if (voice) {
       utterance.voice = voice;
     }
-    utterance.rate = options?.rate ?? 1.0;
+    utterance.rate = targetRate;
     utterance.pitch = options?.pitch ?? 1.0;
 
     utterance.onend = () => {
@@ -240,25 +391,25 @@ export function playSpeech(id: string, text: string, options?: SpeechOptions): v
     };
 
     utterance.onerror = (event) => {
-      // Erros do tipo 'canceled' ou 'interrupted' são esperados ao chamar cancel()
       if (event.error !== 'canceled' && event.error !== 'interrupted') {
         console.warn('[speechUtils] Erro durante síntese:', event.error);
       }
-      if (activeId === id) {
+      if (activeId === id && activeSectionId === sectionId) {
         activeId = null;
+        activeSectionId = null;
         activeUtterances = [];
         notifyListeners();
       }
     };
 
-    // Mantém referência explícita no array global para evitar descarte prematuro pelo garbage collector do Chromium
     activeUtterances = [utterance];
     try {
       window.speechSynthesis.speak(utterance);
     } catch (err) {
       console.warn('[speechUtils] Falha ao invocar speak:', err);
-      if (activeId === id) {
+      if (activeId === id && activeSectionId === sectionId) {
         activeId = null;
+        activeSectionId = null;
         activeUtterances = [];
         notifyListeners();
       }
@@ -269,13 +420,13 @@ export function playSpeech(id: string, text: string, options?: SpeechOptions): v
 }
 
 /**
- * Inscreve um componente para receber atualizações sobre qual mensagem está sendo lida.
+ * Inscreve um componente para receber atualizações sobre qual mensagem e seção estão sendo lidas.
  * Retorna uma função de unsubscribe.
  */
 export function subscribeSpeechState(listener: SpeechListener): () => void {
   listeners.add(listener);
   try {
-    listener(activeId);
+    listener(activeId, getSpeechState());
   } catch (err) {
     console.warn('[speechUtils] Erro ao disparar listener inicial:', err);
   }
@@ -289,6 +440,13 @@ export function subscribeSpeechState(listener: SpeechListener): () => void {
  */
 export function getActiveSpeechId(): string | null {
   return activeId;
+}
+
+/**
+ * Retorna o ID da seção que está sendo reproduzida no momento (ou null).
+ */
+export function getActiveSectionId(): string | null {
+  return activeSectionId;
 }
 
 // Limpa qualquer fala ao descarregar a página

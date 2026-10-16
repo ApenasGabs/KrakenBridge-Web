@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   cleanMarkdownForSpeech,
+  extractSectionsFromMarkdown,
   splitTextIntoChunks,
   isSpeechSynthesisSupported,
   playSpeech,
   stopSpeech,
   subscribeSpeechState,
   getActiveSpeechId,
+  getActiveSectionId,
+  getSpeechRate,
+  setSpeechRate,
 } from '../speechUtils';
 
 describe('speechUtils', () => {
@@ -72,6 +76,54 @@ describe('speechUtils', () => {
       expect(output).toContain('Item numérico');
       expect(output).not.toContain('>');
       expect(output).not.toContain('- ');
+    });
+  });
+
+  describe('extractSectionsFromMarkdown', () => {
+    it('deve retornar array vazio para texto vazio', () => {
+      expect(extractSectionsFromMarkdown('')).toEqual([]);
+      expect(extractSectionsFromMarkdown('   \n  ')).toEqual([]);
+    });
+
+    it('deve criar uma única seção quando não houver cabeçalhos', () => {
+      const text = 'Esta é uma resposta direta sem cabeçalhos ou divisões.';
+      const sections = extractSectionsFromMarkdown(text);
+      expect(sections.length).toBe(1);
+      expect(sections[0].title).toBe('Introdução');
+      expect(sections[0].isFinal).toBe(true);
+    });
+
+    it('deve extrair múltiplas seções e identificar a resposta final', () => {
+      const md = `Apresentação inicial.
+
+### 🎯 O que foi feito
+Criamos as funções principais.
+
+### 🛑 Conclusão e Resposta Final
+Este é o veredito final com os passos para testar.`;
+
+      const sections = extractSectionsFromMarkdown(md);
+      expect(sections.length).toBe(3);
+      expect(sections[0].title).toBe('Introdução');
+      expect(sections[1].title).toContain('O que foi feito');
+      expect(sections[2].title).toContain('Conclusão e Resposta Final');
+      expect(sections[2].isFinal).toBe(true);
+    });
+  });
+
+  describe('getSpeechRate e setSpeechRate', () => {
+    it('deve alterar a velocidade e respeitar os limites', () => {
+      setSpeechRate(1.5);
+      expect(getSpeechRate()).toBe(1.5);
+
+      setSpeechRate(4.0); // Acima do teto de 3.0
+      expect(getSpeechRate()).toBe(3.0);
+
+      setSpeechRate(0.2); // Abaixo do piso de 0.5
+      expect(getSpeechRate()).toBe(0.5);
+
+      setSpeechRate(1.0); // Reset
+      expect(getSpeechRate()).toBe(1.0);
     });
   });
 
@@ -159,15 +211,28 @@ describe('speechUtils', () => {
       playSpeech('msg-123', 'Olá, tudo bem com você?');
 
       expect(getActiveSpeechId()).toBe('msg-123');
-      expect(listener).toHaveBeenCalledWith('msg-123');
+      expect(getActiveSectionId()).toBe('all');
+      expect(listener).toHaveBeenCalled();
       expect(mockSpeak).toHaveBeenCalled();
 
       // Clicar na mesma mensagem deve parar
       playSpeech('msg-123', 'Olá, tudo bem com você?');
       expect(getActiveSpeechId()).toBeNull();
+      expect(getActiveSectionId()).toBeNull();
       expect(mockCancel).toHaveBeenCalled();
 
       unsubscribe();
+    });
+
+    it('deve tocar e parar seção específica com sectionId', () => {
+      playSpeech('msg-789', 'Texto da conclusão', 'sec-final');
+      expect(getActiveSpeechId()).toBe('msg-789');
+      expect(getActiveSectionId()).toBe('sec-final');
+
+      // Clicar novamente na mesma seção desliga
+      playSpeech('msg-789', 'Texto da conclusão', 'sec-final');
+      expect(getActiveSpeechId()).toBeNull();
+      expect(getActiveSectionId()).toBeNull();
     });
 
     it('deve parar a reprodução e resetar activeId ao invocar stopSpeech', () => {
@@ -176,6 +241,7 @@ describe('speechUtils', () => {
 
       stopSpeech();
       expect(getActiveSpeechId()).toBeNull();
+      expect(getActiveSectionId()).toBeNull();
       expect(mockCancel).toHaveBeenCalled();
     });
   });
