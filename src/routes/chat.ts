@@ -10,6 +10,7 @@ import { accountService } from '../services/accountService.js';
 import { identityService } from '../services/identityService.js';
 import { activeProcesses, activeSessions } from '../services/sessionState.js';
 import { evolutionService } from '../services/evolutionService.js';
+import { workspaceManager } from '../services/workspaceManager.js';
 import type { AgentDriver, AgentType, ToolCall, ChatRequestBody } from '../types/chat.js';
 
 export const chatRouter = Router();
@@ -199,6 +200,15 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     workDir = fs.existsSync(WORKSPACE_DIR) ? WORKSPACE_DIR : '/app';
   }
 
+  // Alocação inteligente e isolamento de workspace (Issue #59)
+  const workspaceAlloc = await workspaceManager.acquireWorkspace(conversationId, workDir, {
+    subproject: activeSubproject
+  });
+  const effectiveWorkDir = workspaceAlloc.workDir;
+  if (workspaceAlloc.isEphemeral) {
+    console.log(`[KrakenBridge] [Workspace Efêmero] Ativado para a conversa ${conversationId}: ${effectiveWorkDir} (base: ${workDir})`);
+  }
+
   // Salvar mensagem do usuário no histórico com accountEmail
   await historyService.addMessage(conversationId, {
     id: randomUUID(),
@@ -267,12 +277,12 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     }
   }
 
-  console.log(`[KrakenBridge] Motor: ${agent} | Conta: ${activeAccountEmail || 'padrão'} | Conv: ${conversationId} | Cwd: ${workDir} | Prompt: "${prompt.slice(0, 50)}..."`);
+  console.log(`[KrakenBridge] Motor: ${agent} | Conta: ${activeAccountEmail || 'padrão'} | Conv: ${conversationId} | Cwd: ${effectiveWorkDir}${workspaceAlloc.isEphemeral ? ' (Efêmero)' : ''} | Prompt: "${prompt.slice(0, 50)}..."`);
 
   const executionStartTime = Date.now();
 
   const child = spawn(driver.cmd, args, {
-    cwd: workDir,
+    cwd: effectiveWorkDir,
     env: driver.buildEnv(processEnv)
   });
 
@@ -300,8 +310,17 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     }
   };
 
-  // Enviar evento de início com os IDs, subprojeto resolvido e tags ativas
-  safeWrite(`data: ${JSON.stringify({ event: 'session_start', conversation_id: conversationId, reqId, subproject: activeSubproject, chatMode: activeChatMode, tags: activeTags })}\n\n`);
+  // Enviar evento de início com os IDs, subprojeto resolvido, tags ativas e status do workspace
+  safeWrite(`data: ${JSON.stringify({ 
+    event: 'session_start', 
+    conversation_id: conversationId, 
+    reqId, 
+    subproject: activeSubproject, 
+    chatMode: activeChatMode, 
+    tags: activeTags,
+    isEphemeral: workspaceAlloc.isEphemeral,
+    workDir: effectiveWorkDir
+  })}\n\n`);
 
   // Keep-alive heartbeat para conexões de longa duração
   const pingInterval = setInterval(() => {
@@ -481,6 +500,9 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     }
     activeProcesses.delete(reqId);
     activeSessions.delete(conversationId);
+    workspaceManager.releaseWorkspace(conversationId).catch((err) => {
+      console.warn('[KrakenBridge] Erro ao liberar workspace no close:', err?.message || err);
+    });
 
     // Recuperar quaisquer dados faltantes diretamente do transcript do agy
     if (agent === 'antigravity') {
@@ -586,6 +608,9 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     }
     activeProcesses.delete(reqId);
     activeSessions.delete(conversationId);
+    workspaceManager.releaseWorkspace(conversationId).catch((err) => {
+      console.warn('[KrakenBridge] Erro ao liberar workspace no error:', err?.message || err);
+    });
 
     try {
       await historyService.updateLastAssistantMessage(conversationId, {
@@ -657,6 +682,7 @@ chatRouter.post('/stop', (req: Request, res: Response) => {
         session.res.end();
       }
     } catch {}
+    workspaceManager.releaseWorkspace(convId).catch(() => {});
   };
 
   if (conversationId && activeSessions.has(conversationId)) {
