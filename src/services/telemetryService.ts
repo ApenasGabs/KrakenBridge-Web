@@ -232,7 +232,7 @@ services:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+      - /var/run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
       - /sys:/sys:ro
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
       - /var/lib/docker/:/var/lib/docker:ro
@@ -243,11 +243,13 @@ services:
       - --store_container_labels=false
       - --disable_root_cgroup_stats=true
       - --enable_metrics=cpu,memory,network,diskIO,oom_event
+      - --containerd=/run/containerd/containerd.sock
+      - --containerd-namespace=moby
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 96M
+          cpus: '0.5'
+          memory: 128M
         reservations:
           memory: 32M
     networks:
@@ -272,11 +274,12 @@ services:
       - -promscrape.config=/etc/victoriametrics/scrape.yml
       - -retentionPeriod=30d
       - -memory.allowedPercent=60
+      - -maxLabelsPerTimeseries=40
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: 64M
+          cpus: '0.5'
+          memory: 128M
         reservations:
           memory: 32M
     networks:
@@ -308,10 +311,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.4'
-          memory: 128M
+          cpus: '0.8'
+          memory: 256M
         reservations:
-          memory: 48M
+          memory: 64M
     networks:
       - homelab-net
     depends_on:
@@ -334,10 +337,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.4'
-          memory: 128M
+          cpus: '0.5'
+          memory: 192M
         reservations:
-          memory: 48M
+          memory: 64M
     networks:
       - homelab-net
     labels:
@@ -866,7 +869,9 @@ groups:
 
     const containerdSocketMounted = composeText.includes('/run/containerd/containerd.sock');
     const grafanaAlertRulesProvisioned = fsSync.existsSync(alertsPath);
-    const realisticStackLimits = composeText.includes('memory: 96M') && composeText.includes('--store_container_labels=false');
+    const realisticStackLimits =
+      (composeText.includes('memory: 128M') || composeText.includes('memory: 96M')) &&
+      composeText.includes('--store_container_labels=false');
     const casaosDualAppRegistered = fsSync.existsSync(casaosKumaPath);
 
     let gabotComposeText = '';
