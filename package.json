@@ -12,6 +12,7 @@
     "test": "npm run --prefix frontend test -- --run",
     "typecheck": "tsc --noEmit",
     "test:e2e": "npm run --prefix frontend test:e2e",
+    "test:responsive": "npm run --prefix frontend test:responsive",
     "test:e2e:ui": "npm run --prefix frontend test:e2e:ui",
     "release": "semantic-release",
     "release:dry-run": "semantic-release --dry-run"
