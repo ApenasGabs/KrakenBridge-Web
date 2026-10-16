@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.8.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.7.1...v1.8.0) (2026-10-16)
+
+### ✨ Features
+
+* **chat:** visualizador in-app de artefatos e arquivos com ArtifactDrawer inspirado em Orca e Claude ([#50](https://github.com/ApenasGabs/KrakenBridge-Web/issues/50)) ([#67](https://github.com/ApenasGabs/KrakenBridge-Web/issues/67)) ([3670e63](https://github.com/ApenasGabs/KrakenBridge-Web/commit/3670e637478f5e04e227453eb27987e31071acc2))
+
 ## [1.7.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.7.0...v1.7.1) (2026-10-16)
 
 ### 🐛 Bug Fixes
