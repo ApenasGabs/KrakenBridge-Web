@@ -13,12 +13,13 @@ import {
   Activity,
   MoreVertical,
   Palette,
-  Compass
+  Compass,
+  Database
 } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'status' | 'whatsnext' | 'chat' | 'ide';
-  onTabChange: (tab: 'status' | 'whatsnext' | 'chat' | 'ide') => void;
+  activeTab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory';
+  onTabChange: (tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory') => void;
   onToggleSidebar: () => void;
   isOptionsOpen: boolean;
   onToggleOptions: () => void;
@@ -127,6 +128,20 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Code2 className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden min-[400px]:inline sm:inline">IDE</span>
+          </button>
+
+          <button
+            data-testid="tab-memory"
+            onClick={() => onTabChange('memory')}
+            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+              activeTab === 'memory' 
+                ? 'bg-primary text-primary-content shadow-sm' 
+                : 'text-base-content/70 hover:text-base-content'
+            }`}
+            title="Memória de Longo Prazo, Wiki em Git e Handoffs (ai-memory)"
+          >
+            <Database className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden min-[400px]:inline sm:inline">Memória</span>
           </button>
         </div>
       </div>

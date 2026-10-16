@@ -12,6 +12,7 @@ import { quotaRouter } from './routes/quota.js';
 import { mcpRouter } from './routes/mcp.js';
 import { systemRouter } from './routes/system.js';
 import { projectsRouter } from './routes/projects.js';
+import { memoryRouter } from './routes/memory.js';
 import { evolutionService } from './services/evolutionService.js';
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
@@ -86,6 +87,7 @@ const registerRoutes = (prefix: string) => {
   app.use(`${prefix}/mcp`, mcpRouter);
   app.use(`${prefix}/system`, systemRouter);
   app.use(`${prefix}/projects`, projectsRouter);
+  app.use(`${prefix}/memory`, memoryRouter);
 
   app.post(`${prefix}/stop`, (_req: Request, res: Response) => res.redirect(307, `${prefix}/chat/stop`));
 
