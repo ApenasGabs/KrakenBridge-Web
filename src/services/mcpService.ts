@@ -144,6 +144,14 @@ class McpService {
       };
     }
 
+    if (name.toLowerCase() === 'crawl4ai' || serverUrl.includes('11235')) {
+      return {
+        server: name,
+        authUrl: 'http://gabisa.local:11235/playground',
+        instructions: 'O Crawl4AI roda localmente no Homelab na porta 11235. O token de API padrão configurado no Docker Compose é "kraken-crawl4ai-homelab-2026".'
+      };
+    }
+
     if (name.toLowerCase() === 'github' || serverUrl.includes('github.com')) {
       return {
         server: name,
