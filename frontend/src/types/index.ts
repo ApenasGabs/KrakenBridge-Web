@@ -162,6 +162,22 @@ export interface QuotaLimitItem {
   resetAt?: number | null;
 }
 
+export interface QuotaBucket {
+  id?: string;
+  name: string;
+  description?: string;
+  window?: 'weekly' | '5h' | string;
+  remaining: number;
+  message?: string | null;
+  resetAt?: number | null;
+}
+
+export interface QuotaGroup {
+  name: string;
+  description?: string;
+  buckets: QuotaBucket[];
+}
+
 export interface QuotaModelGroup {
   title: string;
   weekly: QuotaLimitItem;
@@ -205,6 +221,7 @@ export interface QuotaStats {
   lastFetchedAt?: string;
   gemini: QuotaModelGroup;
   claudeGpt: QuotaModelGroup;
+  groups?: QuotaGroup[];
   aggregates?: StatsAggregates;
   dailyPoints?: DailyIntensityPoint[];
   bestDay?: { day: string; totalTokens: number } | null;

@@ -9,9 +9,26 @@ export interface ModelQuotaGroup {
   weekly: ModelQuotaBucket;
 }
 
+export interface QuotaBucket {
+  id?: string;
+  name: string;
+  description?: string;
+  window?: 'weekly' | '5h' | string;
+  remaining: number; // 0-100%
+  message?: string | null;
+  resetAt?: number | null;
+}
+
+export interface QuotaGroup {
+  name: string;
+  description?: string;
+  buckets: QuotaBucket[];
+}
+
 export interface QuotaSnapshot {
   gemini: ModelQuotaGroup;
   claudeGpt: ModelQuotaGroup;
+  groups?: QuotaGroup[];
   lastUpdated?: string;
   source?: string;
 }

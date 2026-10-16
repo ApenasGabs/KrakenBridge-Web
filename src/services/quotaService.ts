@@ -2,7 +2,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { exec } from 'child_process';
 import util from 'util';
-import type { TokenUsageRecord } from '../types/quota.js';
+import type { TokenUsageRecord, QuotaGroup, QuotaBucket } from '../types/quota.js';
 
 const execPromise = util.promisify(exec);
 
@@ -45,6 +45,7 @@ export interface InternalQuotaBucketState {
 export interface InternalQuotaState {
   gemini: InternalQuotaBucketState;
   claudeGpt: InternalQuotaBucketState;
+  groups?: QuotaGroup[];
   source: string;
   lastUpdated: string;
 }
@@ -163,21 +164,60 @@ class QuotaService {
       });
 
       const parsed = JSON.parse(stdout.trim());
-      const groups = parsed?.command?.data?.groups || [];
+      const rawGroups = parsed?.command?.data?.groups || [];
+      const dynamicGroups: QuotaGroup[] = [];
 
-      for (const group of groups) {
-        const groupName = (group.name || '').toLowerCase();
-        const buckets = group.buckets || [];
+      for (const group of rawGroups) {
+        const groupName = (group.name || '').trim();
+        const groupDesc = group.description ? String(group.description).trim() : undefined;
+        const buckets: QuotaBucket[] = [];
 
+        for (const b of (group.buckets || [])) {
+          const fraction = typeof b.remaining_fraction === 'number' ? b.remaining_fraction : 1;
+          const percent = Math.round(fraction * 100);
+          const resetAt = b.reset_time ? new Date(b.reset_time).getTime() : null;
+          const windowType = b.window || (b.id && b.id.includes('weekly') ? 'weekly' : '5h');
+          const isFiveHour = windowType === '5h' || (b.id && b.id.includes('5h'));
+
+          let message = b.description || null;
+          if (!message && percent < 100 && resetAt) {
+            const remainingMs = Math.max(0, resetAt - now);
+            const refreshFormatted = formatRefreshTime(remainingMs, isFiveHour);
+            if (refreshFormatted) {
+              message = isFiveHour
+                ? `You have used some of your 5-hour limit, it will fully refresh in ${refreshFormatted}.`
+                : `You have used some of your weekly limit, it will fully refresh in ${refreshFormatted}.`;
+            }
+          }
+
+          buckets.push({
+            id: b.id || undefined,
+            name: b.name || (windowType === 'weekly' ? 'Weekly Limit Remaining' : 'Five Hour Limit Remaining'),
+            description: b.description || undefined,
+            window: windowType,
+            remaining: percent,
+            message,
+            resetAt
+          });
+        }
+
+        dynamicGroups.push({
+          name: groupName,
+          description: groupDesc,
+          buckets
+        });
+
+        // Atualização retrocompatível dos buckets canônicos
+        const lowerName = groupName.toLowerCase();
         let target: InternalQuotaBucketState | null = null;
-        if (groupName.includes('gemini')) {
+        if (lowerName.includes('gemini') && !lowerName.includes('argon')) {
           target = this.state.gemini;
-        } else if (groupName.includes('claude') || groupName.includes('gpt')) {
+        } else if (lowerName.includes('claude') || lowerName.includes('gpt')) {
           target = this.state.claudeGpt;
         }
 
         if (target) {
-          for (const b of buckets) {
+          for (const b of (group.buckets || [])) {
             const fraction = typeof b.remaining_fraction === 'number' ? b.remaining_fraction : 1;
             const percent = Math.round(fraction * 100);
             const resetAt = b.reset_time ? new Date(b.reset_time).getTime() : null;
@@ -191,6 +231,10 @@ class QuotaService {
             }
           }
         }
+      }
+
+      if (dynamicGroups.length > 0) {
+        this.state.groups = dynamicGroups;
       }
 
       this.state.source = 'live_google';
@@ -472,7 +516,53 @@ class QuotaService {
       activeDays
     };
 
+    const fallbackGroups: QuotaGroup[] = [
+      {
+        name: 'Gemini Models',
+        description: 'Models within this group: Gemini Flash, Gemini Pro',
+        buckets: [
+          {
+            name: 'Weekly Limit Remaining',
+            window: 'weekly',
+            remaining: this.state.gemini.weeklyRemaining,
+            message: geminiWeeklyMessage,
+            resetAt: this.state.gemini.weeklyResetAt
+          },
+          {
+            name: 'Five Hour Limit Remaining',
+            window: '5h',
+            remaining: this.state.gemini.fiveHourRemaining,
+            message: gemini5hMessage,
+            resetAt: this.state.gemini.fiveHourResetAt
+          }
+        ]
+      },
+      {
+        name: 'Claude and GPT models',
+        description: 'Models within this group: Claude Opus, Claude Sonnet, GPT-OSS',
+        buckets: [
+          {
+            name: 'Weekly Limit Remaining',
+            window: 'weekly',
+            remaining: this.state.claudeGpt.weeklyRemaining,
+            message: claudeWeeklyMessage,
+            resetAt: this.state.claudeGpt.weeklyResetAt
+          },
+          {
+            name: 'Five Hour Limit Remaining',
+            window: '5h',
+            remaining: this.state.claudeGpt.fiveHourRemaining,
+            message: claude5hMessage,
+            resetAt: this.state.claudeGpt.fiveHourResetAt
+          }
+        ]
+      }
+    ];
+
+    const groups = (this.state.groups && this.state.groups.length > 0) ? this.state.groups : fallbackGroups;
+
     return {
+      groups,
       gemini: {
         title: 'Gemini Models',
         weekly: {

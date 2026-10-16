@@ -28,17 +28,9 @@ const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
         args.push('--dangerously-skip-permissions');
       }
 
-      // Validar modelo suportado pelo Antigravity CLI
-      const validAgyModels = [
-        'gemini-3.8-flash-high', 'gemini-3.8-flash-medium', 'gemini-3.8-flash-low',
-        'gemini-3.7-flash-high', 'gemini-3.7-flash-medium', 'gemini-3.7-flash-low',
-        'gemini-3.6-flash-high', 'gemini-3.6-flash-medium', 'gemini-3.6-flash-low',
-        'gemini-3.1-pro-high', 'gemini-3.1-pro-low',
-        'claude-opus-5-5-low', 'claude-opus-5-5-medium', 'claude-opus-5-5-high',
-        'claude-sonnet-5-5-low', 'claude-sonnet-5-5-medium', 'claude-sonnet-5-5-high',
-        'gpt-oss-120b-medium'
-      ];
-      const safeModel = (model && validAgyModels.includes(model)) ? model : 'gemini-3.8-flash-high';
+      // Validação dinâmica do modelo: aceita qualquer modelo oficial (Gemini 4 Argon, Gemini 3.8, Claude, GPT, etc.)
+      const isSanitaryModel = typeof model === 'string' && /^[a-zA-Z0-9_.-]+$/.test(model.trim());
+      const safeModel = isSanitaryModel ? model.trim() : 'gemini-3.8-flash-high';
       args.push('--model', safeModel);
 
       // agy só aceita esforço válido (low, medium, high, xhigh, max)

@@ -53,6 +53,27 @@ configRouter.get('/projects', async (_req: Request, res: Response) => {
   }
 });
 
+const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
+const MODELS_CACHE_FILE = path.join(DATA_DIR, 'models_cache.json');
+
+export async function getLivingAgyModels(): Promise<ModelItem[]> {
+  if (cachedModels?.antigravity && cachedModels.antigravity.length > 0) {
+    return cachedModels.antigravity;
+  }
+  try {
+    const raw = await fs.readFile(MODELS_CACHE_FILE, 'utf8');
+    const parsed = JSON.parse(raw) as ModelItem[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+  } catch {}
+  return [
+    { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)' },
+    { id: 'gemini-4-argon-medium', name: 'Gemini 4 Argon (Medium)' },
+    { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)' }
+  ];
+}
+
 // Listagem dinâmica de modelos suportados por cada agente
 configRouter.get('/models', async (_req: Request, res: Response) => {
   const now = Date.now();
@@ -67,7 +88,7 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
     let output = '';
     child.stdout.on('data', (d) => output += d.toString());
     child.stderr.on('data', (d) => output += d.toString());
-    child.on('close', (code) => {
+    child.on('close', async (code) => {
       if (code === 0 && !output.includes('Please sign in')) {
         const lines = output.split('\n');
         const list: ModelItem[] = [];
@@ -77,22 +98,45 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
             list.push({ id: parts[0].trim(), name: parts[1].trim() });
           }
         }
-        if (list.length > 0) return resolve(list);
+        if (list.length > 0) {
+          try {
+            await fs.mkdir(DATA_DIR, { recursive: true });
+            await fs.writeFile(MODELS_CACHE_FILE, JSON.stringify(list, null, 2), 'utf8');
+          } catch {}
+          return resolve(list);
+        }
       }
-      // Modelos padrão caso não esteja autenticado no momento
+
+      // Living fallback: ler última resposta salva em disco antes de recorrer ao bootstrap
+      try {
+        const cachedDisk = JSON.parse(await fs.readFile(MODELS_CACHE_FILE, 'utf8')) as ModelItem[];
+        if (Array.isArray(cachedDisk) && cachedDisk.length > 0) {
+          return resolve(cachedDisk);
+        }
+      } catch {}
+
+      // Modelos bootstrap mínimos caso primeira execução e offline
       resolve([
+        { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)' },
+        { id: 'gemini-4-argon-medium', name: 'Gemini 4 Argon (Medium)' },
+        { id: 'gemini-4-argon-low', name: 'Gemini 4 Argon (Low)' },
         { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)' },
         { id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash (High)' },
-        { id: 'gemini-3.1-pro-high', name: 'Gemini 3.1 Pro (High)' },
         { id: 'claude-opus-5-5-high', name: 'Claude Opus 5.5 (High)' },
         { id: 'claude-sonnet-5-5-high', name: 'Claude Sonnet 5.5 (High)' },
         { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B (Medium)' }
       ]);
     });
-    child.on('error', () => {
+    child.on('error', async () => {
+      try {
+        const cachedDisk = JSON.parse(await fs.readFile(MODELS_CACHE_FILE, 'utf8')) as ModelItem[];
+        if (Array.isArray(cachedDisk) && cachedDisk.length > 0) {
+          return resolve(cachedDisk);
+        }
+      } catch {}
       resolve([
-        { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)' },
-        { id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash (High)' }
+        { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)' },
+        { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)' }
       ]);
     });
     setTimeout(() => { try { child.kill(); } catch (e) {}; resolve([]); }, 4000);
@@ -103,7 +147,7 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
     claude: [
       { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet (Recomendado)' },
       { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3根 Opus' }
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' }
     ],
     aider: [
       { id: 'gpt-4o', name: 'OpenAI GPT-4o' },

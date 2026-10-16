@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { QuotaStats } from '../../types';
+import type { QuotaStats, QuotaGroup } from '../../types';
 import { api } from '../../services/api';
 import { 
   Info, 
@@ -178,23 +178,69 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
     }
   };
 
+  // Grupos dinâmicos retornados pela API oficial (/usage) com fallback idêntico aos dados reais da conta
+  const displayGroups: QuotaGroup[] = (stats?.groups && stats.groups.length > 0)
+    ? stats.groups
+    : [
+        {
+          name: geminiData.title || 'Gemini Models',
+          description: 'Limites de cota para Gemini 3.8 Flash, 3.7 Flash, 3.1 Pro e variantes',
+          buckets: [
+            {
+              name: 'Weekly Limit Remaining',
+              remaining: geminiData.weekly.remaining,
+              message: geminiData.weekly.message
+            },
+            {
+              name: 'Five Hour Limit Remaining',
+              remaining: geminiData.fiveHour.remaining,
+              message: geminiData.fiveHour.message
+            }
+          ]
+        },
+        {
+          name: claudeGptData.title || 'Claude and GPT models',
+          description: 'Limites de cota para modelos Claude Sonnet/Opus e GPT-OSS',
+          buckets: [
+            {
+              name: 'Weekly Limit Remaining',
+              remaining: claudeGptData.weekly.remaining,
+              message: claudeGptData.weekly.message
+            },
+            {
+              name: 'Five Hour Limit Remaining',
+              remaining: claudeGptData.fiveHour.remaining,
+              message: claudeGptData.fiveHour.message
+            }
+          ]
+        }
+      ];
+
   // Modo Balão Minimizado (Pílula Flutuante)
   if (!isExpanded) {
+    const firstGroup = displayGroups[0];
+    const fiveHourBucket = firstGroup?.buckets.find(b => b.name.toLowerCase().includes('five') || b.name.toLowerCase().includes('5h')) || firstGroup?.buckets[0];
+    const weeklyBucket = firstGroup?.buckets.find(b => b.name.toLowerCase().includes('week') || b.name.toLowerCase().includes('7d')) || firstGroup?.buckets[1];
+
     return (
       <div 
         onClick={() => setIsExpanded(true)}
         className="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-50 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#131518]/95 backdrop-blur-md border border-neutral-800 shadow-2xl cursor-pointer hover:border-neutral-700 hover:scale-105 transition-all text-xs font-sans group select-none max-w-[calc(100vw-1.5rem)]"
         title="Clique para expandir as cotas oficiais Antigravity"
       >
-        <span className="flex items-center gap-1.5 font-medium text-neutral-300">
-          <QuotaGauge percent={geminiData.fiveHour.remaining} size={18} strokeWidth={3} />
-          <span>Gemini 5h: <b className="text-white">{geminiData.fiveHour.remaining}%</b></span>
-        </span>
-        <span className="text-neutral-600">|</span>
-        <span className="flex items-center gap-1.5 font-medium text-neutral-400">
-          <QuotaGauge percent={geminiData.weekly.remaining} size={18} strokeWidth={3} />
-          <span>7d: <b className="text-white">{geminiData.weekly.remaining}%</b></span>
-        </span>
+        {fiveHourBucket && (
+          <span className="flex items-center gap-1.5 font-medium text-neutral-300">
+            <QuotaGauge percent={fiveHourBucket.remaining} size={18} strokeWidth={3} />
+            <span>Gemini 5h: <b className="text-white">{fiveHourBucket.remaining}%</b></span>
+          </span>
+        )}
+        {fiveHourBucket && weeklyBucket && <span className="text-neutral-600">|</span>}
+        {weeklyBucket && (
+          <span className="flex items-center gap-1.5 font-medium text-neutral-400">
+            <QuotaGauge percent={weeklyBucket.remaining} size={18} strokeWidth={3} />
+            <span>7d: <b className="text-white">{weeklyBucket.remaining}%</b></span>
+          </span>
+        )}
         <Maximize2 className="w-3.5 h-3.5 text-neutral-500 group-hover:text-neutral-300 transition-colors ml-0.5" />
       </div>
     );
@@ -328,126 +374,53 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
         </div>
       )}
 
-      {/* GRUPO 1: Gemini Models */}
-      <div className="mb-4">
-        {/* Título do Grupo com Ícone de Informação */}
-        <div className="flex items-center gap-1.5 mb-2 px-0.5">
-          <span className="text-[13px] font-medium text-neutral-200">
-            Gemini Models
-          </span>
-          <div 
-            className="tooltip tooltip-right text-neutral-500 hover:text-neutral-400 cursor-help"
-            data-tip="Limites de cota para Gemini 3.8 Flash, 3.7 Flash, 3.1 Pro e variantes"
-          >
-            <Info className="w-3.5 h-3.5" />
-          </div>
-        </div>
-
-        {/* Card Agrupado de Gemini */}
-        <div className="rounded-xl bg-[#17191d] border border-neutral-800/80 overflow-hidden shadow-sm">
-          {/* Linha 1: Weekly Limit Remaining */}
-          <div className="p-3.5 flex items-center justify-between gap-3">
-            <div className="space-y-0.5 min-w-0 pr-2">
-              <div className="text-[13px] text-neutral-100 font-normal leading-tight">
-                Weekly Limit Remaining
-              </div>
-              {geminiData.weekly.message && (
-                <div className="text-[11px] text-neutral-400 leading-normal">
-                  {geminiData.weekly.message}
+      {/* Grupos Dinâmicos de Cota (Gemini Models, Claude and GPT models, Gemini 4 Argon, etc.) */}
+      <div className="space-y-4 mb-4">
+        {displayGroups.map((group, gIdx) => (
+          <div key={group.name || gIdx}>
+            {/* Título do Grupo com Ícone de Informação */}
+            <div className="flex items-center gap-1.5 mb-2 px-0.5">
+              <span className="text-[13px] font-medium text-neutral-200">
+                {group.name}
+              </span>
+              {group.description && (
+                <div 
+                  className="tooltip tooltip-right text-neutral-500 hover:text-neutral-400 cursor-help"
+                  data-tip={group.description}
+                >
+                  <Info className="w-3.5 h-3.5" />
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="text-[14px] font-semibold text-neutral-100 font-sans">
-                {geminiData.weekly.remaining}%
-              </span>
-              <QuotaGauge percent={geminiData.weekly.remaining} size={28} strokeWidth={3.5} />
+
+            {/* Card Agrupado */}
+            <div className="rounded-xl bg-[#17191d] border border-neutral-800/80 overflow-hidden shadow-sm">
+              {group.buckets.map((bucket, bIdx) => (
+                <React.Fragment key={bucket.name || bIdx}>
+                  {bIdx > 0 && <div className="border-t border-neutral-800/70" />}
+                  <div className="p-3.5 flex items-center justify-between gap-3">
+                    <div className="space-y-0.5 min-w-0 pr-2">
+                      <div className="text-[13px] text-neutral-100 font-normal leading-tight">
+                        {bucket.name}
+                      </div>
+                      {bucket.message && (
+                        <div className="text-[11px] text-neutral-400 leading-normal">
+                          {bucket.message}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-[14px] font-semibold text-neutral-100 font-sans">
+                        {bucket.remaining}%
+                      </span>
+                      <QuotaGauge percent={bucket.remaining} size={28} strokeWidth={3.5} />
+                    </div>
+                  </div>
+                </React.Fragment>
+              ))}
             </div>
           </div>
-
-          <div className="border-t border-neutral-800/70" />
-
-          {/* Linha 2: Five Hour Limit Remaining */}
-          <div className="p-3.5 flex items-center justify-between gap-3">
-            <div className="space-y-0.5 min-w-0 pr-2">
-              <div className="text-[13px] text-neutral-100 font-normal leading-tight">
-                Five Hour Limit Remaining
-              </div>
-              {geminiData.fiveHour.message && (
-                <div className="text-[11px] text-neutral-400 leading-normal">
-                  {geminiData.fiveHour.message}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="text-[14px] font-semibold text-neutral-100 font-sans">
-                {geminiData.fiveHour.remaining}%
-              </span>
-              <QuotaGauge percent={geminiData.fiveHour.remaining} size={28} strokeWidth={3.5} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* GRUPO 2: Claude and GPT models */}
-      <div>
-        {/* Título do Grupo com Ícone de Informação */}
-        <div className="flex items-center gap-1.5 mb-2 px-0.5">
-          <span className="text-[13px] font-medium text-neutral-200">
-            Claude and GPT models
-          </span>
-          <div 
-            className="tooltip tooltip-right text-neutral-500 hover:text-neutral-400 cursor-help"
-            data-tip="Limites de cota para modelos Claude Sonnet/Opus e GPT-OSS"
-          >
-            <Info className="w-3.5 h-3.5" />
-          </div>
-        </div>
-
-        {/* Card Agrupado de Claude e GPT */}
-        <div className="rounded-xl bg-[#17191d] border border-neutral-800/80 overflow-hidden shadow-sm">
-          {/* Linha 1: Weekly Limit Remaining */}
-          <div className="p-3.5 flex items-center justify-between gap-3">
-            <div className="space-y-0.5 min-w-0 pr-2">
-              <div className="text-[13px] text-neutral-100 font-normal leading-tight">
-                Weekly Limit Remaining
-              </div>
-              {claudeGptData.weekly.message && (
-                <div className="text-[11px] text-neutral-400 leading-normal">
-                  {claudeGptData.weekly.message}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="text-[14px] font-semibold text-neutral-100 font-sans">
-                {claudeGptData.weekly.remaining}%
-              </span>
-              <QuotaGauge percent={claudeGptData.weekly.remaining} size={28} strokeWidth={3.5} />
-            </div>
-          </div>
-
-          <div className="border-t border-neutral-800/70" />
-
-          {/* Linha 2: Five Hour Limit Remaining */}
-          <div className="p-3.5 flex items-center justify-between gap-3">
-            <div className="space-y-0.5 min-w-0 pr-2">
-              <div className="text-[13px] text-neutral-100 font-normal leading-tight">
-                Five Hour Limit Remaining
-              </div>
-              {claudeGptData.fiveHour.message && (
-                <div className="text-[11px] text-neutral-400 leading-normal">
-                  {claudeGptData.fiveHour.message}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="text-[14px] font-semibold text-neutral-100 font-sans">
-                {claudeGptData.fiveHour.remaining}%
-              </span>
-              <QuotaGauge percent={claudeGptData.fiveHour.remaining} size={28} strokeWidth={3.5} />
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Detalhes de Tokens consumidos (Opcional colapsável) */}

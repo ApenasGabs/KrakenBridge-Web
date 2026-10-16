@@ -355,14 +355,21 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
 
         {/* Conteúdo Principal em Markdown */}
         <div className="text-sm prose prose-sm max-w-none text-base-content leading-relaxed">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={markdownComponents}
-          >
-            {message.text || (!message.isStreaming && !isUser ? (message.thinking ? '*(Resposta concluída no acordeão de raciocínio acima)*' : '*(Sem resposta de texto emitida)*') : '')}
-          </ReactMarkdown>
+          {message.isStreaming && !isUser && !message.text && (!message.toolCalls || message.toolCalls.length === 0) && !message.thinking ? (
+            <div className="flex items-center gap-2 text-xs text-base-content/60 py-1 font-mono">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+              <span>Iniciando motor e conectando ferramentas...</span>
+            </div>
+          ) : (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
+              {message.text || (!message.isStreaming && !isUser ? (message.thinking ? '*(Resposta concluída no acordeão de raciocínio acima)*' : '*(Sem resposta de texto emitida)*') : '')}
+            </ReactMarkdown>
+          )}
 
-          {message.isStreaming && (
+          {message.isStreaming && (message.text || message.thinking || (message.toolCalls && message.toolCalls.length > 0)) && (
             <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse align-middle" />
           )}
         </div>
