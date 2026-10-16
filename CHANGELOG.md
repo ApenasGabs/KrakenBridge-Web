@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.5.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.4.1...v1.5.0) (2026-10-16)
+
+### ✨ Features
+
+* **chat:** spinner verbs customizáveis estilo Claude Code (Claudionary) com cronômetro e toggle de exibição ([#58](https://github.com/ApenasGabs/KrakenBridge-Web/issues/58)) ([#61](https://github.com/ApenasGabs/KrakenBridge-Web/issues/61)) ([9348d62](https://github.com/ApenasGabs/KrakenBridge-Web/commit/9348d625a60a68ba2f813a9491499a28d172ebf7))
+
 ## [1.4.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.4.0...v1.4.1) (2026-10-16)
 
 ### 🐛 Bug Fixes
