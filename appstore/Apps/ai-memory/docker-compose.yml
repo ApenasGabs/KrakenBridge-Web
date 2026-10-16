@@ -1,0 +1,56 @@
+name: ai-memory
+services:
+    ai-memory:
+        container_name: ai-memory
+        image: akitaonrails/ai-memory:latest
+        restart: unless-stopped
+        ports:
+            - target: 49374
+              published: "49374"
+              protocol: tcp
+        environment:
+            AI_MEMORY_DATA_DIR: /data
+            AI_MEMORY_ALLOWED_HOSTS: localhost,127.0.0.1,::1,host.docker.internal,gabisa.apenasgabs.dev,192.168.31.60,172.17.0.1,172.18.0.1,172.19.0.1,172.20.0.1
+            AI_MEMORY_GEMINI_SAFE_SCHEMAS: "true"
+            AI_MEMORY_ENABLE_WEB: "true"
+            AI_MEMORY_ENABLE_API: "true"
+            AI_MEMORY_AUTH_TOKEN: a1543485d89fc26de8b596ecda51ba012966340f0f7bc1d385f7ec1456ff139d
+            TZ: America/Sao_Paulo
+        volumes:
+            - type: bind
+              source: /DATA/AppData/ai-memory
+              target: /data
+              bind:
+                  create_host_path: true
+        networks:
+            default: null
+networks:
+    default:
+        name: ai-memory_default
+x-casaos:
+    architectures:
+        - amd64
+        - arm64
+    author: Fabio Akita
+    category: Development
+    description:
+        en_US: Long-term memory, Git-backed Markdown wiki, and MCP server for autonomous AI coding agents.
+        pt_BR: Memória de longo prazo persistente, wiki em Markdown puro no Git e servidor MCP para agentes autônomos de IA.
+    developer: Fabio Akita (akitaonrails)
+    hostname: gabisa.apenasgabs.dev
+    icon: https://aimemory.sh/favicon.png
+    id: com.aimemory.sh
+    index: /web
+    is_uncontrolled: false
+    main: ai-memory
+    port_map: "49374"
+    scheme: http
+    store_app_id: ai-memory
+    tagline:
+        en_US: Long-term memory & cross-session handoffs for AI agents
+        pt_BR: Memória de longo prazo e handoffs entre sessões para IAs
+    thumbnail: https://aimemory.sh/favicon.png
+    title:
+        custom: AI Memory
+        en_US: AI Memory
+        pt_BR: AI Memory
