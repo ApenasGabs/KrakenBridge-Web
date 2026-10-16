@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage, ToolCall } from '../../types';
@@ -15,10 +15,13 @@ import {
   ChevronRight,
   ChevronDown,
   FileCode,
-  ExternalLink
+  ExternalLink,
+  Volume2,
+  Square
 } from 'lucide-react';
 import { parseFileOperation } from '../../utils/diffParser';
 import { FileOperationCard } from './FileOperationCard';
+import { playSpeech, subscribeSpeechState } from '../../utils/speechUtils';
 
 // Carregamento dinâmico do MermaidBlock para não onerar o bundle inicial do chat
 const MermaidBlock = lazy(() => 
@@ -192,6 +195,26 @@ const ToolItem: React.FC<{ tool: ToolCall; codeServerPort?: number }> = ({ tool,
 
 export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPort }) => {
   const isUser = message.role === 'user';
+  const [isPlayingSpeech, setIsPlayingSpeech] = useState(false);
+  const [copiedMessage, setCopiedMessage] = useState(false);
+
+  useEffect(() => {
+    return subscribeSpeechState((activeId) => {
+      setIsPlayingSpeech(activeId === message.id);
+    });
+  }, [message.id]);
+
+  const handleToggleSpeech = () => {
+    if (!message.text) return;
+    playSpeech(message.id, message.text);
+  };
+
+  const handleCopyMessage = () => {
+    if (!message.text) return;
+    navigator.clipboard.writeText(message.text);
+    setCopiedMessage(true);
+    setTimeout(() => setCopiedMessage(false), 2000);
+  };
 
   return (
     <div className={`chat ${isUser ? 'chat-end' : 'chat-start'} mb-4 animate-in fade-in duration-150`}>
@@ -307,8 +330,77 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
           )}
         </div>
 
-        {/* Rodapé da Mensagem (Tokens) */}
-        {message.tokens && (
+        {/* Barra de Ações da Mensagem do Assistente (Ouvir resposta / TTS e Copiar) */}
+        {!isUser && !message.isStreaming && message.text && (
+          <div className="mt-2.5 pt-2 border-t border-base-300/40 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleToggleSpeech}
+                className={`btn btn-xs rounded-md transition-all flex items-center gap-1.5 ${
+                  isPlayingSpeech
+                    ? 'btn-secondary text-secondary-content shadow-sm'
+                    : 'btn-ghost text-base-content/70 hover:text-base-content hover:bg-base-300/60'
+                }`}
+                title={isPlayingSpeech ? 'Parar leitura em voz alta' : 'Ouvir resposta (Modo Leitura)'}
+                aria-label={isPlayingSpeech ? 'Parar leitura' : 'Ouvir resposta'}
+                data-testid={`tts-btn-${message.id}`}
+              >
+                {isPlayingSpeech ? (
+                  <>
+                    <Square className="w-3 h-3 fill-current" />
+                    <span className="text-[11px] font-medium">Parar leitura</span>
+                    <span className="flex items-end gap-0.5 h-3 ml-0.5" aria-hidden="true">
+                      <span className="w-0.5 h-1.5 bg-current animate-pulse rounded-full" />
+                      <span className="w-0.5 h-3 bg-current animate-pulse rounded-full" style={{ animationDelay: '150ms' }} />
+                      <span className="w-0.5 h-2 bg-current animate-pulse rounded-full" style={{ animationDelay: '300ms' }} />
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-secondary" />
+                    <span className="text-[11px]">Ouvir resposta</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCopyMessage}
+                className="btn btn-ghost btn-xs text-base-content/60 hover:text-base-content hover:bg-base-300/60 flex items-center gap-1 rounded-md"
+                title="Copiar texto da resposta"
+                aria-label="Copiar texto da resposta"
+                data-testid={`copy-msg-btn-${message.id}`}
+              >
+                {copiedMessage ? (
+                  <>
+                    <Check className="w-3 h-3 text-success" />
+                    <span className="text-[11px] text-success">Copiado</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" />
+                    <span className="text-[11px]">Copiar</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Contagem total resumida de tokens no canto direito da barra de ações */}
+            {message.tokens && (
+              <div className="text-[10px] text-base-content/50 flex items-center gap-2 font-mono ml-auto">
+                {message.tokens.total_tokens !== undefined && (
+                  <span className="font-semibold text-primary">
+                    {message.tokens.total_tokens.toLocaleString()} tok
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rodapé detalhado de tokens quando a barra de ações não é exibida (ex: mensagens do usuário ou em streaming) */}
+        {message.tokens && (!message.text || message.isStreaming || isUser) && (
           <div className="mt-2 pt-1 border-t border-base-300/40 text-[10px] text-base-content/50 flex items-center gap-3 font-mono">
             {message.tokens.input_tokens !== undefined && (
               <span>In: {message.tokens.input_tokens.toLocaleString()}</span>

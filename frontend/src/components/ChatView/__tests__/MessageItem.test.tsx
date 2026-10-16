@@ -54,4 +54,47 @@ describe('MessageItem Component', () => {
     expect(screen.getByText('const x: number = 42;')).toBeInTheDocument();
     expect(screen.getByText('typescript')).toBeInTheDocument();
   });
+
+  it('deve renderizar botão de ouvir resposta e copiar em mensagens finalizadas do assistente', () => {
+    const message: ChatMessage = {
+      id: 'msg-assist-1',
+      role: 'assistant',
+      text: 'Aqui está sua resposta finalizada pronta para leitura.',
+      timestamp: '2026-10-15T20:00:00.000Z',
+    };
+
+    render(<MessageItem message={message} />);
+
+    const ttsBtn = screen.getByTestId('tts-btn-msg-assist-1');
+    expect(ttsBtn).toBeInTheDocument();
+    expect(ttsBtn).toHaveTextContent('Ouvir resposta');
+
+    const copyBtn = screen.getByTestId('copy-msg-btn-msg-assist-1');
+    expect(copyBtn).toBeInTheDocument();
+    expect(copyBtn).toHaveTextContent('Copiar');
+  });
+
+  it('não deve renderizar botão de ouvir resposta em mensagens do usuário nem durante streaming', () => {
+    const userMsg: ChatMessage = {
+      id: 'msg-user-1',
+      role: 'user',
+      text: 'Olá assistente!',
+      timestamp: '2026-10-15T20:00:00.000Z',
+    };
+
+    const streamMsg: ChatMessage = {
+      id: 'msg-stream-1',
+      role: 'assistant',
+      text: 'Gerando resposta...',
+      isStreaming: true,
+      timestamp: '2026-10-15T20:00:00.000Z',
+    };
+
+    const { unmount } = render(<MessageItem message={userMsg} />);
+    expect(screen.queryByTestId('tts-btn-msg-user-1')).not.toBeInTheDocument();
+    unmount();
+
+    render(<MessageItem message={streamMsg} />);
+    expect(screen.queryByTestId('tts-btn-msg-stream-1')).not.toBeInTheDocument();
+  });
 });
