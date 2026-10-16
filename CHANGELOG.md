@@ -5,6 +5,18 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.1.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.0.0...v1.1.0) (2026-10-16)
+
+### ✨ Features
+
+* **chat:** modo leitura por voz da resposta com Web Speech API (Refs [#39](https://github.com/ApenasGabs/KrakenBridge-Web/issues/39)) ([1960cdf](https://github.com/ApenasGabs/KrakenBridge-Web/commit/1960cdff5b35b02c0c5856e59d167b8f9a633da1))
+* **chat:** suporte à leitura de resposta final, seletor de seções e velocidade da fala (Refs [#39](https://github.com/ApenasGabs/KrakenBridge-Web/issues/39)) ([0ed7777](https://github.com/ApenasGabs/KrakenBridge-Web/commit/0ed7777bb9fcf3e516d08ce174161e1e67685179))
+
+### 🔧 Chores
+
+* merge main into feat/[#39](https://github.com/ApenasGabs/KrakenBridge-Web/issues/39)-modo-leitura-voz ([5df6508](https://github.com/ApenasGabs/KrakenBridge-Web/commit/5df65089db799de7c52a359fea8de4f217c8cc33))
+* merge release v1.0.0 into feat/[#39](https://github.com/ApenasGabs/KrakenBridge-Web/issues/39)-modo-leitura-voz ([76c0544](https://github.com/ApenasGabs/KrakenBridge-Web/commit/76c0544b99ed3ec3344299c68c3941b34c06d041))
+
 ## 1.0.0 (2026-10-16)
 
 ### ✨ Features
