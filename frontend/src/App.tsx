@@ -8,7 +8,8 @@ import type {
   AuthStatus,
   ModelsConfig,
   QueuedMessage,
-  AccountInfo
+  AccountInfo,
+  EvolutionStatus
 } from './types';
 import { api } from './services/api';
 import { Sidebar } from './components/Sidebar/Sidebar';
@@ -23,6 +24,7 @@ import { AuthModal } from './components/AuthModal/AuthModal';
 import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 import { McpModal } from './components/McpModal/McpModal';
 import { PinModal } from './components/PinModal/PinModal';
+import { PodDrainBanner, PodDrainReloadBubble } from './components/PodDrain';
 
 export const App: React.FC = () => {
   // Estado das Conversas
@@ -35,6 +37,7 @@ export const App: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [prompt, setPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [evolutionStatus, setEvolutionStatus] = useState<EvolutionStatus | null>(null);
 
   // Segurança por PIN
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -175,6 +178,59 @@ export const App: React.FC = () => {
   useEffect(() => {
     checkPinAndInit();
   }, [checkPinAndInit]);
+
+  // Polling de Status da Auto-Evolução / Pod Drain
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEvoStatus = async () => {
+      try {
+        const data = await api.getEvolutionStatus();
+        if (isMounted) {
+          setEvolutionStatus(data);
+        }
+      } catch {
+        // Ignora falhas transitórias durante o reload do servidor
+      }
+    };
+
+    fetchEvoStatus();
+    const isBusy = evolutionStatus?.isDraining || evolutionStatus?.status === 'draining' || evolutionStatus?.status === 'reloading';
+    const interval = setInterval(fetchEvoStatus, isBusy ? 1500 : 4000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [evolutionStatus?.isDraining, evolutionStatus?.status]);
+
+  // Restauração da sessão após reinício (Pod Restabelecido)
+  const handleReconnected = useCallback(async () => {
+    try {
+      await Promise.all([
+        loadConversations(),
+        refreshAuthStatus()
+      ]);
+      const currentConvId = activeConvIdRef.current;
+      if (currentConvId) {
+        const session = await api.getConversation(currentConvId).catch(() => null);
+        if (session && session.messages) {
+          setMessages(session.messages.map((m, idx, arr) => {
+            if (session.isRunning && idx === arr.length - 1 && m.role === 'assistant') {
+              return { ...m, isStreaming: true };
+            }
+            return m;
+          }));
+          setIsLoading(!!session.isRunning);
+        }
+      }
+      const updatedEvo = await api.getEvolutionStatus().catch(() => null);
+      if (updatedEvo) {
+        setEvolutionStatus(updatedEvo);
+      }
+    } catch (e) {
+      console.warn('Erro ao restaurar sessão pós-reconexão:', e);
+    }
+  }, [loadConversations, refreshAuthStatus]);
 
   // Carregar mensagens da conversa ativa
   const selectConversation = useCallback(async (id: string) => {
@@ -710,6 +766,13 @@ export const App: React.FC = () => {
           isOpen={isOptionsOpen}
         />
 
+        {/* Banner de Pod Drain visível em abas que não sejam o chat */}
+        {activeTab !== 'chat' && (evolutionStatus?.isDraining || evolutionStatus?.status === 'draining') && (
+          <div className="px-4 pt-3">
+            <PodDrainBanner status={evolutionStatus} />
+          </div>
+        )}
+
         {/* Visão de Status vs What's Next vs Chat vs IDE */}
         {activeTab === 'status' ? (
           <StatusView
@@ -736,6 +799,8 @@ export const App: React.FC = () => {
             onForceSubmit={handleForceSubmitMessage}
             onStop={handleStop}
             isLoading={isLoading}
+            isDraining={evolutionStatus?.isDraining || evolutionStatus?.status === 'draining'}
+            evolutionStatus={evolutionStatus}
             onSelectSuggestion={(sug) => setPrompt(sug)}
             currentModel={options.model}
             availableModels={availableModels}
@@ -794,6 +859,12 @@ export const App: React.FC = () => {
           checkPinAndInit();
           loadConversations();
         }}
+      />
+
+      {/* Balão com Contagem Regressiva e Auto-Reconnect do Pod Drain / Self-Reload */}
+      <PodDrainReloadBubble
+        status={evolutionStatus}
+        onReconnected={handleReconnected}
       />
     </div>
   );

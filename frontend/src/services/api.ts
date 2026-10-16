@@ -18,7 +18,8 @@ import type {
   MemoryStatus,
   MemorySearchResult,
   MemoryPage,
-  MemoryHandoff
+  MemoryHandoff,
+  EvolutionStatus
 } from '../types';
 
 export interface SSECallbacks {
@@ -413,7 +414,17 @@ export const api = {
         notifyRequirePin();
       }
       const errText = await response.text();
-      callbacks.onError?.(`Erro HTTP ${response.status}: ${errText}`);
+      let parsedErr: any = null;
+      try {
+        parsedErr = JSON.parse(errText);
+      } catch {}
+
+      if (response.status === 503 && parsedErr?.isDraining) {
+        callbacks.onError?.(parsedErr.error || 'O sistema está em processo de reinício/drenagem (Pod Drain). O envio de novas mensagens está temporariamente pausado.');
+        return;
+      }
+
+      callbacks.onError?.(`Erro HTTP ${response.status}: ${parsedErr?.error || errText}`);
       return;
     }
 
@@ -697,6 +708,18 @@ export const api = {
   async getMemoryHandoffs(): Promise<MemoryHandoff[]> {
     const res = await fetchWithAuth(`${getApiBase()}/memory/handoffs`);
     if (!res.ok) throw new Error('Falha ao listar handoffs da memória');
+    return res.json();
+  },
+
+  async getEvolutionStatus(): Promise<EvolutionStatus> {
+    const res = await fetchWithAuth(`${getApiBase()}/system/evolution/status`);
+    if (!res.ok) throw new Error('Falha ao obter status de auto-evolução');
+    return res.json();
+  },
+
+  async checkHealth(): Promise<{ status: string; uptime?: number }> {
+    const res = await fetch(`${getApiBase()}/health`);
+    if (!res.ok) throw new Error('Serviço offline ou indisponível');
     return res.json();
   }
 };

@@ -100,6 +100,22 @@ export interface AuthStatus {
   vercel?: VercelAuthStatus;
 }
 
+export interface EvolutionStatus {
+  active: boolean;
+  status: 'idle' | 'draining' | 'reloading' | 'resumed';
+  isDraining: boolean;
+  activeTasksCount: number;
+  conversationId?: string | null;
+  taskDescription?: string;
+  rebuildFrontend?: boolean;
+  triggeredAt?: string;
+  pid?: number;
+  activeTasksWhenTriggered?: number;
+  drainedAt?: string;
+  resumedAt?: string;
+  resumedPid?: number;
+}
+
 export interface ModelOption {
   id: string;
   name: string;

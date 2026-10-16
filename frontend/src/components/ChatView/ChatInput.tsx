@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import type { ModelOption, SlashCommand } from '../../types';
+import type { ModelOption, SlashCommand, EvolutionStatus } from '../../types';
 import { 
   Plus, 
   ChevronUp, 
@@ -20,7 +20,9 @@ import {
   BookOpen,
   ListPlus,
   Zap,
-  MessageSquare
+  MessageSquare,
+  Lock,
+  Loader2
 } from 'lucide-react';
 
 interface ChatInputProps {
@@ -31,6 +33,8 @@ interface ChatInputProps {
   onStop: () => void;
   isLoading: boolean;
   disabled?: boolean;
+  isDraining?: boolean;
+  evolutionStatus?: EvolutionStatus | null;
   currentModel?: string;
   availableModels?: (string | ModelOption)[];
   onModelChange?: (model: string) => void;
@@ -196,6 +200,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onStop,
   isLoading,
   disabled,
+  isDraining = false,
+  evolutionStatus = null,
   currentModel = 'gemini-3.8-flash-high',
   availableModels = [],
   onModelChange,
@@ -204,6 +210,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   chatMode = 'agent',
   onChatModeChange
 }) => {
+  const isPodDraining = isDraining || evolutionStatus?.isDraining || evolutionStatus?.status === 'draining';
+  const isReloading = evolutionStatus?.status === 'reloading';
+  const isSystemBusyWithEvolution = isPodDraining || isReloading;
+  const effectiveDisabled = disabled || isSystemBusyWithEvolution;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -317,7 +327,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      if (prompt.trim() && !disabled) {
+      if (prompt.trim() && !effectiveDisabled) {
         if (isListening) stopListening();
         if (onForceSubmit) {
           onForceSubmit();
@@ -330,7 +340,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (prompt.trim() && !disabled) {
+      if (prompt.trim() && !effectiveDisabled) {
         if (isListening) stopListening();
         onSubmit();
       }
@@ -485,15 +495,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             value={prompt}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={disabled}
+            disabled={effectiveDisabled}
             placeholder={
-              isListening 
-                ? "Ouvindo sua voz em português... Fale seu comando..." 
-                : isLoading 
-                  ? "Agente em execução... Digite para enfileirar mensagem (Enter)" 
-                  : chatMode === 'chat'
-                    ? "💬 Modo Chat & MCPs ativos (somente conversa e ferramentas, sem alterar arquivos)..."
-                    : "⚡ Modo Agente autônomo (digite mensagem ou comando: /plan, /goal, /mcp...)"
+              isReloading
+                ? "🔄 Reiniciando serviço para aplicar atualizações... Envio pausado temporariamente."
+                : isPodDraining
+                  ? `⏳ Pod Drain ativo: finalizando ${evolutionStatus?.activeTasksCount ?? 1} tarefa(s) antes do reinício. Envio pausado...`
+                  : isListening 
+                    ? "Ouvindo sua voz em português... Fale seu comando..." 
+                    : isLoading 
+                      ? "Agente em execução... Digite para enfileirar mensagem (Enter)" 
+                      : chatMode === 'chat'
+                        ? "💬 Modo Chat & MCPs ativos (somente conversa e ferramentas, sem alterar arquivos)..."
+                        : "⚡ Modo Agente autônomo (digite mensagem ou comando: /plan, /goal, /mcp...)"
             }
             className="w-full bg-transparent border-0 outline-none resize-none px-4 pt-3 pb-1 text-sm leading-relaxed text-base-content placeholder:text-base-content/40 max-h-48 overflow-y-auto"
           />
@@ -621,7 +635,37 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               </button>
 
               {/* Botão de Envio / Enfileirar / Forçar Envio / Parar */}
-              {isLoading ? (
+              {isSystemBusyWithEvolution ? (
+                <div className="flex items-center gap-1.5">
+                  {isLoading && (
+                    <button
+                      type="button"
+                      onClick={onStop}
+                      className="btn btn-error btn-xs btn-circle shadow-sm"
+                      title="Interromper geração ativa para acelerar o Pod Drain"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-current" />
+                    </button>
+                  )}
+                  <button
+                    data-testid="chat-send-btn"
+                    type="button"
+                    disabled={true}
+                    className="w-7 h-7 rounded-full bg-warning/20 border border-warning/40 text-warning flex items-center justify-center shadow-sm cursor-not-allowed transition-all opacity-80"
+                    title={
+                      isReloading
+                        ? "Envio pausado temporariamente: Servidor em reinício (Auto-Reload)."
+                        : `Envio pausado temporariamente: Pod Drain em andamento (${evolutionStatus?.activeTasksCount ?? 1} tarefa(s) ativa(s)).`
+                    }
+                  >
+                    {isReloading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Lock className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              ) : isLoading ? (
                 <div className="flex items-center gap-1.5">
                   {prompt.trim() && (
                     <>
@@ -679,7 +723,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     if (isListening) stopListening();
                     onSubmit();
                   }}
-                  disabled={!prompt.trim() || disabled}
+                  disabled={!prompt.trim() || effectiveDisabled}
                   className="w-7 h-7 rounded-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white flex items-center justify-center shadow-md transition-all disabled:opacity-30 disabled:pointer-events-none"
                   title="Enviar mensagem (Enter ou Ctrl+Enter)"
                 >
