@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.3.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.2.0...v1.3.0) (2026-10-16)
+
+### ✨ Features
+
+* **quota/mcp:** dynamic quota groups, living model fallback, and streaming indicator ([#54](https://github.com/ApenasGabs/KrakenBridge-Web/issues/54)) ([#56](https://github.com/ApenasGabs/KrakenBridge-Web/issues/56)) ([ffecff9](https://github.com/ApenasGabs/KrakenBridge-Web/commit/ffecff9558eb8e49f8e3331edc7aced322ab8563))
+
 ## [1.2.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.1.1...v1.2.0) (2026-10-16)
 
 ### ✨ Features
