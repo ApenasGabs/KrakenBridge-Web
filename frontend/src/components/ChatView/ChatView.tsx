@@ -3,6 +3,7 @@ import type { ChatMessage, ModelOption, ProjectWorkspace, QueuedMessage, Evoluti
 import { MessageItem } from './MessageItem';
 import { ChatInput } from './ChatInput';
 import { MessageQueueBanner } from './MessageQueueBanner';
+import { SpinnerVerbsModal } from './SpinnerVerbsModal';
 import { PodDrainBanner } from '../PodDrain';
 import { Bot, Sparkles, Terminal, Code2, ArrowDown, FolderGit2, ChevronDown, Check } from 'lucide-react';
 
@@ -72,6 +73,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+  const [isSpinnerModalOpen, setIsSpinnerModalOpen] = useState(false);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     if (scrollRef.current) {
@@ -195,13 +197,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
           )}
         </div>
 
-        {/* Indicador de Fila se houver mensagens pendentes */}
-        {messageQueue.length > 0 && (
-          <div className="flex items-center gap-1 text-[11px] font-medium text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
-            <span>{messageQueue.length} na fila</span>
-          </div>
-        )}
+        {/* Lado Direito: Fila de Mensagens & Botão Spinner Verbs */}
+        <div className="flex items-center gap-2">
+          {messageQueue.length > 0 && (
+            <div className="flex items-center gap-1 text-[11px] font-medium text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
+              <span>{messageQueue.length} na fila</span>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsSpinnerModalOpen(true)}
+            className="btn btn-ghost btn-xs text-base-content/60 hover:text-primary gap-1 font-mono text-[11px]"
+            title="Personalizar palavras e verbos do Spinner (estilo Claude Code)"
+            data-testid="chat-spinner-verbs-btn"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-primary/70" />
+            <span className="hidden sm:inline">Verbos</span>
+          </button>
+        </div>
       </div>
 
       {/* Área de Mensagens com Scroll */}
@@ -300,6 +315,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
         queuedCount={messageQueue.length}
         chatMode={chatMode}
         onChatModeChange={onChatModeChange}
+      />
+
+      <SpinnerVerbsModal
+        isOpen={isSpinnerModalOpen}
+        onClose={() => setIsSpinnerModalOpen(false)}
       />
     </div>
   );
