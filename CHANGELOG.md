@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.6.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.5.0...v1.6.0) (2026-10-16)
+
+### ✨ Features
+
+* **workspace:** isolamento de workspace efêmero para execução concorrente de múltiplos agentes ([#59](https://github.com/ApenasGabs/KrakenBridge-Web/issues/59)) ([#62](https://github.com/ApenasGabs/KrakenBridge-Web/issues/62)) ([597c9ee](https://github.com/ApenasGabs/KrakenBridge-Web/commit/597c9eece1bef484b5fadb4debe7f649347788ba))
+
 ## [1.5.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.4.1...v1.5.0) (2026-10-16)
 
 ### ✨ Features
