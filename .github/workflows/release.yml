@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: 📦 Semantic Release
+    runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.semantic.outputs.new_release_published }}
+      version: ${{ steps.semantic.outputs.new_release_version }}
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "ℹ️ Log: Informações do Ambiente"
+        run: |
+          echo "==== DADOS DO AMBIENTE ===="
+          echo "Repositório: ${{ github.repository }}"
+          echo "Branch Acionada: ${{ github.ref_name }}"
+          echo "Hash do Commit: ${{ github.sha }}"
+          echo "==========================="
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - name: 📦 Instalar dependências
+        run: |
+          npm ci --include=dev
+
+      - name: 🏷️ Avaliar e Gerar Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "📋 Log: Resumo da Execução"
+        run: |
+          if [ "${{ steps.semantic.outputs.new_release_published }}" == "true" ]; then
+            echo "### 🚀 Release Gerada com Sucesso!" >> $GITHUB_STEP_SUMMARY
+            echo "- **Versão:** v${{ steps.semantic.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "Nova versão (v${{ steps.semantic.outputs.new_release_version }}) publicada."
+          else
+            echo "### ⏸️ Nenhuma release gerada" >> $GITHUB_STEP_SUMMARY
+            echo "- Os commits deste push não exigem uma nova versão (ex: chore, docs)." >> $GITHUB_STEP_SUMMARY
+            echo "Nenhuma tag nova. Workflow finalizado."
+          fi
