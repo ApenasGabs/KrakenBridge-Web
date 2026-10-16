@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.7.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.6.0...v1.7.0) (2026-10-16)
+
+### ✨ Features
+
+* **mcp:** auto-provisionamento de servidores MCP SQLite para gabot e ai-memory ([#48](https://github.com/ApenasGabs/KrakenBridge-Web/issues/48)) ([#65](https://github.com/ApenasGabs/KrakenBridge-Web/issues/65)) ([9955e58](https://github.com/ApenasGabs/KrakenBridge-Web/commit/9955e58c7e0619437288006132964f60dfd2a293))
+
 ## [1.6.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.5.0...v1.6.0) (2026-10-16)
 
 ### ✨ Features
