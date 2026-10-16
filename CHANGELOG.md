@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.9.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.8.0...v1.9.0) (2026-10-16)
+
+### ✨ Features
+
+* implementar skill de testes de regressao visual e validacao responsiva mobile ([#49](https://github.com/ApenasGabs/KrakenBridge-Web/issues/49)) ([#68](https://github.com/ApenasGabs/KrakenBridge-Web/issues/68)) ([a83a9b5](https://github.com/ApenasGabs/KrakenBridge-Web/commit/a83a9b5477d43f17d95af3ceb5758b8e7790b1c3))
+
 ## [1.8.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.7.1...v1.8.0) (2026-10-16)
 
 ### ✨ Features
