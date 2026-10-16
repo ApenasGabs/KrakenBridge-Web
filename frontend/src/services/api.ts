@@ -229,6 +229,25 @@ export const api = {
     return res.json();
   },
 
+  async getFileRaw(filePath: string): Promise<{
+    path: string;
+    filename: string;
+    extension: string;
+    size: number;
+    isMarkdown: boolean;
+    content: string;
+    error?: string;
+  }> {
+    const res = await fetch(`${getApiBase()}/files/raw?path=${encodeURIComponent(filePath)}`, {
+      headers: authHeaders()
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Erro ao carregar conteúdo do arquivo');
+    }
+    return data;
+  },
+
   async saveApiKeys(keys: { geminiApiKey?: string }): Promise<{ success: boolean }> {
     const res = await fetch(`${getApiBase()}/auth/keys`, {
       method: 'POST',

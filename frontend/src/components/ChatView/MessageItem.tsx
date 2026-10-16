@@ -42,6 +42,7 @@ const MermaidBlock = lazy(() =>
 interface MessageItemProps {
   message: ChatMessage;
   codeServerPort?: number;
+  onOpenFilePreview?: (filePath: string) => void;
 }
 
 const CodeBlock: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
@@ -101,13 +102,13 @@ const CodeBlock: React.FC<{ children: React.ReactNode; className?: string }> = (
   );
 };
 
-const ToolItem: React.FC<{ tool: ToolCall; codeServerPort?: number }> = ({ tool, codeServerPort }) => {
+const ToolItem: React.FC<{ tool: ToolCall; codeServerPort?: number; onOpenFilePreview?: (filePath: string) => void }> = ({ tool, codeServerPort, onOpenFilePreview }) => {
   const [showOutput, setShowOutput] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const fileOp = parseFileOperation(tool);
   if (fileOp) {
-    return <FileOperationCard data={fileOp} codeServerPort={codeServerPort} toolState={tool.state} />;
+    return <FileOperationCard data={fileOp} codeServerPort={codeServerPort} toolState={tool.state} onOpenFilePreview={onOpenFilePreview} />;
   }
 
   const isRunning = tool.state === 'ACTIVE' || tool.state === 'RUNNING';
@@ -204,7 +205,7 @@ const ToolItem: React.FC<{ tool: ToolCall; codeServerPort?: number }> = ({ tool,
   );
 };
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPort }) => {
+export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPort, onOpenFilePreview }) => {
   const isUser = message.role === 'user';
   const [speechState, setSpeechState] = useState<SpeechState>({
     activeMessageId: null,
@@ -269,26 +270,33 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
       }
       return <CodeBlock className={className}>{children}</CodeBlock>;
     },
-    // Intercepta links markdown file:/// para permitir abrir direto na IDE
+    // Intercepta links markdown file:/// para permitir abrir no visualizador in-app (ArtifactDrawer) ou na IDE
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     a({ href, children, ...props }: any) {
       if (href && (href.startsWith('file:///') || href.startsWith('file://'))) {
         const cleanPath = href.replace(/^file:\/\/\/?/, '/');
-        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-        const ideUrl = `http://${hostname}:${codeServerPort || 8089}/?file=${encodeURIComponent(cleanPath)}`;
         return (
-          <a
-            href={ideUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-primary font-mono text-[11px] hover:underline bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 align-baseline mx-0.5"
-            title={`Abrir ${cleanPath} na IDE`}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              if (onOpenFilePreview) {
+                onOpenFilePreview(cleanPath);
+              } else {
+                const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+                const ideUrl = `http://${hostname}:${codeServerPort || 8089}/?file=${encodeURIComponent(cleanPath)}`;
+                window.open(ideUrl, '_blank');
+              }
+            }}
+            className="inline-flex items-center gap-1 text-primary font-mono text-[11px] hover:underline bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 align-baseline mx-0.5 cursor-pointer text-left"
+            title={`Visualizar artefato/arquivo: ${cleanPath}`}
+            data-testid="message-file-link"
             {...props}
           >
             <FileCode className="w-3 h-3 shrink-0" />
             <span>{children}</span>
             <ExternalLink className="w-2.5 h-2.5 opacity-60 shrink-0" />
-          </a>
+          </button>
         );
       }
       return (
@@ -297,7 +305,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
         </a>
       );
     }
-  }), [codeServerPort]);
+  }), [codeServerPort, onOpenFilePreview]);
 
   return (
     <div className={`chat ${isUser ? 'chat-end' : 'chat-start'} mb-4 animate-in fade-in duration-150`}>
@@ -348,7 +356,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
             </div>
             <div className="collapse-content text-xs space-y-2 pt-0 pb-3">
               {message.toolCalls.map((tool: ToolCall, idx: number) => (
-                <ToolItem key={tool.step_index ?? idx} tool={tool} codeServerPort={codeServerPort} />
+                <ToolItem key={tool.step_index ?? idx} tool={tool} codeServerPort={codeServerPort} onOpenFilePreview={onOpenFilePreview} />
               ))}
             </div>
           </div>

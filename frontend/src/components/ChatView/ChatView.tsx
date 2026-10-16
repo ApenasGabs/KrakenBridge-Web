@@ -4,6 +4,7 @@ import { MessageItem } from './MessageItem';
 import { ChatInput } from './ChatInput';
 import { MessageQueueBanner } from './MessageQueueBanner';
 import { SpinnerVerbsModal } from './SpinnerVerbsModal';
+import { ArtifactDrawer } from './ArtifactDrawer';
 import { PodDrainBanner } from '../PodDrain';
 import { Bot, Sparkles, Terminal, Code2, ArrowDown, FolderGit2, ChevronDown, Check } from 'lucide-react';
 
@@ -74,6 +75,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
   const [isSpinnerModalOpen, setIsSpinnerModalOpen] = useState(false);
+  const [selectedArtifactPath, setSelectedArtifactPath] = useState<string | null>(null);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     if (scrollRef.current) {
@@ -261,7 +263,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
             </div>
           ) : (
             messages.map((msg) => (
-              <MessageItem key={msg.id} message={msg} codeServerPort={codeServerPort} />
+              <MessageItem 
+                key={msg.id} 
+                message={msg} 
+                codeServerPort={codeServerPort} 
+                onOpenFilePreview={(filePath) => setSelectedArtifactPath(filePath)}
+              />
             ))
           )}
         </div>
@@ -320,6 +327,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
       <SpinnerVerbsModal
         isOpen={isSpinnerModalOpen}
         onClose={() => setIsSpinnerModalOpen(false)}
+      />
+
+      <ArtifactDrawer
+        filePath={selectedArtifactPath}
+        codeServerPort={codeServerPort}
+        onClose={() => setSelectedArtifactPath(null)}
       />
     </div>
   );
