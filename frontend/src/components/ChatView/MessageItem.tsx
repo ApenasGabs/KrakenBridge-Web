@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Suspense, lazy } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage, ToolCall } from '../../types';
@@ -20,6 +20,11 @@ import {
 import { parseFileOperation } from '../../utils/diffParser';
 import { FileOperationCard } from './FileOperationCard';
 
+// Carregamento dinâmico do MermaidBlock para não onerar o bundle inicial do chat
+const MermaidBlock = lazy(() => 
+  import('./MermaidBlock').then((mod) => ({ default: mod.MermaidBlock }))
+);
+
 interface MessageItemProps {
   message: ChatMessage;
   codeServerPort?: number;
@@ -37,6 +42,21 @@ const CodeBlock: React.FC<{ children: React.ReactNode; className?: string }> = (
 
   const match = /language-(\w+)/.exec(className || '');
   const language = match ? match[1] : '';
+
+  if (language.toLowerCase() === 'mermaid') {
+    return (
+      <Suspense
+        fallback={
+          <div className="my-3 p-4 rounded-xl border border-base-300 bg-base-200/40 flex items-center justify-center gap-2 text-xs text-base-content/60 font-mono">
+            <span className="loading loading-spinner loading-xs text-secondary"></span>
+            <span>Carregando diagrama Mermaid...</span>
+          </div>
+        }
+      >
+        <MermaidBlock code={codeContent} />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="relative group my-3 rounded-lg overflow-hidden border border-base-300 bg-base-300/50">
@@ -68,13 +88,13 @@ const CodeBlock: React.FC<{ children: React.ReactNode; className?: string }> = (
 };
 
 const ToolItem: React.FC<{ tool: ToolCall; codeServerPort?: number }> = ({ tool, codeServerPort }) => {
+  const [showOutput, setShowOutput] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const fileOp = parseFileOperation(tool);
   if (fileOp) {
     return <FileOperationCard data={fileOp} codeServerPort={codeServerPort} toolState={tool.state} />;
   }
-
-  const [showOutput, setShowOutput] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const isRunning = tool.state === 'ACTIVE' || tool.state === 'RUNNING';
   const isDone = tool.state === 'DONE';

@@ -76,6 +76,25 @@ test.describe('E2E: Status, Chat, Cotas e Temas', () => {
     await expect(page.getByText('Adiciona componente FileOperationCard')).toBeVisible();
     await expect(page.getByText(/const updated = 2;/)).toBeVisible();
     await expect(page.getByText(/const old = 1;/)).toBeVisible();
+
+    // Verifica renderizador visual interativo de diagramas Mermaid
+    const mermaidCard = page.getByTestId('mermaid-card');
+    await expect(mermaidCard).toBeVisible();
+    await expect(page.getByTestId('mermaid-badge-type')).toContainText('Fluxograma');
+
+    // Alterna para a aba de Código Mermaid
+    const codeTab = page.getByTestId('mermaid-tab-code');
+    await codeTab.click();
+    await expect(page.getByTestId('mermaid-code-view')).toBeVisible();
+    await expect(page.getByText(/Client\[Cliente Web\]/)).toBeVisible();
+
+    // Retorna para a aba de Diagrama visual
+    const diagramTab = page.getByTestId('mermaid-tab-diagram');
+    await diagramTab.click();
+    await expect(page.getByTestId('mermaid-diagram-container')).toBeVisible();
+
+    // Verifica botão de cópia presente
+    await expect(page.getByTestId('mermaid-copy-code')).toBeVisible();
   });
 
   test('Chat: Envio de nova mensagem e recepção de resposta simulada via stream', async ({ page }) => {
