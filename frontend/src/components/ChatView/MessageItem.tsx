@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { parseFileOperation } from '../../utils/diffParser';
 import { FileOperationCard } from './FileOperationCard';
+import { SpinnerVerbs } from './SpinnerVerbs';
 import { 
   playSpeech, 
   subscribeSpeechState, 
@@ -356,10 +357,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
         {/* Conteúdo Principal em Markdown */}
         <div className="text-sm prose prose-sm max-w-none text-base-content leading-relaxed">
           {message.isStreaming && !isUser && !message.text && (!message.toolCalls || message.toolCalls.length === 0) && !message.thinking ? (
-            <div className="flex items-center gap-2 text-xs text-base-content/60 py-1 font-mono">
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-              <span>Iniciando motor e conectando ferramentas...</span>
-            </div>
+            <SpinnerVerbs startTime={message.timestamp} />
           ) : (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}

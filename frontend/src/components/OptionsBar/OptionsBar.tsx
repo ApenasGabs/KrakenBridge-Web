@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { AccountInfo, ChatOptions, ModelOption } from '../../types';
 import { Cpu, Zap, Shield, ShieldAlert, Sparkles, Activity, MessageSquare, User } from 'lucide-react';
+import { SpinnerVerbsModal } from '../ChatView/SpinnerVerbsModal';
 
 interface OptionsBarProps {
   options: ChatOptions;
@@ -16,6 +18,8 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
   onChange,
   isOpen
 }) => {
+  const [isSpinnerModalOpen, setIsSpinnerModalOpen] = useState(false);
+
   if (!isOpen) return null;
 
   const defaultModels: ModelOption[] = [
@@ -173,8 +177,25 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             <Activity className="w-3.5 h-3.5 text-secondary" />
             <span>Balão de Cotas</span>
           </label>
+
+          {/* Botão de personalização dos Spinner Verbs (Claude Code) */}
+          <button
+            type="button"
+            data-testid="options-spinner-verbs-btn"
+            onClick={() => setIsSpinnerModalOpen(true)}
+            className="btn btn-xs btn-ghost gap-1.5 text-primary hover:bg-primary/10 border border-primary/20 rounded-md font-medium"
+            title="Personalizar palavras e verbos do Spinner (estilo Claude Code)"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <span>Spinner Verbs</span>
+          </button>
         </div>
       </div>
+
+      <SpinnerVerbsModal 
+        isOpen={isSpinnerModalOpen} 
+        onClose={() => setIsSpinnerModalOpen(false)} 
+      />
     </div>
   );
 };
