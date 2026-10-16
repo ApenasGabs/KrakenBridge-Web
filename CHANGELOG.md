@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.7.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.7.0...v1.7.1) (2026-10-16)
+
+### 🐛 Bug Fixes
+
+* **auth:** fallback para client_id do Google Antigravity e validacao na criacao de URL ([#63](https://github.com/ApenasGabs/KrakenBridge-Web/issues/63)) ([#66](https://github.com/ApenasGabs/KrakenBridge-Web/issues/66)) ([6751856](https://github.com/ApenasGabs/KrakenBridge-Web/commit/67518569e0284a2e73d11b236e8568ea6bdbb0cf))
+
 ## [1.7.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.6.0...v1.7.0) (2026-10-16)
 
 ### ✨ Features
