@@ -5,6 +5,13 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.1.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.1.0...v1.1.1) (2026-10-16)
+
+### 🐛 Bug Fixes
+
+* **chat:** 🐛 memoizar componentes markdown para evitar remounting do MermaidBlock (Refs [#43](https://github.com/ApenasGabs/KrakenBridge-Web/issues/43)) ([f704c5a](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f704c5ab8b336a805b343f66934934d2a18c2084))
+* **e2e:** 🐛 corrigir autenticação do mock de PIN e adicionar validação de pipeline às diretrizes (Refs [#43](https://github.com/ApenasGabs/KrakenBridge-Web/issues/43)) ([e65521a](https://github.com/ApenasGabs/KrakenBridge-Web/commit/e65521a1840470a16539fc9f5a20cdb6f0f5e9a9))
+
 ## [1.1.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.0.0...v1.1.0) (2026-10-16)
 
 ### ✨ Features
