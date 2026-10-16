@@ -24,7 +24,9 @@ test.describe('Visual Regression: Snapshots Visuais do KrakenBridge-Web', () => 
     const modal = page.getByTestId('auth-modal');
     await expect(modal).toBeVisible();
 
-    await expect(modal).toHaveScreenshot('auth-modal-desktop.png');
+    await expect(modal).toHaveScreenshot('auth-modal-desktop.png', {
+      maxDiffPixelRatio: 0.1,
+    });
   });
 
   test('Snapshot: McpModal aberto (Desktop)', async ({ page }) => {

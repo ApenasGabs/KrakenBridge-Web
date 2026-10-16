@@ -795,12 +795,12 @@ class GithubProjectService {
   }
 
   /**
-   * Aprova ou efetua merge de um Pull Request via API REST oficial do GitHub
+   * Aprova, efetua merge ou encerra (fecha) um Pull Request via API REST oficial do GitHub
    */
   async approveOrMergePR(
     repo: string,
     prNumber: number,
-    action: 'approve' | 'merge',
+    action: 'approve' | 'merge' | 'close',
     mergeMethod = 'squash'
   ): Promise<{ success: boolean; message: string }> {
     try {
@@ -840,6 +840,18 @@ class GithubProjectService {
           }
           throw reviewErr;
         }
+      } else if (action === 'close') {
+        await this.executeRest(`repos/${repo}/pulls/${prNumber}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            state: 'closed'
+          })
+        });
+        // Invalida cache de PRs
+        this.memoryCache.prs = undefined;
+        this.memoryCache.timestamp = 0;
+        return { success: true, message: `PR #${prNumber} em ${repo} fechada com sucesso!` };
       } else {
         const res = await this.executeRest<{ merged?: boolean; message?: string }>(
           `repos/${repo}/pulls/${prNumber}/merge`,
@@ -858,6 +870,32 @@ class GithubProjectService {
       }
     } catch (err) {
       throw new Error(`Falha ao executar ${action} no PR #${prNumber}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Encerra (fecha) uma Issue via API REST oficial do GitHub
+   */
+  async closeIssue(
+    repo: string,
+    issueNumber: number,
+    stateReason: 'completed' | 'not_planned' = 'completed'
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      await this.executeRest(`repos/${repo}/issues/${issueNumber}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          state: 'closed',
+          state_reason: stateReason
+        })
+      });
+      // Invalida cache de Issues para refletir imediatamente
+      this.memoryCache.issues = undefined;
+      this.memoryCache.timestamp = 0;
+      return { success: true, message: `Issue #${issueNumber} em ${repo} fechada com sucesso!` };
+    } catch (err) {
+      throw new Error(`Falha ao fechar Issue #${issueNumber}: ${(err as Error).message}`);
     }
   }
 

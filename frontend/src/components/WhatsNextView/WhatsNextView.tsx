@@ -28,6 +28,7 @@ import {
   Sparkles,
   Tag,
   X,
+  XCircle,
   SlidersHorizontal,
   Globe
 } from 'lucide-react';
@@ -84,10 +85,13 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
 
   // Ações em Issues
   const [resolvingIssueNumber, setResolvingIssueNumber] = useState<number | null>(null);
+  const [closingIssueKey, setClosingIssueKey] = useState<string | null>(null);
+  const [confirmCloseIssueKey, setConfirmCloseIssueKey] = useState<string | null>(null);
 
   // Ações em PRs (usando prKey única: repo#number para evitar conflitos entre repositórios)
   const [actioningPrKey, setActioningPrKey] = useState<string | null>(null);
   const [confirmMergePrKey, setConfirmMergePrKey] = useState<string | null>(null);
+  const [confirmClosePrKey, setConfirmClosePrKey] = useState<string | null>(null);
   const [expandedReviewPrKey, setExpandedReviewPrKey] = useState<string | null>(null);
   const [reviewComments, setReviewComments] = useState<Record<string, string>>({});
   const [submittingReviewPrKey, setSubmittingReviewPrKey] = useState<string | null>(null);
@@ -419,8 +423,37 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
     }
   };
 
-  // Disparar Ação no PR (Aprovar ou Fazer Merge)
-  const handlePrAction = async (pr: GithubPullRequestItem, action: 'approve' | 'merge') => {
+  // Fechar Issue no GitHub
+  const handleCloseIssue = async (issue: GithubIssueItem) => {
+    const repo = issue.repository?.nameWithOwner;
+    if (!repo) return;
+    const issueKey = `${repo}#${issue.number}`;
+
+    setClosingIssueKey(issueKey);
+    setActionFeedback(null);
+    try {
+      const res = await api.closeGithubIssue(repo, issue.number);
+      if (res.success) {
+        setActionFeedback({
+          type: 'success',
+          message: `Issue #${issue.number} em ${repo} fechada com sucesso no GitHub!`
+        });
+        setConfirmCloseIssueKey(null);
+        loadData(true);
+      }
+    } catch (err) {
+      console.error('Erro ao fechar issue:', err);
+      setActionFeedback({
+        type: 'error',
+        message: (err as Error).message || `Falha ao fechar Issue #${issue.number}`
+      });
+    } finally {
+      setClosingIssueKey(null);
+    }
+  };
+
+  // Disparar Ação no PR (Aprovar, Fazer Merge ou Fechar)
+  const handlePrAction = async (pr: GithubPullRequestItem, action: 'approve' | 'merge' | 'close') => {
     const repo = pr.repository?.nameWithOwner;
     if (!repo) return;
     const prKey = `${repo}#${pr.number}`;
@@ -434,9 +467,12 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
           type: 'success',
           message: action === 'approve' 
             ? `PR #${pr.number} aprovada com sucesso no GitHub!` 
-            : `PR #${pr.number} mesclada com sucesso no GitHub!`
+            : action === 'merge'
+            ? `PR #${pr.number} mesclada com sucesso no GitHub!`
+            : `PR #${pr.number} fechada com sucesso no GitHub!`
         });
         setConfirmMergePrKey(null);
+        setConfirmClosePrKey(null);
         loadData(true);
       }
     } catch (err) {
@@ -905,11 +941,13 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
             ) : (
               <div className="grid grid-cols-1 gap-3">
                 {filteredIssues.map((issue) => {
+                  const issueKey = `${issue.repository?.nameWithOwner}#${issue.number}`;
                   const isResolving = resolvingIssueNumber === issue.number;
+                  const isClosing = closingIssueKey === issueKey;
 
                   return (
                     <div
-                      key={`${issue.repository?.nameWithOwner}#${issue.number}`}
+                      key={issueKey}
                       className="card bg-base-200/50 hover:bg-base-200 border border-base-300 transition-all shadow-sm hover:shadow"
                     >
                       <div className="card-body p-4 sm:p-5">
@@ -994,11 +1032,11 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                             )}
                           </div>
 
-                          {/* Botão de Ação: Resolver com Kraken */}
-                          <div className="shrink-0 self-start md:self-center">
+                          {/* Botões de Ação: Resolver com Kraken e Fechar Issue */}
+                          <div className="shrink-0 self-start md:self-center flex flex-wrap items-center gap-2">
                             <button
                               onClick={() => handleResolveIssue(issue)}
-                              disabled={isResolving}
+                              disabled={isResolving || isClosing}
                               className="btn btn-sm btn-primary gap-1.5 shadow-sm text-xs w-full sm:w-auto"
                             >
                               {isResolving ? (
@@ -1008,6 +1046,36 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                               )}
                               <span>Resolver com Kraken</span>
                             </button>
+
+                            {confirmCloseIssueKey === issueKey ? (
+                              <div className="flex items-center gap-1.5 bg-error/10 border border-error/30 rounded-lg px-2 py-1">
+                                <span className="text-[11px] font-medium text-error">Fechar issue?</span>
+                                <button
+                                  onClick={() => handleCloseIssue(issue)}
+                                  disabled={isClosing}
+                                  className="btn btn-xs btn-error gap-1 text-xs"
+                                >
+                                  {isClosing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                                  Sim, fechar
+                                </button>
+                                <button
+                                  onClick={() => setConfirmCloseIssueKey(null)}
+                                  className="btn btn-ghost btn-xs text-xs"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmCloseIssueKey(issueKey)}
+                                disabled={isResolving || isClosing}
+                                className="btn btn-sm btn-ghost text-error/80 hover:text-error hover:bg-error/10 gap-1.5 text-xs w-full sm:w-auto"
+                                title="Encerrar / Fechar esta Issue no GitHub"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Fechar Issue</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1228,6 +1296,36 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                               >
                                 <GitMerge className="w-3.5 h-3.5" />
                                 <span>Mesclar (Squash)</span>
+                              </button>
+                            )}
+
+                            {confirmClosePrKey === prKey ? (
+                              <div className="flex items-center gap-1.5 bg-error/10 border border-error/30 rounded-lg px-2 py-1">
+                                <span className="text-[11px] font-medium text-error">Fechar PR?</span>
+                                <button
+                                  onClick={() => handlePrAction(pr, 'close')}
+                                  disabled={isActioning}
+                                  className="btn btn-xs btn-error gap-1 text-xs"
+                                >
+                                  {isActioning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                                  Sim, fechar
+                                </button>
+                                <button
+                                  onClick={() => setConfirmClosePrKey(null)}
+                                  className="btn btn-ghost btn-xs text-xs"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmClosePrKey(prKey)}
+                                disabled={isActioning}
+                                className="btn btn-xs sm:btn-sm btn-outline btn-error gap-1 text-xs hover:bg-error/10"
+                                title="Encerrar / Fechar Pull Request no GitHub"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Fechar PR</span>
                               </button>
                             )}
                           </div>

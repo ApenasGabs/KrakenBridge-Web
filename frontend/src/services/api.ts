@@ -552,7 +552,7 @@ export const api = {
   async actionGithubPr(
     repo: string, 
     prNumber: number, 
-    action: 'approve' | 'merge', 
+    action: 'approve' | 'merge' | 'close', 
     mergeMethod?: string
   ): Promise<{ success: boolean; message?: string; output?: string }> {
     const res = await fetch(`${getApiBase()}/projects/github/prs/action`, {
@@ -565,6 +565,32 @@ export const api = {
       throw new Error(data.error || data.message || `Falha ao executar ação ${action} na PR #${prNumber}`);
     }
     return data;
+  },
+
+  async actionGithubIssue(
+    repo: string,
+    issueNumber: number,
+    action: 'close' = 'close',
+    stateReason?: 'completed' | 'not_planned'
+  ): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch(`${getApiBase()}/projects/github/issues/action`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ repo, issueNumber, action, stateReason })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || `Falha ao executar ação na Issue #${issueNumber}`);
+    }
+    return data;
+  },
+
+  async closeGithubIssue(
+    repo: string,
+    issueNumber: number,
+    stateReason?: 'completed' | 'not_planned'
+  ): Promise<{ success: boolean; message?: string }> {
+    return this.actionGithubIssue(repo, issueNumber, 'close', stateReason);
   },
 
   async reviewGithubPr(data: {
