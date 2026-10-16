@@ -16,12 +16,14 @@ interface FileOperationCardProps {
   data: FileOperationData;
   codeServerPort?: number;
   toolState?: string;
+  onOpenFilePreview?: (filePath: string) => void;
 }
 
 export const FileOperationCard: React.FC<FileOperationCardProps> = ({ 
   data, 
   codeServerPort = 8089,
-  toolState
+  toolState,
+  onOpenFilePreview
 }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -159,6 +161,23 @@ export const FileOperationCard: React.FC<FileOperationCardProps> = ({
               </>
             )}
           </button>
+
+          {/* Botão Visualizar In-App (ArtifactDrawer) */}
+          {onOpenFilePreview && data.filePath && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenFilePreview(data.filePath);
+              }}
+              className="btn btn-ghost btn-xs px-1.5 h-6 min-h-0 text-primary hover:text-primary-focus hover:bg-base-300 gap-1"
+              title="Visualizar arquivo in-app"
+              data-testid="file-op-card-preview-btn"
+            >
+              <Eye className="w-3 h-3" />
+              <span className="text-[10px] hidden sm:inline">Ver</span>
+            </button>
+          )}
 
           {/* Botão Abrir na IDE */}
           {data.filePath && (

@@ -13,6 +13,7 @@ import { mcpRouter } from './routes/mcp.js';
 import { systemRouter } from './routes/system.js';
 import { projectsRouter } from './routes/projects.js';
 import { memoryRouter } from './routes/memory.js';
+import { filesRouter } from './routes/files.js';
 import { evolutionService } from './services/evolutionService.js';
 import { telemetryService } from './services/telemetryService.js';
 import { workspaceManager } from './services/workspaceManager.js';
@@ -92,6 +93,7 @@ const registerRoutes = (prefix: string) => {
   app.use(`${prefix}/system`, systemRouter);
   app.use(`${prefix}/projects`, projectsRouter);
   app.use(`${prefix}/memory`, memoryRouter);
+  app.use(`${prefix}/files`, filesRouter);
 
   app.post(`${prefix}/stop`, (_req: Request, res: Response) => res.redirect(307, `${prefix}/chat/stop`));
 
