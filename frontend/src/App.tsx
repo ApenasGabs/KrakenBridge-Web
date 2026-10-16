@@ -24,6 +24,7 @@ import { AuthModal } from './components/AuthModal/AuthModal';
 import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 import { McpModal } from './components/McpModal/McpModal';
 import { PinModal } from './components/PinModal/PinModal';
+import { NotificationsModal } from './components/NotificationsModal';
 import { PodDrainBanner, PodDrainReloadBubble } from './components/PodDrain';
 
 export const App: React.FC = () => {
@@ -50,6 +51,7 @@ export const App: React.FC = () => {
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isMcpModalOpen, setIsMcpModalOpen] = useState(false);
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   const [mcpCount, setMcpCount] = useState(0);
 
   // Configurações do Sistema
@@ -755,6 +757,7 @@ export const App: React.FC = () => {
           onToggleQuota={() => handleUpdateOptions({ ...options, showQuotaBubble: !options.showQuotaBubble })}
           onOpenMcp={() => setIsMcpModalOpen(true)}
           mcpCount={mcpCount}
+          onOpenNotifications={() => setIsNotificationsModalOpen(true)}
         />
 
         {/* Barra de Opções do Antigravity CLI */}
@@ -841,6 +844,12 @@ export const App: React.FC = () => {
       <McpModal
         isOpen={isMcpModalOpen}
         onClose={() => setIsMcpModalOpen(false)}
+      />
+
+      {/* Modal de Notificações Móveis e PWA */}
+      <NotificationsModal
+        isOpen={isNotificationsModalOpen}
+        onClose={() => setIsNotificationsModalOpen(false)}
       />
 
       {/* Modal de Autenticação e Configurações */}

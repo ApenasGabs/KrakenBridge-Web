@@ -770,6 +770,49 @@ export const api = {
     const res = await fetch(`${getApiBase()}/health`);
     if (!res.ok) throw new Error('Serviço offline ou indisponível');
     return res.json();
+  },
+
+  // Notificações Web Push & PWA
+  async getVapidPublicKey(): Promise<{ publicKey: string }> {
+    const res = await fetchWithAuth(`${getApiBase()}/notifications/vapid-public-key`);
+    if (!res.ok) throw new Error('Falha ao obter chave pública VAPID');
+    return res.json();
+  },
+
+  async subscribePush(subscription: any): Promise<{ success: boolean; activeSubscriptions: number }> {
+    const res = await fetchWithAuth(`${getApiBase()}/notifications/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription })
+    });
+    if (!res.ok) throw new Error('Falha ao registrar assinatura push');
+    return res.json();
+  },
+
+  async unsubscribePush(endpoint: string): Promise<{ success: boolean }> {
+    const res = await fetchWithAuth(`${getApiBase()}/notifications/unsubscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint })
+    });
+    if (!res.ok) throw new Error('Falha ao remover assinatura push');
+    return res.json();
+  },
+
+  async sendTestPushNotification(payload?: { title?: string; body?: string }): Promise<{ success: boolean; sent: number }> {
+    const res = await fetchWithAuth(`${getApiBase()}/notifications/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {})
+    });
+    if (!res.ok) throw new Error('Falha ao enviar notificação de teste');
+    return res.json();
+  },
+
+  async getNotificationStatus(): Promise<{ configured: boolean; activeSubscriptions: number }> {
+    const res = await fetchWithAuth(`${getApiBase()}/notifications/status`);
+    if (!res.ok) throw new Error('Falha ao consultar status de notificações');
+    return res.json();
   }
 };
 

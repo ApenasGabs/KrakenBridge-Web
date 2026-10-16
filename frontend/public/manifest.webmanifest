@@ -1,0 +1,25 @@
+{
+  "name": "Kraken Multi-Agent Studio",
+  "short_name": "Kraken",
+  "description": "Autonomous Multi-Agent AI Bridge & Integrated Studio for Homelab and Mobile",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#121417",
+  "theme_color": "#0d1117",
+  "icons": [
+    {
+      "src": "/kraken-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["utilities", "productivity", "developer tools"]
+}

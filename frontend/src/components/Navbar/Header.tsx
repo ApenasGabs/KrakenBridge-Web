@@ -14,7 +14,8 @@ import {
   MoreVertical,
   Palette,
   Compass,
-  Database
+  Database,
+  Bell
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -30,6 +31,7 @@ interface HeaderProps {
   onToggleQuota?: () => void;
   onOpenMcp?: () => void;
   mcpCount?: number;
+  onOpenNotifications?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,7 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentModel,
   onToggleQuota,
   onOpenMcp,
-  mcpCount
+  mcpCount,
+  onOpenNotifications
 }) => {
   const isAuthOk = authStatus?.authenticated || authStatus?.isKeyValid;
 
@@ -178,6 +181,17 @@ export const Header: React.FC<HeaderProps> = ({
             {sessionUsage.sessionTotalTokens.toLocaleString()}
           </span>
         </div>
+
+        {/* Botão de Notificações / PWA */}
+        <button
+          data-testid="header-notifications-btn"
+          onClick={onOpenNotifications}
+          className="btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1.5 text-xs text-base-content/70 hover:text-primary transition-colors"
+          title="Configurar Notificações Móveis e PWA (Web Push)"
+        >
+          <Bell className="w-3.5 h-3.5 text-warning" />
+          <span className="hidden lg:inline">Push</span>
+        </button>
 
         {/* Botão de Servidores MCP */}
         <button
@@ -316,6 +330,16 @@ export const Header: React.FC<HeaderProps> = ({
                 {mcpCount !== undefined && mcpCount > 0 && (
                   <span className="badge badge-xs badge-primary font-mono">{mcpCount}</span>
                 )}
+              </button>
+            </li>
+            <li>
+              <button 
+                data-testid="header-notifications-btn-mobile"
+                onClick={() => { onOpenNotifications?.(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center gap-2 py-2"
+              >
+                <Bell className="w-4 h-4 text-warning" />
+                Notificações & PWA
               </button>
             </li>
             <li>
