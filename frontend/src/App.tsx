@@ -657,6 +657,14 @@ export const App: React.FC = () => {
     await selectConversation(conversationId);
   }, [selectConversation]);
 
+  const handleStartSetupChat = useCallback(async (data: { conversationId: string; suggestedPrompt: string }) => {
+    await loadConversations();
+    await selectConversation(data.conversationId);
+    if (data.suggestedPrompt) {
+      executeTurn(data.suggestedPrompt);
+    }
+  }, [loadConversations, selectConversation, executeTurn]);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-base-100 text-base-content font-sans">
       {/* Sidebar de Histórico e Workspaces */}
@@ -711,6 +719,7 @@ export const App: React.FC = () => {
             onSelectConversation={selectConversation}
             onNewChatInProject={handleNewChatInProject}
             onNewChat={handleNewChat}
+            onStartSetupChat={handleStartSetupChat}
           />
         ) : activeTab === 'whatsnext' ? (
           <WhatsNextView

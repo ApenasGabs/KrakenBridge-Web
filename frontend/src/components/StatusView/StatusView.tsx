@@ -33,6 +33,7 @@ interface StatusViewProps {
   onSelectConversation: (id: string) => void;
   onNewChatInProject: (subproject: string) => void;
   onNewChat: () => void;
+  onStartSetupChat?: (data: { conversationId: string; suggestedPrompt: string }) => void;
 }
 
 const nodeTypes = {
@@ -50,6 +51,7 @@ const StatusContent: React.FC<StatusViewProps> = ({
   onSelectConversation,
   onNewChatInProject,
   onNewChat,
+  onStartSetupChat,
 }) => {
   const { fitView } = useReactFlow();
   const [searchTerm, setSearchTerm] = useState('');
@@ -394,6 +396,7 @@ const StatusContent: React.FC<StatusViewProps> = ({
               runningCount={runningCount}
               totalConversations={conversations.length}
               totalWorkspaces={projects.length}
+              onStartSetupChat={onStartSetupChat}
             />
           </div>
         )}

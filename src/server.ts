@@ -14,6 +14,7 @@ import { systemRouter } from './routes/system.js';
 import { projectsRouter } from './routes/projects.js';
 import { memoryRouter } from './routes/memory.js';
 import { evolutionService } from './services/evolutionService.js';
+import { telemetryService } from './services/telemetryService.js';
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
@@ -154,4 +155,9 @@ app.listen(PORT, '0.0.0.0', () => {
 
   // Checa se este boot é decorrente de um ciclo de auto-evolução
   evolutionService.checkAndResumeAfterBoot();
+
+  // Auto-bootstrap Out-of-the-Box da stack de telemetria e contenção de cgroups
+  setTimeout(() => {
+    telemetryService.autoBootstrapOnStartup();
+  }, 2500);
 });
