@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.2.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.1.1...v1.2.0) (2026-10-16)
+
+### ✨ Features
+
+* **ux:** feedback visual de Pod Drain, bloqueio preventivo de chat e reconexao automatica (Refs [#45](https://github.com/ApenasGabs/KrakenBridge-Web/issues/45)) ([#46](https://github.com/ApenasGabs/KrakenBridge-Web/issues/46)) ([2a8d07a](https://github.com/ApenasGabs/KrakenBridge-Web/commit/2a8d07a4305cbd556fd82f71cd25f5e18b5c9358))
+
 ## [1.1.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.1.0...v1.1.1) (2026-10-16)
 
 ### 🐛 Bug Fixes
