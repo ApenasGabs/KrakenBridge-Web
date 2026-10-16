@@ -16,6 +16,7 @@ import { memoryRouter } from './routes/memory.js';
 import { evolutionService } from './services/evolutionService.js';
 import { telemetryService } from './services/telemetryService.js';
 import { workspaceManager } from './services/workspaceManager.js';
+import { mcpService } from './services/mcpService.js';
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
@@ -161,6 +162,11 @@ app.listen(PORT, '0.0.0.0', () => {
   // Purgar eventuais workspaces efêmeros órfãos deixados por reinícios anteriores
   workspaceManager.purgeOrphanWorkspaces().catch((err) => {
     console.warn('[KrakenBridge] Aviso ao purgar workspaces órfãos:', err?.message || err);
+  });
+
+  // Provisionar automaticamente os servidores MCP SQLite locais caso os bancos existam
+  mcpService.ensureHomelabSqliteServers().catch((err) => {
+    console.warn('[KrakenBridge] Aviso ao provisionar servidores MCP SQLite locais:', err?.message || err);
   });
 
   // Auto-bootstrap Out-of-the-Box da stack de telemetria e contenção de cgroups

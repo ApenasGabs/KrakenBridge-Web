@@ -9,6 +9,7 @@
     "build:server": "tsc",
     "build:frontend": "npm run --prefix frontend build",
     "build": "npm run build:frontend && npm run build:server",
+    "test": "npm run --prefix frontend test -- --run",
     "typecheck": "tsc --noEmit",
     "test:e2e": "npm run --prefix frontend test:e2e",
     "test:e2e:ui": "npm run --prefix frontend test:e2e:ui",
