@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.4.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.3.0...v1.4.0) (2026-10-16)
+
+### ✨ Features
+
+* **whats-next:** permitir fechar issues e prs diretamente na interface ([#55](https://github.com/ApenasGabs/KrakenBridge-Web/issues/55)) ([#57](https://github.com/ApenasGabs/KrakenBridge-Web/issues/57)) ([0839ebf](https://github.com/ApenasGabs/KrakenBridge-Web/commit/0839ebfe9e1cd83d7c0ee7beeacab237fa2dfc8c))
+
 ## [1.3.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.2.0...v1.3.0) (2026-10-16)
 
 ### ✨ Features
