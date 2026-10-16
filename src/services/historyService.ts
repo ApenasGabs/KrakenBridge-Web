@@ -66,17 +66,23 @@ async function syncAntigravityConversations(): Promise<void> {
       }
     }
 
+    const existingFiles = await fs.readdir(SESSIONS_DIR).catch(() => [] as string[]);
+    const existingAgyConvIds = new Set<string>();
+    for (const file of existingFiles) {
+      if (!file.endsWith('.json')) continue;
+      existingAgyConvIds.add(file.replace(/\.json$/, ''));
+      try {
+        const content = await fs.readFile(path.join(SESSIONS_DIR, file), 'utf8');
+        const parsed = JSON.parse(content);
+        if (parsed.id) existingAgyConvIds.add(parsed.id);
+        if (parsed.agyConvId) existingAgyConvIds.add(parsed.agyConvId);
+      } catch {}
+    }
+
     for (const sum of summaries) {
       const convId = sum.conversation_id;
+      if (existingAgyConvIds.has(convId)) continue; // Já sincronizado ou associado a sessão existente
       const targetFile = path.join(SESSIONS_DIR, `${convId}.json`);
-
-      let exists = false;
-      try {
-        await fs.access(targetFile);
-        exists = true;
-      } catch {}
-
-      if (exists) continue; // Já sincronizado
 
       let subproject = '';
       try {
@@ -206,6 +212,7 @@ async function syncAntigravityConversations(): Promise<void> {
       };
 
       await fs.writeFile(targetFile, JSON.stringify(sessionData, null, 2), 'utf8');
+      existingAgyConvIds.add(convId);
     }
   } catch {}
 }
