@@ -43,14 +43,28 @@ projectsRouter.get('/github/prs', async (req: Request, res: Response) => {
   }
 });
 
-// Aprovar ou mergear PR (marcar como OK)
+// Aprovar, mergear ou fechar PR
 projectsRouter.post('/github/prs/action', async (req: Request, res: Response) => {
   try {
     const { repo, prNumber, action } = req.body || {};
-    if (!repo || !prNumber || !['approve', 'merge'].includes(action)) {
-      return res.status(400).json({ error: 'Parâmetros inválidos. É obrigatório informar repo, prNumber e action (approve ou merge).' });
+    if (!repo || !prNumber || !['approve', 'merge', 'close'].includes(action)) {
+      return res.status(400).json({ error: 'Parâmetros inválidos. É obrigatório informar repo, prNumber e action (approve, merge ou close).' });
     }
     const result = await githubProjectService.approveOrMergePR(repo, Number(prNumber), action);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Fechar ou executar ação em Issue
+projectsRouter.post('/github/issues/action', async (req: Request, res: Response) => {
+  try {
+    const { repo, issueNumber, action, stateReason } = req.body || {};
+    if (!repo || !issueNumber || action !== 'close') {
+      return res.status(400).json({ error: 'Parâmetros inválidos. É obrigatório informar repo, issueNumber e action ("close").' });
+    }
+    const result = await githubProjectService.closeIssue(repo, Number(issueNumber), stateReason);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
