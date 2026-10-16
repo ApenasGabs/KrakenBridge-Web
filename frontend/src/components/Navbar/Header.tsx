@@ -258,6 +258,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Botão de Conta / Auth Direto no Mobile */}
         <button
+          data-testid="header-auth-btn-mobile"
           onClick={onOpenAuth}
           className={`btn btn-ghost btn-xs btn-square h-8 w-8 rounded-lg border transition-all ${
             isAuthOk 
