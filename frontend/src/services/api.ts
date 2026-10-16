@@ -14,7 +14,11 @@ import type {
   ProjectOverview,
   TelemetryStackStatus,
   OutOfBoxSetupConfig,
-  ApplySetupPayload
+  ApplySetupPayload,
+  MemoryStatus,
+  MemorySearchResult,
+  MemoryPage,
+  MemoryHandoff
 } from '../types';
 
 export interface SSECallbacks {
@@ -648,6 +652,52 @@ export const api = {
       throw new Error(result.error || 'Falha ao iniciar chat de configuração');
     }
     return result;
+  },
+
+  async getMemoryStatus(): Promise<MemoryStatus> {
+    const res = await fetchWithAuth(`${getApiBase()}/memory/status`);
+    if (!res.ok) throw new Error('Falha ao obter status da memória');
+    return res.json();
+  },
+
+  async getMemoryBriefing(workspace = 'default', project = 'scratch'): Promise<any> {
+    const res = await fetchWithAuth(`${getApiBase()}/memory/briefing?workspace=${encodeURIComponent(workspace)}&project=${encodeURIComponent(project)}`);
+    if (!res.ok) throw new Error('Falha ao obter briefing da memória');
+    return res.json();
+  },
+
+  async searchMemory(query: string, limit = 20): Promise<MemorySearchResult[]> {
+    const res = await fetchWithAuth(`${getApiBase()}/memory/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+    if (!res.ok) throw new Error('Falha na busca da memória');
+    return res.json();
+  },
+
+  async getRecentMemoryPages(limit = 20): Promise<MemorySearchResult[]> {
+    const res = await fetchWithAuth(`${getApiBase()}/memory/recent?limit=${limit}`);
+    if (!res.ok) throw new Error('Falha ao listar páginas recentes da memória');
+    return res.json();
+  },
+
+  async getMemoryPage(path: string): Promise<MemoryPage> {
+    const res = await fetchWithAuth(`${getApiBase()}/memory/page?path=${encodeURIComponent(path)}`);
+    if (!res.ok) throw new Error('Falha ao carregar página da memória');
+    return res.json();
+  },
+
+  async saveMemoryPage(data: { path: string; body: string; tags?: string[]; pinned?: boolean }): Promise<any> {
+    const res = await fetchWithAuth(`${getApiBase()}/memory/page`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao gravar página na memória');
+    return res.json();
+  },
+
+  async getMemoryHandoffs(): Promise<MemoryHandoff[]> {
+    const res = await fetchWithAuth(`${getApiBase()}/memory/handoffs`);
+    if (!res.ok) throw new Error('Falha ao listar handoffs da memória');
+    return res.json();
   }
 };
 

@@ -18,6 +18,7 @@ import { ChatView } from './components/ChatView/ChatView';
 import { IdeView } from './components/IdeView/IdeView';
 import { StatusView } from './components/StatusView/StatusView';
 import { WhatsNextView } from './components/WhatsNextView/WhatsNextView';
+import { MemoryView } from './components/MemoryView/MemoryView';
 import { AuthModal } from './components/AuthModal/AuthModal';
 import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 import { McpModal } from './components/McpModal/McpModal';
@@ -39,7 +40,7 @@ export const App: React.FC = () => {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Layout & Abas (Inicia no Status por padrão)
-  const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide'>('status');
+  const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide' | 'memory'>('status');
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
@@ -754,6 +755,8 @@ export const App: React.FC = () => {
             onChatModeChange={(chatMode) => handleUpdateOptions({ ...options, chatMode })}
             codeServerPort={codeServerPort}
           />
+        ) : activeTab === 'memory' ? (
+          <MemoryView />
         ) : (
           <IdeView
             codeServerPort={codeServerPort}

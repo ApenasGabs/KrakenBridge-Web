@@ -14,6 +14,7 @@ ln -sf /app/bin/vercel /usr/local/bin/vercel 2>/dev/null || true
 ln -sf /app/bin/vc /usr/local/bin/vc 2>/dev/null || true
 ln -sf /app/bin/gh /usr/local/bin/gh 2>/dev/null || true
 ln -sf /app/bin/agy /usr/local/bin/agy 2>/dev/null || true
+ln -sf /app/bin/ai-memory /usr/local/bin/ai-memory 2>/dev/null || true
 
 echo "=========================================="
 echo "🦑 Iniciando KrakenBridge Web (ZimaOS)"
