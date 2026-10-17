@@ -242,6 +242,29 @@ class McpService {
       aiMemory: aiMemoryExists && !!config.mcpServers['sqlite-ai-memory']
     };
   }
+
+  async ensureHomelabCrawl4AiServer(): Promise<boolean> {
+    const CRAWL4AI_URL = process.env.CRAWL4AI_URL || 'http://gabisa.local:11235/mcp';
+    const CRAWL4AI_TOKEN = process.env.CRAWL4AI_TOKEN || 'kraken-crawl4ai-homelab-2026';
+
+    const config = await this.readConfig();
+    if (!config.mcpServers) config.mcpServers = {};
+
+    if (!config.mcpServers['crawl4ai']) {
+      config.mcpServers['crawl4ai'] = {
+        url: CRAWL4AI_URL,
+        description: 'Motor de extração estruturada e conversão de páginas para Markdown limpo (Crawl4AI)',
+        headers: {
+          Authorization: `Bearer ${CRAWL4AI_TOKEN}`
+        },
+        disabled: false
+      };
+      await this.writeConfig(config);
+      console.log('[McpService] Servidor MCP Crawl4AI provisionado com sucesso!');
+      return true;
+    }
+    return false;
+  }
 }
 
 export const mcpService = new McpService();
