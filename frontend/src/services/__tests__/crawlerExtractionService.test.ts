@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { crawlerExtractionService, PREDEFINED_SCHEMAS } from '../../../../src/services/crawlerExtractionService';
 import { mcpService } from '../../../../src/services/mcpService';

@@ -484,7 +484,8 @@ class CoucouPhoneLinkService {
   // === Gerenciamento de Sessões do Agente para o Celular ===
 
   public startSession(conversationId: string, agent: string, cwd: string) {
-    const project = path.basename(cwd) || 'Kraken';
+    const normalizedCwd = (cwd || '').replace(/\\/g, '/');
+    const project = path.basename(normalizedCwd) || 'Kraken';
     const pillId = agent.toLowerCase().includes('claude') ? 'claude' : (agent.toLowerCase().includes('aider') ? 'aider' : 'antigravity');
 
     const session: CoucouSession = {
