@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.13.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.12.1...v1.13.0) (2026-10-17)
+
+### ✨ Features
+
+* **chat:** manter spinner verbs visiveis durante todo o periodo de espera (Refs [#74](https://github.com/ApenasGabs/KrakenBridge-Web/issues/74)) ([#75](https://github.com/ApenasGabs/KrakenBridge-Web/issues/75)) ([a801cf6](https://github.com/ApenasGabs/KrakenBridge-Web/commit/a801cf607c4ff9917df60f9b12e82dc024ff7d51))
+
 ## [1.12.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.12.0...v1.12.1) (2026-10-17)
 
 ### 🐛 Bug Fixes
