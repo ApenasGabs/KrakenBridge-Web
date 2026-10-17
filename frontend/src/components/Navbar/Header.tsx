@@ -15,7 +15,9 @@ import {
   Palette,
   Compass,
   Database,
-  Bell
+  Bell,
+  Sparkles,
+  GitBranch
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -32,6 +34,9 @@ interface HeaderProps {
   onOpenMcp?: () => void;
   mcpCount?: number;
   onOpenNotifications?: () => void;
+  onOpenUpdate?: () => void;
+  hasUpdate?: boolean;
+  systemVersion?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -47,7 +52,10 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleQuota,
   onOpenMcp,
   mcpCount,
-  onOpenNotifications
+  onOpenNotifications,
+  onOpenUpdate,
+  hasUpdate,
+  systemVersion
 }) => {
   const isAuthOk = authStatus?.authenticated || authStatus?.isKeyValid;
 
@@ -191,6 +199,30 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <Bell className="w-3.5 h-3.5 text-warning" />
           <span className="hidden lg:inline">Push</span>
+        </button>
+
+        {/* Botão de Versão & Atualizações */}
+        <button
+          data-testid="header-version-btn"
+          onClick={onOpenUpdate}
+          className={`btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1.5 text-xs font-mono transition-colors ${
+            hasUpdate 
+              ? 'text-primary bg-primary/10 border border-primary/30 animate-pulse' 
+              : 'text-base-content/70 hover:text-primary'
+          }`}
+          title={hasUpdate ? "Nova versão do Kraken disponível! Clique para atualizar." : `Versão do Kraken (${systemVersion || 'v1.11.0'})`}
+        >
+          {hasUpdate ? (
+            <>
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <span className="hidden lg:inline font-semibold">Update</span>
+            </>
+          ) : (
+            <>
+              <GitBranch className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">{systemVersion || 'v1.11.0'}</span>
+            </>
+          )}
         </button>
 
         {/* Botão de Servidores MCP */}
@@ -340,6 +372,21 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Bell className="w-4 h-4 text-warning" />
                 Notificações & PWA
+              </button>
+            </li>
+            <li>
+              <button 
+                data-testid="header-version-btn-mobile"
+                onClick={() => { onOpenUpdate?.(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center justify-between py-2"
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles className={`w-4 h-4 ${hasUpdate ? 'text-primary animate-pulse' : 'text-base-content/60'}`} />
+                  Versão & Updates
+                </span>
+                <span className={`badge badge-xs font-mono ${hasUpdate ? 'badge-primary' : 'badge-ghost'}`}>
+                  {hasUpdate ? 'Update' : (systemVersion || 'v1.11.0')}
+                </span>
               </button>
             </li>
             <li>

@@ -853,6 +853,51 @@ export const api = {
       body: JSON.stringify({ fingerprint, decision })
     });
     return res.json();
+  },
+
+  async getSystemVersion(): Promise<{
+    success: boolean;
+    currentVersion: string;
+    latestVersion: string;
+    hasUpdate: boolean;
+    policy: 'auto' | 'pinned';
+    pinnedVersion: string | null;
+    releases: Array<{
+      tag: string;
+      name: string;
+      changelog: string;
+      publishedAt: string;
+      isCurrent: boolean;
+      isLatest: boolean;
+    }>;
+    lastCheckedAt: string;
+  }> {
+    const res = await fetchWithAuth(`${getApiBase()}/system/version`);
+    if (!res.ok) throw new Error('Falha ao consultar versão do sistema');
+    return res.json();
+  },
+
+  async setSystemVersionPolicy(policy: 'auto' | 'pinned', pinnedVersion?: string | null): Promise<{ success: boolean; policy: any }> {
+    const res = await fetchWithAuth(`${getApiBase()}/system/version/policy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policy, pinnedVersion })
+    });
+    if (!res.ok) throw new Error('Falha ao atualizar política de versão');
+    return res.json();
+  },
+
+  async updateSystemVersion(targetTag?: string): Promise<{ success: boolean; message: string; targetVersion: string }> {
+    const res = await fetchWithAuth(`${getApiBase()}/system/version/update`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetTag })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Falha ao atualizar sistema');
+    }
+    return res.json();
   }
 };
 
