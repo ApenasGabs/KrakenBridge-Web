@@ -1,6 +1,6 @@
 {
   "name": "krakenbridge-web",
-  "version": "1.12.0",
+  "version": "1.12.1",
   "description": "KrakenBridge Web: Autonomous Multi-Agent AI Bridge & Integrated VS Code for ZimaOS and Docker",
   "type": "module",
   "main": "dist-server/server.js",

@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.12.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.12.0...v1.12.1) (2026-10-17)
+
+### 🐛 Bug Fixes
+
+* **ci:** adicionar controle de concorrencia e sincronizacao de tags remotas no workflow de release ([#73](https://github.com/ApenasGabs/KrakenBridge-Web/issues/73)) ([d00a86e](https://github.com/ApenasGabs/KrakenBridge-Web/commit/d00a86ef2c148b8422209ac8a2a7c8c08728d8e4))
+
 ## [1.12.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.11.0...v1.12.0) (2026-10-17)
 
 ### ✨ Features
