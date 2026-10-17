@@ -10,6 +10,17 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ### ✨ Features
 
 * **mcp:** integrar suporte ao motor de extração estruturada Crawl4AI ([#51](https://github.com/ApenasGabs/KrakenBridge-Web/issues/51)) ([5aa4a29](https://github.com/ApenasGabs/KrakenBridge-Web/commit/5aa4a29d8d560a378926582a87bfe0a0ecd61a1e)), closes [#47](https://github.com/ApenasGabs/KrakenBridge-Web/issues/47)
+* **system:** fluxo de atualizacao do Kraken com botao de update, seletor de versao e fixacao pin ([#71](https://github.com/ApenasGabs/KrakenBridge-Web/issues/71)) ([e86d9ca](https://github.com/ApenasGabs/KrakenBridge-Web/commit/e86d9ca96ee55b290d45cbf606f1afd5b95021c4))
+
+### 🔧 Chores
+
+* **release:** 1.12.0 [skip ci] ([8685b91](https://github.com/ApenasGabs/KrakenBridge-Web/commit/8685b911e3efa7ade40cfcfe02fc8ce078e2f332)), closes [#47](https://github.com/ApenasGabs/KrakenBridge-Web/issues/47)
+
+## [1.12.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.11.0...v1.12.0) (2026-10-17)
+
+### ✨ Features
+
+* **mcp:** integrar suporte ao motor de extração estruturada Crawl4AI ([#51](https://github.com/ApenasGabs/KrakenBridge-Web/issues/51)) ([5aa4a29](https://github.com/ApenasGabs/KrakenBridge-Web/commit/5aa4a29d8d560a378926582a87bfe0a0ecd61a1e)), closes [#47](https://github.com/ApenasGabs/KrakenBridge-Web/issues/47)
 
 ## [1.11.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.10.0...v1.11.0) (2026-10-17)
 
