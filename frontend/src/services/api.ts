@@ -813,6 +813,46 @@ export const api = {
     const res = await fetchWithAuth(`${getApiBase()}/notifications/status`);
     if (!res.ok) throw new Error('Falha ao consultar status de notificações');
     return res.json();
+  },
+
+  async getCoucouStatus(): Promise<{
+    success: boolean;
+    running: boolean;
+    port: number;
+    host: string;
+    fingerprint: string;
+    token: string;
+    pairingUri: string;
+    qrCodeDataUrl: string;
+    clientCount: number;
+    deviceName: string;
+    pairedAt: number | null;
+  }> {
+    const res = await fetchWithAuth(`${getApiBase()}/coucou/status`);
+    if (!res.ok) throw new Error('Falha ao consultar status do Coucou Link');
+    return res.json();
+  },
+
+  async resetCoucouToken(): Promise<{
+    success: boolean;
+    token: string;
+    pairingUri: string;
+    qrCodeDataUrl: string;
+  }> {
+    const res = await fetchWithAuth(`${getApiBase()}/coucou/reset-token`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Falha ao resetar pareamento do Coucou');
+    return res.json();
+  },
+
+  async sendCoucouDecision(fingerprint: string, decision: 'allow' | 'deny'): Promise<{ success: boolean; message: string }> {
+    const res = await fetchWithAuth(`${getApiBase()}/coucou/decision`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprint, decision })
+    });
+    return res.json();
   }
 };
 

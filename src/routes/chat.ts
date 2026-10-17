@@ -12,6 +12,7 @@ import { activeProcesses, activeSessions } from '../services/sessionState.js';
 import { evolutionService } from '../services/evolutionService.js';
 import { workspaceManager } from '../services/workspaceManager.js';
 import { pushNotificationService } from '../services/pushNotificationService.js';
+import { coucouPhoneLinkService } from '../services/coucouPhoneLinkService.js';
 import type { AgentDriver, AgentType, ToolCall, ChatRequestBody } from '../types/chat.js';
 
 export const chatRouter = Router();
@@ -330,6 +331,9 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     subproject: activeSubproject
   }).catch(() => {});
 
+  // Notifica o aplicativo móvel via Coucou Phone Link TLS
+  coucouPhoneLinkService.startSession(conversationId, agent, effectiveWorkDir);
+
   // Keep-alive heartbeat para conexões de longa duração
   const pingInterval = setInterval(() => {
     safeWrite(': ping\n\n');
@@ -479,6 +483,13 @@ chatRouter.post('/', async (req: Request, res: Response) => {
               state: su.state
             });
           }
+          // Notifica os passos ao smartphone no aplicativo Coucou
+          coucouPhoneLinkService.recordStep(conversationId, {
+            tool: su.tool_name,
+            file: params.TargetFile,
+            command: cmd,
+            state: su.state
+          });
           scheduleSave();
         }
       } else if (parsed.event === 'result') {
@@ -618,6 +629,13 @@ chatRouter.post('/', async (req: Request, res: Response) => {
       durationMs: Date.now() - executionStartTime
     }).catch(() => {});
 
+    // Finaliza a sessão no Coucou Phone Link para o celular
+    coucouPhoneLinkService.endSession(
+      conversationId,
+      code === 0 ? 'finished' : 'error',
+      accumulatedText ? accumulatedText.slice(0, 150) : undefined
+    );
+
     safeWrite(`data: ${JSON.stringify({ event: 'done', code, conversation_id: conversationId })}\n\n`);
     try {
       if (res && !res.writableEnded && !res.destroyed) {
@@ -648,6 +666,8 @@ chatRouter.post('/', async (req: Request, res: Response) => {
         toolCalls
       });
     } catch {}
+
+    coucouPhoneLinkService.endSession(conversationId, 'error', err.message);
 
     safeWrite(`data: ${JSON.stringify({ event: 'error', error: err.message })}\n\n`);
     try {
