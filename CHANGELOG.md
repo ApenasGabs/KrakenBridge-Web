@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.11.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.10.0...v1.11.0) (2026-10-17)
+
+### ✨ Features
+
+* **mobile:** implementar servidor do protocolo Coucou Phone Link para monitoramento e aprovacao via smartphone ([#70](https://github.com/ApenasGabs/KrakenBridge-Web/issues/70)) ([2a2b86c](https://github.com/ApenasGabs/KrakenBridge-Web/commit/2a2b86c264ae2c41d5a879cc039e8725fa2fb538))
+
 ## [1.10.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.9.0...v1.10.0) (2026-10-16)
 
 ### ✨ Features
