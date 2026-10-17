@@ -25,6 +25,7 @@ import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 import { McpModal } from './components/McpModal/McpModal';
 import { PinModal } from './components/PinModal/PinModal';
 import { NotificationsModal } from './components/NotificationsModal';
+import { SystemUpdateModal } from './components/SystemUpdateModal';
 import { PodDrainBanner, PodDrainReloadBubble } from './components/PodDrain';
 
 export const App: React.FC = () => {
@@ -52,6 +53,8 @@ export const App: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isMcpModalOpen, setIsMcpModalOpen] = useState(false);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [versionInfo, setVersionInfo] = useState<{ currentVersion: string; latestVersion: string; hasUpdate: boolean } | null>(null);
   const [mcpCount, setMcpCount] = useState(0);
 
   // Configurações do Sistema
@@ -170,7 +173,8 @@ export const App: React.FC = () => {
       await Promise.all([
         refreshAuthStatus(), 
         loadConversations(),
-        api.getMcpServers().then(servers => setMcpCount(servers.length)).catch(() => {})
+        api.getMcpServers().then(servers => setMcpCount(servers.length)).catch(() => {}),
+        api.getSystemVersion().then(v => { if (v?.success) setVersionInfo(v); }).catch(() => {})
       ]);
     } catch (err) {
       console.error('Erro na inicialização do app:', err);
@@ -758,6 +762,9 @@ export const App: React.FC = () => {
           onOpenMcp={() => setIsMcpModalOpen(true)}
           mcpCount={mcpCount}
           onOpenNotifications={() => setIsNotificationsModalOpen(true)}
+          onOpenUpdate={() => setIsUpdateModalOpen(true)}
+          hasUpdate={versionInfo?.hasUpdate}
+          systemVersion={versionInfo ? `v${versionInfo.currentVersion}` : undefined}
         />
 
         {/* Barra de Opções do Antigravity CLI */}
@@ -850,6 +857,15 @@ export const App: React.FC = () => {
       <NotificationsModal
         isOpen={isNotificationsModalOpen}
         onClose={() => setIsNotificationsModalOpen(false)}
+      />
+
+      {/* Modal de Gestão de Versões e Atualizações (Issue #64) */}
+      <SystemUpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => {
+          setIsUpdateModalOpen(false);
+          api.getSystemVersion().then(v => { if (v?.success) setVersionInfo(v); }).catch(() => {});
+        }}
       />
 
       {/* Modal de Autenticação e Configurações */}

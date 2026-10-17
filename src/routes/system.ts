@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { evolutionService } from '../services/evolutionService.js';
 import { telemetryService } from '../services/telemetryService.js';
 import { historyService } from '../services/historyService.js';
+import { systemVersionService } from '../services/systemVersionService.js';
 
 export const systemRouter = Router();
 
@@ -101,5 +102,50 @@ systemRouter.post('/setup/start-chat', async (req: Request, res: Response) => {
     });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Obter status de versão atual, última disponível, releases e política ativa
+systemRouter.get('/version', async (_req: Request, res: Response) => {
+  try {
+    const status = await systemVersionService.getStatus();
+    res.json({
+      success: true,
+      ...status
+    });
+  } catch (err: any) {
+    console.error('[SystemRoute] Erro ao consultar versão:', err);
+    res.status(500).json({ success: false, error: err?.message || 'Falha ao consultar versão' });
+  }
+});
+
+// Atualizar política de versão (auto vs pinned)
+systemRouter.post('/version/policy', (req: Request, res: Response) => {
+  try {
+    const { policy, pinnedVersion } = req.body || {};
+    if (!['auto', 'pinned'].includes(policy)) {
+      res.status(400).json({ success: false, error: 'Política inválida. Escolha "auto" ou "pinned".' });
+      return;
+    }
+
+    const updated = systemVersionService.setPolicy(policy, pinnedVersion);
+    res.json({
+      success: true,
+      policy: updated
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err?.message || 'Erro ao alterar política' });
+  }
+});
+
+// Executar atualização ou rollback para versão alvo
+systemRouter.post('/version/update', async (req: Request, res: Response) => {
+  try {
+    const { targetTag } = req.body || {};
+    const result = await systemVersionService.updateToVersion(targetTag);
+    res.json(result);
+  } catch (err: any) {
+    console.error('[SystemRoute] Erro ao atualizar sistema:', err);
+    res.status(500).json({ success: false, error: err?.message || 'Falha ao atualizar versão' });
   }
 });
