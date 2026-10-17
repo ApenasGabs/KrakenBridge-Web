@@ -144,6 +144,14 @@ class McpService {
       };
     }
 
+    if (name.toLowerCase() === 'crawl4ai' || serverUrl.includes('11235')) {
+      return {
+        server: name,
+        authUrl: 'http://gabisa.local:11235/playground',
+        instructions: 'O Crawl4AI roda localmente no Homelab na porta 11235. O token de API padrão configurado no Docker Compose é "kraken-crawl4ai-homelab-2026".'
+      };
+    }
+
     if (name.toLowerCase() === 'github' || serverUrl.includes('github.com')) {
       return {
         server: name,
@@ -233,6 +241,29 @@ class McpService {
       gabot: gabotExists && !!config.mcpServers['sqlite-gabot'],
       aiMemory: aiMemoryExists && !!config.mcpServers['sqlite-ai-memory']
     };
+  }
+
+  async ensureHomelabCrawl4AiServer(): Promise<boolean> {
+    const CRAWL4AI_URL = process.env.CRAWL4AI_URL || 'http://gabisa.local:11235/mcp';
+    const CRAWL4AI_TOKEN = process.env.CRAWL4AI_TOKEN || 'kraken-crawl4ai-homelab-2026';
+
+    const config = await this.readConfig();
+    if (!config.mcpServers) config.mcpServers = {};
+
+    if (!config.mcpServers['crawl4ai']) {
+      config.mcpServers['crawl4ai'] = {
+        url: CRAWL4AI_URL,
+        description: 'Motor de extração estruturada e conversão de páginas para Markdown limpo (Crawl4AI)',
+        headers: {
+          Authorization: `Bearer ${CRAWL4AI_TOKEN}`
+        },
+        disabled: false
+      };
+      await this.writeConfig(config);
+      console.log('[McpService] Servidor MCP Crawl4AI provisionado com sucesso!');
+      return true;
+    }
+    return false;
   }
 }
 
