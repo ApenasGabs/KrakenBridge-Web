@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.12.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.11.0...v1.12.0) (2026-10-17)
+
+### ✨ Features
+
+* **mcp:** integrar suporte ao motor de extração estruturada Crawl4AI ([#51](https://github.com/ApenasGabs/KrakenBridge-Web/issues/51)) ([5aa4a29](https://github.com/ApenasGabs/KrakenBridge-Web/commit/5aa4a29d8d560a378926582a87bfe0a0ecd61a1e)), closes [#47](https://github.com/ApenasGabs/KrakenBridge-Web/issues/47)
+
 ## [1.11.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.10.0...v1.11.0) (2026-10-17)
 
 ### ✨ Features
