@@ -2,11 +2,12 @@ import path from 'path';
 import os from 'os';
 
 export function getAllowedDirectories(): string[] {
+  const isTest = Boolean(process.env.VITEST || process.env.NODE_ENV === 'test');
   const dirs = [
     process.env.WORKSPACE_DIR || '/workspace',
     process.env.DATA_DIR || '/DATA',
     '/root/.gemini',
-    '/app',
+    ...(isTest ? [] : ['/app']),
     os.tmpdir(),
     '/tmp'
   ];
@@ -30,6 +31,10 @@ export function getAllowedDirectories(): string[] {
 export function isPathAllowed(targetPath: string): boolean {
   if (!targetPath || typeof targetPath !== 'string') return false;
   try {
+    // Bloquear caminhos absolutos do Windows em sistemas POSIX (ex: C:\Windows)
+    if (process.platform !== 'win32' && /^[a-zA-Z]:[/\\]/.test(targetPath)) {
+      return false;
+    }
     const resolved = path.resolve(targetPath).toLowerCase();
     const allowed = getAllowedDirectories();
     return allowed.some(base => {

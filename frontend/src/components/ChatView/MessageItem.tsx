@@ -364,7 +364,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
 
         {/* Conteúdo Principal em Markdown */}
         <div className="text-sm prose prose-sm max-w-none text-base-content leading-relaxed">
-          {message.isStreaming && !isUser && !message.text && (!message.toolCalls || message.toolCalls.length === 0) && !message.thinking ? (
+          {message.isStreaming && !isUser && !message.text ? (
             <SpinnerVerbs startTime={message.timestamp} />
           ) : (
             <ReactMarkdown
@@ -375,7 +375,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
             </ReactMarkdown>
           )}
 
-          {message.isStreaming && (message.text || message.thinking || (message.toolCalls && message.toolCalls.length > 0)) && (
+          {message.isStreaming && message.text && (
             <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse align-middle" />
           )}
         </div>

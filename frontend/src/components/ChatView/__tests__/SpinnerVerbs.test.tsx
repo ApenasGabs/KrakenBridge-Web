@@ -213,4 +213,53 @@ describe('MessageItem com SpinnerVerbs', () => {
     render(<MessageItem message={streamingMessage} />);
     expect(screen.getByTestId('spinner-verbs-container')).toBeInTheDocument();
   });
+
+  it('deve continuar renderizando SpinnerVerbs quando houver ferramentas em execução se o texto ainda não tiver chegado', () => {
+    const streamingWithTools: ChatMessage = {
+      id: 'msg-stream-tools',
+      role: 'assistant',
+      text: '',
+      isStreaming: true,
+      toolCalls: [
+        {
+          name: 'run_command',
+          state: 'RUNNING',
+          args: { CommandLine: 'docker ps' }
+        }
+      ],
+      timestamp: '2026-10-15T20:00:00.000Z'
+    };
+
+    render(<MessageItem message={streamingWithTools} />);
+    expect(screen.getByTestId('spinner-verbs-container')).toBeInTheDocument();
+  });
+
+  it('deve continuar renderizando SpinnerVerbs quando houver raciocínio (thinking) ativo se o texto ainda não tiver chegado', () => {
+    const streamingWithThinking: ChatMessage = {
+      id: 'msg-stream-thinking',
+      role: 'assistant',
+      text: '',
+      isStreaming: true,
+      thinking: 'Planejando e executando tarefas...',
+      timestamp: '2026-10-15T20:00:00.000Z'
+    };
+
+    render(<MessageItem message={streamingWithThinking} />);
+    expect(screen.getByTestId('spinner-verbs-container')).toBeInTheDocument();
+  });
+
+  it('deve alternar para o texto da mensagem quando o texto começar a chegar e ocultar o SpinnerVerbs', () => {
+    const streamingWithText: ChatMessage = {
+      id: 'msg-stream-text',
+      role: 'assistant',
+      text: 'Resposta preliminar sendo transmitida.',
+      isStreaming: true,
+      timestamp: '2026-10-15T20:00:00.000Z'
+    };
+
+    render(<MessageItem message={streamingWithText} />);
+    expect(screen.queryByTestId('spinner-verbs-container')).not.toBeInTheDocument();
+    expect(screen.getByText('Resposta preliminar sendo transmitida.')).toBeInTheDocument();
+  });
 });
+
