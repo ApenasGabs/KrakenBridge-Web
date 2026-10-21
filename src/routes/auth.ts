@@ -20,8 +20,37 @@ interface CurrentAuthSession {
   startedAt: number;
 }
 
-// Sessão de autenticação dedicada ativa
+const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
+const SESSION_FILE = path.join(DATA_DIR, 'current_auth_session.json');
+
+// Sessão de autenticação dedicada ativa em memória com persistência em disco
 let currentAuthSession: CurrentAuthSession | null = null;
+
+async function saveCurrentSession(session: CurrentAuthSession | null): Promise<void> {
+  currentAuthSession = session;
+  try {
+    if (session) {
+      await fs.mkdir(path.dirname(SESSION_FILE), { recursive: true });
+      await fs.writeFile(SESSION_FILE, JSON.stringify(session, null, 2), 'utf8');
+    } else {
+      await fs.unlink(SESSION_FILE).catch(() => {});
+    }
+  } catch {}
+}
+
+async function getCurrentSession(): Promise<CurrentAuthSession | null> {
+  if (currentAuthSession) return currentAuthSession;
+  try {
+    const raw = await fs.readFile(SESSION_FILE, 'utf8');
+    const parsed = JSON.parse(raw) as CurrentAuthSession;
+    // Válido por 30 minutos
+    if (Date.now() - parsed.startedAt < 30 * 60 * 1000) {
+      currentAuthSession = parsed;
+      return currentAuthSession;
+    }
+  } catch {}
+  return null;
+}
 
 /**
  * Lê diretamente as credenciais salvas do Google Antigravity
@@ -227,12 +256,12 @@ authRouter.post('/antigravity/start', async (req: Request, res: Response) => {
 
   const authUrl = `https://accounts.google.com/o/oauth2/auth?${params.toString()}`;
 
-  currentAuthSession = {
+  await saveCurrentSession({
     authUrl,
     verifier,
     state,
     startedAt: Date.now()
-  };
+  });
 
   return res.json({
     status: 'waiting_for_code',
@@ -244,7 +273,12 @@ authRouter.post('/antigravity/start', async (req: Request, res: Response) => {
 authRouter.post('/antigravity/submit-code', async (req: Request, res: Response) => {
   let { code } = req.body || {};
   if (!code) {
-    return res.status(400).json({ error: 'Código de autorização não fornecido.' });
+    return res.status(400).json({
+      success: false,
+      status: 'error',
+      error: 'Código de autorização não fornecido.',
+      message: 'Código de autorização não fornecido.'
+    });
   }
 
   // Sanitização rigorosa do código colado pelo usuário
@@ -256,7 +290,17 @@ authRouter.post('/antigravity/submit-code', async (req: Request, res: Response) 
   code = code.trim();
 
   try {
-    const verifier = currentAuthSession?.verifier;
+    const session = await getCurrentSession();
+    const verifier = session?.verifier;
+
+    if (!verifier) {
+      return res.status(400).json({
+        success: false,
+        status: 'error',
+        error: 'Sessão de autorização expirada ou não encontrada. Por favor, clique em "Iniciar Login via Google OAuth" para gerar um novo link antes de colar o código.',
+        message: 'Sessão de autorização expirada ou não encontrada. Por favor, clique em "Iniciar Login via Google OAuth" para gerar um novo link antes de colar o código.'
+      });
+    }
 
     const clientId = getGoogleClientId();
     const clientSecret = getGoogleClientSecret();
@@ -265,7 +309,8 @@ authRouter.post('/antigravity/submit-code', async (req: Request, res: Response) 
       return res.status(400).json({
         success: false,
         status: 'error',
-        error: 'GOOGLE_CLIENT_ID não configurado no servidor.'
+        error: 'GOOGLE_CLIENT_ID não configurado no servidor.',
+        message: 'GOOGLE_CLIENT_ID não configurado no servidor.'
       });
     }
 
@@ -303,16 +348,41 @@ authRouter.post('/antigravity/submit-code', async (req: Request, res: Response) 
 
     if (!tokenRes.ok || tokenJson.error) {
       const errMsg = tokenJson.error_description || tokenJson.error || 'Código de autorização inválido ou expirado.';
+      console.error('[Auth] Erro ao trocar código OAuth no Google:', tokenJson);
       return res.status(400).json({
         success: false,
         status: 'error',
-        error: `Google OAuth Error: ${errMsg}`
+        error: `Google OAuth Error: ${errMsg}`,
+        message: `Google OAuth Error: ${errMsg}`
       });
     }
 
     // 2. Montar objeto no formato exato esperado pelo Antigravity CLI (agy)
     const expiresInSec = tokenJson.expires_in || 3600;
     const expiryDate = new Date(Date.now() + expiresInSec * 1000).toISOString();
+
+    let idToken = tokenJson.id_token || '';
+
+    // Se por alguma razão o id_token não veio ou não contém email, busca via userinfo
+    if (tokenJson.access_token) {
+      const parsed = idToken ? accountService.extractAccountInfo({ id_token: idToken }) : null;
+      if (!parsed?.email) {
+        try {
+          const userinfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${tokenJson.access_token}` }
+          });
+          if (userinfoRes.ok) {
+            const uData = await userinfoRes.json() as { email?: string; name?: string; picture?: string };
+            if (!idToken && uData.email) {
+              const b64 = Buffer.from(JSON.stringify(uData)).toString('base64url');
+              idToken = `header.${b64}.signature`;
+            }
+          }
+        } catch (e) {
+          console.warn('[Auth] Não foi possível consultar userinfo do Google:', (e as Error).message);
+        }
+      }
+    }
 
     const agyTokenStructure = {
       token: {
@@ -322,7 +392,7 @@ authRouter.post('/antigravity/submit-code', async (req: Request, res: Response) 
         expiry: expiryDate
       },
       auth_method: 'consumer',
-      id_token: tokenJson.id_token || ''
+      id_token: idToken
     };
 
     // 3. Salvar no store multi-contas e definir como ativa
@@ -331,7 +401,7 @@ authRouter.post('/antigravity/submit-code', async (req: Request, res: Response) 
     // 4. Disparar atualização ao vivo da cota para a nova conta
     quotaService.fetchLiveQuotaFromGoogle(true).catch(() => {});
 
-    currentAuthSession = null;
+    await saveCurrentSession(null);
 
     return res.json({
       success: true,

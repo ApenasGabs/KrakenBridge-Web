@@ -243,14 +243,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     try {
       const res = await api.submitAntigravityCode(cleanCode);
       if (res.success) {
-        setMessage({ text: 'Nova conta conectada e ativada com sucesso via Google OAuth!', type: 'success' });
+        setMessage({ text: res.message || 'Nova conta conectada e ativada com sucesso via Google OAuth!', type: 'success' });
         setAuthUrl('');
         setAuthCode('');
         await loadAccountsList();
         onRefreshStatus();
         setActiveTab('accounts');
       } else {
-        setMessage({ text: res.message || 'Código não aceito.', type: 'error' });
+        const errorMsg = res.error || res.message || 'Código não aceito pelo Google OAuth.';
+        setMessage({ text: errorMsg, type: 'error' });
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao enviar código de autorização.';
