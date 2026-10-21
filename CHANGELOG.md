@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.13.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.13.1...v1.13.2) (2026-10-21)
+
+### 🐛 Bug Fixes
+
+* **auth:** incluir client_secret oficial do Google Antigravity e detalhar erros (Refs [#79](https://github.com/ApenasGabs/KrakenBridge-Web/issues/79)) ([#80](https://github.com/ApenasGabs/KrakenBridge-Web/issues/80)) ([2db5687](https://github.com/ApenasGabs/KrakenBridge-Web/commit/2db56879e4c4d891f0fbe4cd90535664f5d7188a))
+
 ## [1.13.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.13.0...v1.13.1) (2026-10-21)
 
 ### ⚡ Performance
