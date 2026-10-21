@@ -220,13 +220,17 @@ export const api = {
     return data;
   },
 
-  async submitAntigravityCode(code: string): Promise<{ success: boolean; message: string }> {
+  async submitAntigravityCode(code: string): Promise<{ success: boolean; message?: string; error?: string; email?: string; name?: string }> {
     const res = await fetch(`${getApiBase()}/auth/antigravity/submit-code`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ code })
     });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok && !data.error && !data.message) {
+      data.error = `Erro HTTP ${res.status}: ${res.statusText || 'Falha ao processar código'}`;
+    }
+    return data;
   },
 
   async getFileRaw(filePath: string): Promise<{
