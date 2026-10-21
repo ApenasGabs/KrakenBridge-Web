@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import readline from 'readline';
 import { randomUUID } from 'crypto';
 import path from 'path';
@@ -19,6 +19,48 @@ export const chatRouter = Router();
 export { activeSessions };
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
+/**
+ * Recupera recursivamente todos os PIDs de processos-filhos e descendentes de um PID pai.
+ */
+function getAllDescendantPids(parentPid: number): number[] {
+  const pids: number[] = [];
+  try {
+    const stdout = execSync(`pgrep -P ${parentPid}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const directChildren = stdout
+      .split(/\r?\n/)
+      .map(s => parseInt(s.trim(), 10))
+      .filter(n => !isNaN(n) && n > 0);
+
+    for (const childPid of directChildren) {
+      pids.push(childPid);
+      pids.push(...getAllDescendantPids(childPid));
+    }
+  } catch {
+    // pgrep retorna 1 quando nenhum filho é encontrado (cenário normal)
+  }
+  return pids;
+}
+
+/**
+ * Encerra de forma recursiva e garantida toda a árvore de processos (process tree kill).
+ * Evita que servidores MCP e processos de background fiquem órfãos consumindo RAM.
+ */
+export function killProcessTree(pid: number, signal: NodeJS.Signals = 'SIGTERM'): void {
+  try {
+    const descendants = getAllDescendantPids(pid);
+    for (const descPid of descendants.reverse()) {
+      try {
+        process.kill(descPid, signal);
+      } catch {}
+    }
+    try {
+      process.kill(pid, signal);
+    } catch {}
+  } catch (err) {
+    console.warn(`[KrakenBridge] Aviso ao encerrar árvore de processos ${pid}:`, (err as Error).message);
+  }
+}
+
 
 // Construtor flexível de argumentos para os drivers CLI dos agentes
 const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
@@ -281,6 +323,21 @@ chatRouter.post('/', async (req: Request, res: Response) => {
 
   console.log(`[KrakenBridge] Motor: ${agent} | Conta: ${activeAccountEmail || 'padrão'} | Conv: ${conversationId} | Cwd: ${effectiveWorkDir}${workspaceAlloc.isEphemeral ? ' (Efêmero)' : ''} | Prompt: "${prompt.slice(0, 50)}..."`);
 
+  // Se já havia uma sessão ativa na mesma conversa, encerra a árvore anterior para evitar concorrência e vazamento de RAM
+  if (activeSessions.has(conversationId)) {
+    const prevSession = activeSessions.get(conversationId)!;
+    console.log(`[KrakenBridge] [ProcessTree] Encerrando sessão anterior para ${conversationId} (PID: ${prevSession.child.pid})`);
+    try {
+      if (prevSession.child.pid) {
+        killProcessTree(prevSession.child.pid, 'SIGTERM');
+      } else {
+        prevSession.child.kill('SIGTERM');
+      }
+    } catch {}
+    activeSessions.delete(conversationId);
+    if (prevSession.reqId) activeProcesses.delete(prevSession.reqId);
+  }
+
   const executionStartTime = Date.now();
 
   const child = spawn(driver.cmd, args, {
@@ -527,6 +584,9 @@ chatRouter.post('/', async (req: Request, res: Response) => {
       clearTimeout(saveTimeout);
       saveTimeout = null;
     }
+    if (child.pid) {
+      killProcessTree(child.pid, 'SIGTERM');
+    }
     activeProcesses.delete(reqId);
     activeSessions.delete(conversationId);
     workspaceManager.releaseWorkspace(conversationId).catch((err) => {
@@ -650,6 +710,9 @@ chatRouter.post('/', async (req: Request, res: Response) => {
       clearTimeout(saveTimeout);
       saveTimeout = null;
     }
+    if (child.pid) {
+      killProcessTree(child.pid, 'SIGTERM');
+    }
     activeProcesses.delete(reqId);
     activeSessions.delete(conversationId);
     workspaceManager.releaseWorkspace(conversationId).catch((err) => {
@@ -710,14 +773,19 @@ chatRouter.post('/stop', (req: Request, res: Response) => {
 
   const terminateSession = (session: { child: import('child_process').ChildProcess; res?: Response | null; reqId?: string }, convId: string) => {
     try {
-      session.child.kill('SIGTERM');
-      setTimeout(() => {
-        try {
-          if (!session.child.killed && session.child.exitCode === null) {
-            session.child.kill('SIGKILL');
-          }
-        } catch {}
-      }, 250);
+      const pid = session.child.pid;
+      if (pid) {
+        killProcessTree(pid, 'SIGTERM');
+        setTimeout(() => {
+          try {
+            if (!session.child.killed && session.child.exitCode === null) {
+              killProcessTree(pid, 'SIGKILL');
+            }
+          } catch {}
+        }, 250);
+      } else {
+        session.child.kill('SIGTERM');
+      }
       count++;
     } catch (e) {
       console.error(`Erro ao finalizar processo da conversa ${convId}:`, e);

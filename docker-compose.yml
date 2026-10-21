@@ -35,7 +35,7 @@ services:
       resources:
         limits:
           cpus: '${KRAKEN_CPU_LIMIT:-1.5}'
-          memory: ${KRAKEN_MEMORY_LIMIT:-1536M}
+          memory: ${KRAKEN_MEMORY_LIMIT:-2048M}
         reservations:
           memory: 256M
     volumes:
