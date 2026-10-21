@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.13.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.13.0...v1.13.1) (2026-10-21)
+
+### ⚡ Performance
+
+* **memory:** otimizar consumo de RAM, remover playwright local e ajustar limite para 2GB (Refs [#77](https://github.com/ApenasGabs/KrakenBridge-Web/issues/77)) ([#78](https://github.com/ApenasGabs/KrakenBridge-Web/issues/78)) ([9f945b1](https://github.com/ApenasGabs/KrakenBridge-Web/commit/9f945b1958bc42d0ad7f8702110d88424e36736b))
+
 ## [1.13.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.12.1...v1.13.0) (2026-10-17)
 
 ### ✨ Features
