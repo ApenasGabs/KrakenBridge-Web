@@ -12,6 +12,10 @@ export default defineConfig({
         target: "http://localhost:8088",
         changeOrigin: true,
       },
+      "/monaco": {
+        target: "http://localhost:8088",
+        changeOrigin: true,
+      },
     },
   },
 });

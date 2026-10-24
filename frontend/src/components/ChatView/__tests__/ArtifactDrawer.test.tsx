@@ -5,7 +5,8 @@ import { api } from '../../../services/api';
 
 vi.mock('../../../services/api', () => ({
   api: {
-    getFileRaw: vi.fn()
+    getFileRaw: vi.fn(),
+    saveFileRaw: vi.fn()
   }
 }));
 
@@ -74,7 +75,9 @@ describe('ArtifactDrawer Component (Issue #50)', () => {
     fireEvent.click(rawTab);
 
     // Na aba de código cru, o texto markdown original com # deve ser renderizado
-    expect(screen.getByText(/# Análise de Arquitetura/i)).toBeInTheDocument();
+    expect(screen.getByText((_content, element) => {
+      return element?.tagName.toLowerCase() === 'pre' && (element?.textContent?.includes('Análise de Arquitetura') ?? false);
+    })).toBeInTheDocument();
 
     const previewTab = screen.getByTestId('artifact-tab-preview');
     fireEvent.click(previewTab);
@@ -153,5 +156,54 @@ describe('ArtifactDrawer Component (Issue #50)', () => {
       expect(screen.getByText(/Não foi possível carregar o arquivo/i)).toBeInTheDocument();
       expect(screen.getByText(/Acesso negado: fora dos diretórios autorizados/i)).toBeInTheDocument();
     });
+  });
+
+  it('deve parsear âncora de linha (#L2-L4), chamar getFileRaw sem a âncora e destacar as linhas', async () => {
+    const codeData = {
+      path: '/root/project/src/index.ts',
+      filename: 'index.ts',
+      extension: 'ts',
+      size: 512,
+      isMarkdown: false,
+      content: 'line 1\nline 2: target\nline 3: target\nline 4: target\nline 5'
+    };
+    vi.mocked(api.getFileRaw).mockResolvedValue(codeData);
+
+    render(
+      <ArtifactDrawer filePath="/root/project/src/index.ts#L2-L4" codeServerPort={8089} onClose={vi.fn()} />
+    );
+
+    // Deve chamar getFileRaw sem o fragmento de âncora
+    expect(api.getFileRaw).toHaveBeenCalledWith('/root/project/src/index.ts');
+
+    await waitFor(() => {
+      expect(screen.getByText('index.ts')).toBeInTheDocument();
+    });
+
+    // Deve exibir o badge de linhas L2-L4
+    const lineBadge = screen.getByTestId('artifact-line-badge');
+    expect(lineBadge).toBeInTheDocument();
+    expect(lineBadge).toHaveTextContent('L2-L4');
+
+    // Deve destacar exatamente 3 linhas (linhas 2, 3 e 4)
+    const highlightedLines = screen.getAllByTestId('highlighted-code-line');
+    expect(highlightedLines).toHaveLength(3);
+
+    // Link para a IDE deve conter sufixo :2
+    const ideBtn = screen.getByTestId('artifact-drawer-ide-btn');
+    expect(ideBtn).toHaveAttribute('href', expect.stringContaining(':2'));
+  });
+  it('deve exibir as abas Código (Shiki), Editar (CodeMirror) e VS Code (Monaco)', async () => {
+    vi.mocked(api.getFileRaw).mockResolvedValue(sampleData);
+    render(
+      <ArtifactDrawer filePath={sampleFilePath} onClose={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-tab-raw')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('artifact-tab-edit')).toBeInTheDocument();
+    expect(screen.getByTestId('artifact-tab-monaco')).toBeInTheDocument();
   });
 });
