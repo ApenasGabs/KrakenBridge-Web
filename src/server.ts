@@ -76,7 +76,7 @@ const distDir = [
   path.resolve('frontend/dist'),
   path.resolve('dist'),
   path.resolve('public')
-].find(dir => fs.existsSync(dir)) || path.resolve('public');
+].find(dir => fs.existsSync(path.join(dir, 'index.html'))) || path.resolve('public');
 
 // Servir arquivos estáticos na raiz e em /chat
 app.use(express.static(distDir));

@@ -28,6 +28,8 @@ echo "=========================================="
 echo "🦑 Iniciando KrakenBridge Web (ZimaOS)"
 echo "📂 Workspace: $WORKSPACE_DIR"
 echo "🌐 Porta Web: $PORT"
+RELEASE_TAG=$(git -C /app describe --tags --exact-match 2>/dev/null || git -C /app rev-parse --short HEAD 2>/dev/null || echo "prod")
+echo "🏷️ Release Oficial em Execução (/app): $RELEASE_TAG"
 echo "=========================================="
 
 exec "$@"
