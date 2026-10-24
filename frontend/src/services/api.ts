@@ -252,6 +252,19 @@ export const api = {
     return data;
   },
 
+  async saveFileRaw(filePath: string, content: string): Promise<{ ok: boolean; path: string; size: number; savedAt: string }> {
+    const res = await fetch(`${getApiBase()}/files/raw`, {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ path: filePath, content })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Erro ao salvar o arquivo');
+    }
+    return data;
+  },
+
   async saveApiKeys(keys: { geminiApiKey?: string }): Promise<{ success: boolean }> {
     const res = await fetch(`${getApiBase()}/auth/keys`, {
       method: 'POST',
