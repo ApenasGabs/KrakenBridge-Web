@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, lazy, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage, ToolCall } from '../../types';
@@ -205,7 +205,25 @@ const ToolItem: React.FC<{ tool: ToolCall; codeServerPort?: number; onOpenFilePr
   );
 };
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPort, onOpenFilePreview }) => {
+// Componente estável para blocos de código markdown, prevenindo unmount acidental de nós filhos (ex: MermaidBlock)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const MarkdownCode: React.FC<any> = ({ className, children, ...props }) => {
+  const childString = String(children);
+  const hasLanguage = /language-(\w+)/.test(className || '');
+  const isMultiline = childString.includes('\n');
+  const isInline = !hasLanguage && !isMultiline;
+
+  if (isInline) {
+    return (
+      <code className="bg-base-300/70 text-primary px-1.5 py-0.5 rounded text-[12px] font-mono mx-0.5 align-baseline inline-block font-semibold" {...props}>
+        {children}
+      </code>
+    );
+  }
+  return <CodeBlock className={className}>{children}</CodeBlock>;
+};
+
+const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerPort, onOpenFilePreview }) => {
   const isUser = message.role === 'user';
   const [speechState, setSpeechState] = useState<SpeechState>({
     activeMessageId: null,
@@ -254,22 +272,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
   };
 
   const markdownComponents = useMemo(() => ({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    code({ className, children, ...props }: any) {
-      const childString = String(children);
-      const hasLanguage = /language-(\w+)/.test(className || '');
-      const isMultiline = childString.includes('\n');
-      const isInline = !hasLanguage && !isMultiline;
-
-      if (isInline) {
-        return (
-          <code className="bg-base-300/70 text-primary px-1.5 py-0.5 rounded text-[12px] font-mono mx-0.5 align-baseline inline-block font-semibold" {...props}>
-            {children}
-          </code>
-        );
-      }
-      return <CodeBlock className={className}>{children}</CodeBlock>;
-    },
+    code: MarkdownCode,
     // Intercepta links markdown file:/// para permitir abrir no visualizador in-app (ArtifactDrawer) ou na IDE
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     a({ href, children, ...props }: any) {
@@ -615,3 +618,5 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, codeServerPor
     </div>
   );
 };
+
+export const MessageItem = memo(MessageItemComponent);

@@ -44,6 +44,50 @@ function formatFileSize(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
+// Componente estável para blocos de código do ArtifactDrawer, prevenindo remounts
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ArtifactCodeBlock: React.FC<any> = ({ className, children, ...props }) => {
+  const match = /language-(\w+)/.exec(className || '');
+  const language = match ? match[1] : '';
+  const codeString = String(children).replace(/\n$/, '');
+
+  if (language.toLowerCase() === 'mermaid') {
+    return (
+      <Suspense
+        fallback={
+          <div className="my-3 p-4 rounded-xl border border-base-300 bg-base-200/40 flex items-center justify-center gap-2 text-xs text-base-content/60 font-mono">
+            <span className="loading loading-spinner loading-xs text-secondary"></span>
+            <span>Carregando diagrama Mermaid...</span>
+          </div>
+        }
+      >
+        <MermaidBlock code={codeString} />
+      </Suspense>
+    );
+  }
+
+  const isInline = !className && !codeString.includes('\n');
+  if (isInline) {
+    return (
+      <code className="bg-base-300/70 text-primary px-1.5 py-0.5 rounded text-[12px] font-mono mx-0.5" {...props}>
+        {children}
+      </code>
+    );
+  }
+
+  return (
+    <pre className="bg-base-300/50 p-3 rounded-lg overflow-x-auto my-2 text-xs font-mono">
+      <code className={className} {...props}>
+        {children}
+      </code>
+    </pre>
+  );
+};
+
+const artifactMarkdownComponents = {
+  code: ArtifactCodeBlock
+};
+
 export const ArtifactDrawer: React.FC<ArtifactDrawerProps> = ({
   filePath,
   codeServerPort,
@@ -289,45 +333,7 @@ export const ArtifactDrawer: React.FC<ArtifactDrawerProps> = ({
                 <div className="prose prose-sm dark:prose-invert max-w-none text-base-content leading-relaxed">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
-                    components={{
-                      code({ className, children, ...props }) {
-                        const match = /language-(\w+)/.exec(className || '');
-                        const language = match ? match[1] : '';
-                        const codeString = String(children).replace(/\n$/, '');
-
-                        if (language.toLowerCase() === 'mermaid') {
-                          return (
-                            <Suspense
-                              fallback={
-                                <div className="my-3 p-4 rounded-xl border border-base-300 bg-base-200/40 flex items-center justify-center gap-2 text-xs text-base-content/60 font-mono">
-                                  <span className="loading loading-spinner loading-xs text-secondary"></span>
-                                  <span>Carregando diagrama Mermaid...</span>
-                                </div>
-                              }
-                            >
-                              <MermaidBlock code={codeString} />
-                            </Suspense>
-                          );
-                        }
-
-                        const isInline = !className && !codeString.includes('\n');
-                        if (isInline) {
-                          return (
-                            <code className="bg-base-300/70 text-primary px-1.5 py-0.5 rounded text-[12px] font-mono mx-0.5" {...props}>
-                              {children}
-                            </code>
-                          );
-                        }
-
-                        return (
-                          <pre className="bg-base-300/50 p-3 rounded-lg overflow-x-auto my-2 text-xs font-mono">
-                            <code className={className} {...props}>
-                              {children}
-                            </code>
-                          </pre>
-                        );
-                      }
-                    }}
+                    components={artifactMarkdownComponents}
                   >
                     {data.content}
                   </ReactMarkdown>

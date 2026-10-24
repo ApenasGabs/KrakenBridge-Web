@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import type { ChatMessage, ModelOption, ProjectWorkspace, QueuedMessage, EvolutionStatus } from '../../types';
 import { MessageItem } from './MessageItem';
 import { ChatInput } from './ChatInput';
@@ -76,6 +76,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
   const [isSpinnerModalOpen, setIsSpinnerModalOpen] = useState(false);
   const [selectedArtifactPath, setSelectedArtifactPath] = useState<string | null>(null);
+
+  const handleOpenFilePreview = useCallback((filePath: string) => {
+    setSelectedArtifactPath(filePath);
+  }, []);
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     if (scrollRef.current) {
@@ -267,7 +271,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 key={msg.id} 
                 message={msg} 
                 codeServerPort={codeServerPort} 
-                onOpenFilePreview={(filePath) => setSelectedArtifactPath(filePath)}
+                onOpenFilePreview={handleOpenFilePreview}
               />
             ))
           )}
