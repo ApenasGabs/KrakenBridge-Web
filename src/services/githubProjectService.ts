@@ -302,7 +302,13 @@ class GithubProjectService {
     };
 
     // 1. Repositório da própria aplicação
-    await checkDir('/app', 'KrakenBridge-Web');
+    const workspaceKraken = path.join(WORKSPACE_DIR, 'KrakenBridge-Web');
+    const hasWorkspaceKraken = await fs.stat(workspaceKraken).then(s => s.isDirectory()).catch(() => false);
+    if (hasWorkspaceKraken) {
+      await checkDir(workspaceKraken, 'KrakenBridge-Web');
+    } else {
+      await checkDir('/app', 'KrakenBridge-Web');
+    }
 
     // 2. Subprojetos em /workspace (varredura até nível 2)
     try {
