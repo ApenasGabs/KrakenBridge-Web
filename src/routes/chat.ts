@@ -225,7 +225,12 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   // Configuração resiliente do diretório de trabalho
   let workDir = WORKSPACE_DIR;
   if (activeSubproject === 'KrakenBridge-Web' || activeSubproject === 'app') {
-    workDir = '/app';
+    const workspaceKraken = path.join(WORKSPACE_DIR, 'KrakenBridge-Web');
+    if (activeSubproject === 'KrakenBridge-Web' && fs.existsSync(workspaceKraken)) {
+      workDir = workspaceKraken;
+    } else {
+      workDir = '/app';
+    }
   } else if (activeSubproject) {
     if (path.isAbsolute(activeSubproject) && fs.existsSync(activeSubproject)) {
       workDir = activeSubproject;

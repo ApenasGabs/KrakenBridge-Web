@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.14.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.13.2...v1.14.0) (2026-10-24)
+
+### ✨ Features
+
+* **architecture:** isolar workspace de desenvolvimento em /workspace/KrakenBridge-Web e restringir /app a releases oficiais ([#82](https://github.com/ApenasGabs/KrakenBridge-Web/issues/82)) ([#84](https://github.com/ApenasGabs/KrakenBridge-Web/issues/84)) ([3a0583d](https://github.com/ApenasGabs/KrakenBridge-Web/commit/3a0583d20949ae94a674d46ea4e22999bc74676c))
+
 ## [1.13.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.13.1...v1.13.2) (2026-10-21)
 
 ### 🐛 Bug Fixes

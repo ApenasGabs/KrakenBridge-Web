@@ -82,12 +82,14 @@ test.describe('E2E: Status, Chat, Cotas e Temas', () => {
 
     // Alterna para a aba de Código Mermaid
     const codeTab = page.getByTestId('mermaid-tab-code');
+    await codeTab.scrollIntoViewIfNeeded();
     await codeTab.click();
     await expect(page.getByTestId('mermaid-code-view')).toBeVisible();
     await expect(page.getByText(/Client\[Cliente Web\]/)).toBeVisible();
 
     // Retorna para a aba de Diagrama visual
     const diagramTab = page.getByTestId('mermaid-tab-diagram');
+    await diagramTab.scrollIntoViewIfNeeded();
     await diagramTab.click();
     await expect(page.getByTestId('mermaid-diagram-container')).toBeVisible();
 

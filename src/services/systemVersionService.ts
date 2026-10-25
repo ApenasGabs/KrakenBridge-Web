@@ -249,7 +249,14 @@ class SystemVersionService {
 
       // 3. Compilação do servidor e frontend
       console.log('[SystemVersionService] Compilando nova versão...');
-      await execAsync('npm run build');
+      console.log('[SystemVersionService] Compilando backend TypeScript...');
+      await execAsync('npx tsc');
+      console.log('[SystemVersionService] Compilando frontend...');
+      await execAsync('npm run --prefix frontend build', {
+        env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1024' }
+      }).catch((buildErr) => {
+        console.warn('[SystemVersionService] Aviso no build do frontend (mantendo fallback):', buildErr?.message);
+      });
 
       // 4. Disparo do Graceful Pod Drain Reload
       console.log('[SystemVersionService] Acionando Graceful Reload via Pod Drain...');
