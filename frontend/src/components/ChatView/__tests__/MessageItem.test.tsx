@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MessageItem } from '../MessageItem';
 import type { ChatMessage } from '../../../types';
 import mermaid from 'mermaid';
@@ -51,7 +51,7 @@ describe('MessageItem Component', () => {
 
     // Não deve renderizar o card do Mermaid
     expect(screen.queryByTestId('mermaid-card')).not.toBeInTheDocument();
-    expect(screen.getByText('const x: number = 42;')).toBeInTheDocument();
+    expect(screen.getByTestId('chat-code-block')).toHaveTextContent('const x: number = 42;');
     expect(screen.getByText('typescript')).toBeInTheDocument();
   });
 
@@ -126,5 +126,41 @@ describe('MessageItem Component', () => {
     const speedBtn = screen.getByTestId('tts-speed-btn-msg-multi-1');
     expect(speedBtn).toBeInTheDocument();
     expect(speedBtn).toHaveTextContent('1x');
+  });
+
+  it('deve renderizar links file:/// com botão customizado e chamar onOpenFilePreview ao clicar', () => {
+    const onOpenFilePreview = vi.fn();
+    const fileMsg: ChatMessage = {
+      id: 'msg-file-1',
+      role: 'assistant',
+      text: 'Veja o código em [index.ts](file:///workspace/src/index.ts#L10-L20) e também [README](file:///workspace/README.md).',
+      timestamp: '2026-10-15T20:00:00.000Z',
+    };
+
+    render(<MessageItem message={fileMsg} onOpenFilePreview={onOpenFilePreview} />);
+
+    const fileLinks = screen.getAllByTestId('message-file-link');
+    expect(fileLinks).toHaveLength(2);
+    expect(fileLinks[0]).toHaveTextContent('index.ts');
+
+    // Clicar no primeiro link deve disparar onOpenFilePreview com o caminho e âncora preservados
+    fireEvent.click(fileLinks[0]);
+    expect(onOpenFilePreview).toHaveBeenCalledWith('/workspace/src/index.ts#L10-L20');
+  });
+
+  it('deve renderizar links http(s) normais como âncoras comuns com target="_blank"', () => {
+    const webMsg: ChatMessage = {
+      id: 'msg-web-1',
+      role: 'assistant',
+      text: 'Acesse a documentação no [GitHub](https://github.com/ApenasGabs/KrakenBridge-Web).',
+      timestamp: '2026-10-15T20:00:00.000Z',
+    };
+
+    render(<MessageItem message={webMsg} />);
+
+    const link = screen.getByRole('link', { name: 'GitHub' });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', 'https://github.com/ApenasGabs/KrakenBridge-Web');
+    expect(link).toHaveAttribute('target', '_blank');
   });
 });

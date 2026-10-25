@@ -29,7 +29,12 @@ const CODE_SERVER_PORT = process.env.CODE_SERVER_PORT || '8089';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// O PUT /files/raw (edição in-app) usa seu próprio parser com limite de 10MB
+const globalJsonParser = express.json();
+app.use((req, res, next) => {
+  if (req.method === 'PUT' && req.path.endsWith('/files/raw')) return next();
+  return globalJsonParser(req, res, next);
+});
 
 // Validador de Segurança do PIN
 function getValidAuthToken(): string | null {
@@ -81,6 +86,13 @@ const distDir = [
 // Servir arquivos estáticos na raiz e em /chat
 app.use(express.static(distDir));
 app.use('/chat', express.static(distDir));
+
+// Servir bundle pré-minificado do Monaco Editor localmente (100% offline no Homelab)
+const monacoMinDir = path.resolve('frontend/node_modules/monaco-editor/min/vs');
+if (fs.existsSync(monacoMinDir)) {
+  app.use('/monaco/vs', express.static(monacoMinDir));
+  app.use('/chat/monaco/vs', express.static(monacoMinDir));
+}
 
 // Aplicar middleware de autenticação nas APIs
 app.use('/api', pinAuthMiddleware);

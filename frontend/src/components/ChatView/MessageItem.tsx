@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, Suspense, lazy, memo } from 'react';
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Highlight, themes } from 'prism-react-renderer';
+import { getPrismLanguage } from './ArtifactDrawer';
 import type { ChatMessage, ToolCall } from '../../types';
 import { 
   Bot, 
@@ -95,9 +97,19 @@ const CodeBlock: React.FC<{ children: React.ReactNode; className?: string }> = (
           )}
         </button>
       </div>
-      <div className="p-3 overflow-x-auto text-xs font-mono bg-base-100/90 text-base-content leading-relaxed">
-        <code>{codeContent}</code>
-      </div>
+      <Highlight theme={themes.vsDark} code={codeContent} language={getPrismLanguage(language)}>
+        {({ style, tokens, getLineProps, getTokenProps }) => (
+          <pre style={style} className="p-3 m-0 overflow-x-auto text-xs font-mono leading-relaxed" data-testid="chat-code-block">
+            {tokens.map((line, i) => (
+              <div key={i} {...getLineProps({ line })}>
+                {line.map((token, key) => (
+                  <span key={key} {...getTokenProps({ token })} />
+                ))}
+              </div>
+            ))}
+          </pre>
+        )}
+      </Highlight>
     </div>
   );
 };
@@ -276,8 +288,9 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
     // Intercepta links markdown file:/// para permitir abrir no visualizador in-app (ArtifactDrawer) ou na IDE
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     a({ href, children, ...props }: any) {
-      if (href && (href.startsWith('file:///') || href.startsWith('file://'))) {
-        const cleanPath = href.replace(/^file:\/\/\/?/, '/');
+      if (href && (href.startsWith('file:///') || href.startsWith('file://') || href.startsWith('file:'))) {
+        const rawClean = href.replace(/^file:\/\/\/?/, '/').replace(/^file:\/\//, '/').replace(/^file:/, '');
+        const cleanPath = (!rawClean.match(/^[a-zA-Z]:/) && !rawClean.startsWith('/')) ? '/' + rawClean : rawClean;
         return (
           <button
             type="button"
@@ -287,7 +300,10 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
                 onOpenFilePreview(cleanPath);
               } else {
                 const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-                const ideUrl = `http://${hostname}:${codeServerPort || 8089}/?file=${encodeURIComponent(cleanPath)}`;
+                const [targetPath, anchor] = cleanPath.split('#');
+                const lineMatch = anchor?.match(/L?(\d+)/i);
+                const lineSuffix = lineMatch ? `:${lineMatch[1]}` : '';
+                const ideUrl = `http://${hostname}:${codeServerPort || 8089}/?file=${encodeURIComponent(targetPath)}${lineSuffix}`;
                 window.open(ideUrl, '_blank');
               }
             }}
@@ -372,6 +388,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
           ) : (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
+              urlTransform={(url) => (url.startsWith('file:') ? url : defaultUrlTransform(url))}
               components={markdownComponents}
             >
               {message.text || (!message.isStreaming && !isUser ? (message.thinking ? '*(Resposta concluída no acordeão de raciocínio acima)*' : '*(Sem resposta de texto emitida)*') : '')}
