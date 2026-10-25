@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.15.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.14.0...v1.15.0) (2026-10-25)
+
+### ✨ Features
+
+* **chat:** corrigir links file:// e integrar Shiki, Prism, CodeMirror e Monaco no ArtifactDrawer (Refs [#81](https://github.com/ApenasGabs/KrakenBridge-Web/issues/81)) ([#83](https://github.com/ApenasGabs/KrakenBridge-Web/issues/83)) ([cde3945](https://github.com/ApenasGabs/KrakenBridge-Web/commit/cde394594298e12faf5f4df2106b21e6dc55b17f))
+
 ## [1.14.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.13.2...v1.14.0) (2026-10-24)
 
 ### ✨ Features
