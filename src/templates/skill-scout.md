@@ -10,16 +10,30 @@ description: >-
 
 O **Skill Scout** é o subsistema autônomo de auto-aquisição e auto-configuração de skills do Kraken e do Antigravity.
 
-## 📌 Arquitetura e Funcionamento
-1. **Hook PreInvocation Silencioso:** Configurado em `/root/.gemini/config/hooks.json`, dispara a cada mensagem do usuário através do script `/root/.gemini/config/skill-scout.cjs`.
-2. **Busca Semântica no skills.sh:** Consulta a API oficial Algolia (`https://skills.sh/api/search?q=<termo>&limit=10`) para identificar runbooks de alta relevância e comunidade ativa.
-3. **Download Instantâneo (~1s):** Baixa o `SKILL.md` e dependências via API do GitHub (sem necessidade de clonar monorepos pesados) diretamente para:
-   - Projeto ativo: `.agents/skills/<skill-id>/SKILL.md`
-   - Cache global: `/root/.gemini/config/skills/<skill-id>/SKILL.md`
-4. **Injeção Just-In-Time:** Acopla as instruções especializadas no mesmo turno da pergunta do usuário através do `injectSteps` (`ephemeralMessage`), permitindo responder com nível de especialista no primeiro segundo.
+## 📌 Arquitetura Híbrida de Dois Estágios
+
+O Skill Scout opera via hook `PreInvocation` antes de cada resposta do modelo primário, utilizando uma estratégia em duas etapas para garantir latência ultra-baixa e consumo zero de cota dos modelos pesados (como Claude Opus ou Gemini 4 Argon):
+
+### 1. Estágio 1: Dicionário Léxico Rápido (0ms / 0 tokens)
+- Analisa o prompt do usuário contra um vocabulário indexado de termos técnicos, bibliotecas e papéis metodológicos (ex: React, Drizzle, BullMQ, Tailwind, Product Owner, Scrum, QA).
+- Se encontrar termos explícitos, resolve a busca imediatamente sem invocar nenhum modelo de linguagem.
+
+### 2. Estágio 2: Roteador Semântico com Gemini Flash Low
+- Acionado apenas quando o usuário se comunica por linguagem natural coloquial, comandos vagos ou transcrição de voz com ruídos/erros fonéticos (ex: *"pio"* = Product Owner, *"ixos"* = issues, *"esqui"* = skill, *"mergem"* = git merge).
+- Executa o modelo ultraleve e econômico `gemini-3.8-flash-low` em um sandbox isolado (`/tmp/kraken-scout-home`) sem carregar servidores MCP pesados e com trava contra recursão (`SKILL_SCOUT_INTERNAL=1`).
+- Mapeia a intenção semântica para 1 ou 2 termos de busca precisos para consulta no catálogo aberto.
+
+### 3. Busca e Download Instantâneo no skills.sh (~1s)
+- Consulta a API oficial do skills.sh (`https://skills.sh/api/search?q=<termo>&limit=10`) para selecionar runbooks com alto número de instalações e comunidade ativa.
+- Baixa o `SKILL.md` diretamente via API do GitHub (sem necessidade de clonar repositórios inteiros) para:
+  - Projeto ativo: `.agents/skills/<skill-id>/SKILL.md`
+  - Cache global: `/root/.gemini/config/skills/<skill-id>/SKILL.md`
+
+### 4. Injeção Just-In-Time (`ephemeralMessage`)
+- Acopla o runbook especializado no mesmo turno da mensagem através de `injectSteps`, permitindo que o modelo principal atue como especialista desde o primeiro segundo, citando a skill acoplada.
 
 ## 🛠️ Comandos de Diagnóstico e Inspeção
-- **Ver log de ativações em tempo real:**
+- **Ver log de ativações e decisões do roteador em tempo real:**
   ```bash
   cat /root/.gemini/config/skill-scout.log
   ```
