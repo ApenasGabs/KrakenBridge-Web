@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.16.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.15.0...v1.16.0) (2026-10-26)
+
+### ✨ Features
+
+* **skills:** provisionar Skill Scout nativo e integração out-of-the-box com skills.sh (Refs [#85](https://github.com/ApenasGabs/KrakenBridge-Web/issues/85)) ([#86](https://github.com/ApenasGabs/KrakenBridge-Web/issues/86)) ([6b078e2](https://github.com/ApenasGabs/KrakenBridge-Web/commit/6b078e29a3e31193c00e412109e17191ef85027b))
+
 ## [1.15.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.14.0...v1.15.0) (2026-10-25)
 
 ### ✨ Features
