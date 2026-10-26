@@ -1,18 +1,26 @@
 #!/usr/bin/env node
 /**
  * Kraken Skill Scout - Dynamic Just-In-Time Skill Acquisition Hook (PreInvocation)
- * Intercepts user messages before the main agent runs, identifies specialized technical &
- * methodological topics (frameworks, databases, agile/PO, test, cloud), searches skills.sh
- * (Algolia API), downloads the best SKILL.md into .agents/skills/, and injects the specialized
- * runbook directly into the current turn via injectSteps.
+ * Two-stage Hybrid Architecture:
+ * - Stage 1 (0ms / 0 quota): Instant dictionary match for explicit tech terms.
+ * - Stage 2 (Flash Router): Semantic classification via gemini-3.8-flash-low in an isolated,
+ *   MCP-free sandbox (or REST API) to interpret natural language & voice-to-text typos without
+ *   spending tokens or quota from the user's primary model (Claude Opus / Gemini 4 Argon).
  */
 
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 
+// Proteção contra recursão quando o próprio Scout invoca o agy
+if (process.env.SKILL_SCOUT_INTERNAL === "1") {
+  process.stdout.write("{}\n");
+  process.exit(0);
+}
+
 const LOG_FILE = "/root/.gemini/config/skill-scout.log";
 const GLOBAL_SKILLS_DIR = "/root/.gemini/config/skills";
+const SCOUT_HOME = "/tmp/kraken-scout-home";
 
 function log(msg) {
   try {
@@ -117,7 +125,7 @@ function stripSystemDirective(rawInput) {
   return text.trim();
 }
 
-function extractTechTokens(userPrompt) {
+function extractTechTokensFast(userPrompt) {
   const lower = userPrompt.toLowerCase().replace(/[^a-z0-9áàâãéêíóôõúç\- ]/gi, " ");
   const rawTokens = lower.split(/\s+/).filter(Boolean);
   const tech = [];
@@ -142,6 +150,48 @@ function extractTechTokens(userPrompt) {
   };
 }
 
+/**
+ * Classificador Semântico com Gemini 3.8 Flash Low (Estágio 2)
+ * Roda em sandbox limpo sem MCPs, garantindo 0 consumo do modelo principal (Argon/Opus).
+ */
+function classifyWithFlash(userPrompt) {
+  const cliDir = path.join(SCOUT_HOME, ".gemini", "antigravity-cli");
+  fs.mkdirSync(cliDir, { recursive: true });
+
+  const tokenSrc = "/root/.gemini/antigravity-cli/antigravity-oauth-token";
+  const tokenDst = path.join(cliDir, "antigravity-oauth-token");
+  try {
+    if (!fs.existsSync(tokenDst) && fs.existsSync(tokenSrc)) {
+      fs.symlinkSync(tokenSrc, tokenDst);
+    }
+  } catch {}
+
+  const sysPrompt = `You are a skills.sh search query router.
+Given this user request (which may be in Portuguese or have voice-to-text transcription errors, e.g. "pio" -> product owner, "ixos" -> issues, "esqui" -> skill, "mergem" -> git merge):
+${JSON.stringify(userPrompt)}
+
+Output ONLY 1 to 2 English search terms to find relevant Agent Skills on skills.sh (e.g. "product-owner", "threejs shaders", "bullmq redis", "e2e testing", "tailwind"), or "NONE" if casual chat or general question without specialized framework/runbook. No explanation, just the terms.`;
+
+  try {
+    const raw = execSync(
+      `agy -p ${JSON.stringify(sysPrompt)} --model gemini-3.8-flash-low --effort low --disable-slash-commands`,
+      {
+        cwd: SCOUT_HOME,
+        env: { ...process.env, HOME: SCOUT_HOME, SKILL_SCOUT_INTERNAL: "1" },
+        timeout: 10000,
+        stdio: ["ignore", "pipe", "ignore"]
+      }
+    ).toString().trim();
+
+    const clean = raw.replace(/["\x27\n\r]/g, "").trim().toLowerCase();
+    if (!clean || clean === "none" || clean.length < 3) return null;
+    return clean.split(/\s+/).slice(0, 3);
+  } catch (err) {
+    log(`Flash classifier error: ${err.message || err}`);
+    return null;
+  }
+}
+
 function getGitHubToken() {
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN.trim();
   try {
@@ -162,33 +212,48 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 3000) {
   }
 }
 
-async function searchCandidates(tech, context) {
-  if (tech.length === 0) return [];
-  const primaryQuery = tech.slice(0, 2).join(" ");
-  const url = `https://skills.sh/api/search?q=${encodeURIComponent(primaryQuery)}&limit=10`;
-  const res = await fetchWithTimeout(url, {}, 2500);
-  if (!res.ok) return [];
-  const data = await res.json();
-  const candidates = (data.skills || []).filter(s => (s.installs || 0) >= 15);
-  if (candidates.length === 0) return [];
+async function searchCandidates(tech, context = []) {
+  if (!tech || tech.length === 0) return [];
+  const queries = [tech.slice(0, 2).join(" ")];
+  if (tech.length > 1) {
+    for (const t of tech.slice(0, 2)) {
+      if (!queries.includes(t)) queries.push(t);
+    }
+  }
 
-  const scored = candidates.map(s => {
-    const idLower = `${s.skillId || ""} ${s.name || ""}`.toLowerCase();
-    let score = Math.log10((s.installs || 1) + 1);
-    let matchedTech = false;
-    for (const t of tech) {
-      if (idLower.includes(t)) {
-        score += 10;
-        matchedTech = true;
+  for (const q of queries) {
+    try {
+      const url = `https://skills.sh/api/search?q=${encodeURIComponent(q)}&limit=10`;
+      const res = await fetchWithTimeout(url, {}, 2500);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const candidates = (data.skills || []).filter(s => (s.installs || 0) >= 15);
+      if (candidates.length === 0) continue;
+
+      const scored = candidates.map(s => {
+        const idLower = `${s.skillId || ""} ${s.name || ""}`.toLowerCase();
+        let score = Math.log10((s.installs || 1) + 1);
+        let matchedTech = false;
+        for (const t of tech) {
+          const tClean = t.replace(/-/g, " ");
+          if (idLower.includes(t) || idLower.includes(tClean)) {
+            score += 10;
+            matchedTech = true;
+          }
+        }
+        for (const c of context) {
+          if (idLower.includes(c)) score += 5;
+        }
+        return { ...s, score, matchedTech };
+      }).filter(s => s.matchedTech).sort((a, b) => b.score - a.score);
+
+      if (scored.length > 0) {
+        return scored;
       }
-    }
-    for (const c of context) {
-      if (idLower.includes(c)) score += 5;
-    }
-    return { ...s, score, matchedTech };
-  }).filter(s => s.matchedTech).sort((a, b) => b.score - a.score);
+    } catch {}
+  }
 
-  return scored;
+  return [];
 }
 
 async function downloadSkillMd(source, skillId) {
@@ -258,13 +323,26 @@ async function main() {
     }
   } catch {}
 
-  const { tech, context } = extractTechTokens(userMessage);
+  // Estágio 1: Extração rápida via Dicionário (0ms de IA)
+  let { tech, context } = extractTechTokensFast(userMessage);
+  let routerSource = "dicionário rápido";
+
+  // Estágio 2: Se não houver termos técnicos óbvios, avaliar semântica via Gemini Flash Low
+  if (tech.length === 0 && userMessage.length >= 15) {
+    const flashKeywords = classifyWithFlash(userMessage);
+    if (flashKeywords && flashKeywords.length > 0) {
+      tech = flashKeywords;
+      context = [];
+      routerSource = "Gemini Flash Low";
+    }
+  }
+
   if (tech.length === 0) {
     process.stdout.write("{}\n");
     return;
   }
 
-  log(`Scouting for prompt="${userMessage.slice(0, 100)}" -> tech=[${tech.join(",")}] context=[${context.join(",")}]`);
+  log(`Scouting for prompt="${userMessage.slice(0, 100)}" [Router: ${routerSource}] -> tech=[${tech.join(",")}] context=[${context.join(",")}]`);
 
   const candidates = await searchCandidates(tech, context);
   if (candidates.length === 0) {
@@ -343,7 +421,7 @@ async function main() {
   } catch {}
 
   const statusLabel = wasNewlyInstalled ? "baixada e instalada em tempo real" : "carregada do cache local";
-  log(`Activated skill '${safeSkillId}' (${best.source}, ${best.installs} installs) [${statusLabel}]`);
+  log(`Activated skill '${safeSkillId}' (${best.source}, ${best.installs} installs) [${statusLabel}] via [${routerSource}]`);
 
   const boundedContent = skillContent.length > 10000
     ? skillContent.slice(0, 10000) + "\n\n... [Truncado pelo Skill Scout - arquivo completo em " + wsSkillPath + "]"
@@ -353,7 +431,7 @@ async function main() {
     injectSteps: [
       {
         ephemeralMessage:
-          `⚡ [AGENTE SKILL SCOUT - AUTO-CONFIGURAÇÃO]: Analisei a mensagem do usuário (tecnologias/papéis detectados: ${tech.join(", ")}) e selecionei no skills.sh a skill especializada "${safeSkillId}" do repositório "${best.source}" (${best.installs} instalações, ${statusLabel} em ${wsSkillPath}).\n` +
+          `⚡ [AGENTE SKILL SCOUT - ${routerSource.toUpperCase()}]: Analisei a mensagem do usuário (tecnologias/papéis detectados: ${tech.join(", ")}) e selecionei no skills.sh a skill especializada "${safeSkillId}" do repositório "${best.source}" (${best.installs} instalações, ${statusLabel} em ${wsSkillPath}).\n` +
           `IMPORTANTE: No início da sua resposta ao usuário, mencione em uma linha (ex: "⚡ *Skill Scout:* Acoplei a skill \`${safeSkillId}\` (\`${best.source}\`) para apoiar esta resposta.") e utilize o runbook abaixo:\n\n` +
           `--- INÍCIO DA SKILL (${safeSkillId}) ---\n${boundedContent}\n--- FIM DA SKILL ---`
       }
