@@ -350,16 +350,21 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     env: driver.buildEnv(processEnv)
   });
 
-  activeProcesses.set(reqId, child);
-  activeSessions.set(conversationId, {
+  const sessionEntry: import('../types/chat.js').ActiveSession = {
     reqId,
     child,
     res,
     startTime: executionStartTime,
     agent,
     model: model || 'gemini-3.8-flash-high',
-    conversationId
-  });
+    conversationId,
+    accumulatedText: '',
+    thinkingText: '',
+    toolCalls: []
+  };
+
+  activeProcesses.set(reqId, child);
+  activeSessions.set(conversationId, sessionEntry);
 
   // Função para envio seguro de SSE (não quebra caso o cliente desconecte)
   const safeWrite = (chunk: string) => {
@@ -400,6 +405,7 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   const pingInterval = setInterval(() => {
     safeWrite(': ping\n\n');
   }, 15000);
+  sessionEntry.pingInterval = pingInterval;
 
   let accumulatedText = '';
   let thinkingText = '';
@@ -409,6 +415,9 @@ chatRouter.post('/', async (req: Request, res: Response) => {
 
   // Persistência contínua com debounce
   const scheduleSave = () => {
+    sessionEntry.accumulatedText = accumulatedText;
+    sessionEntry.thinkingText = thinkingText;
+    sessionEntry.toolCalls = [...toolCalls];
     if (saveTimeout) return;
     saveTimeout = setTimeout(async () => {
       saveTimeout = null;
@@ -757,6 +766,63 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   });
 });
 
+// Consulta status da conversa (se há tarefa ativa/gerando no momento)
+chatRouter.get('/status/:conversationId', (req: Request, res: Response) => {
+  const conversationId = String(req.params.conversationId);
+  const session = activeSessions.get(conversationId);
+  const isRunning = !!session && (!session.child || (!session.child.killed && session.child.exitCode === null));
+  res.json({
+    conversationId,
+    isRunning,
+    agent: session?.agent,
+    model: session?.model,
+    startTime: session?.startTime
+  });
+});
+
+// Re-acoplamento SSE resiliente para clientes que desconectaram temporariamente ou recarregaram
+chatRouter.get('/stream/:conversationId', (req: Request, res: Response) => {
+  const conversationId = String(req.params.conversationId);
+  const session = activeSessions.get(conversationId);
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (typeof res.flushHeaders === 'function') {
+    res.flushHeaders();
+  }
+
+  const isRunning = !!session && (!session.child || (!session.child.killed && session.child.exitCode === null));
+  if (!isRunning || !session) {
+    res.write(`data: ${JSON.stringify({ event: 'done', conversation_id: conversationId, isRunning: false })}\n\n`);
+    res.end();
+    return;
+  }
+
+  // Substitui o socket de streaming ativo pelo novo socket SSE
+  session.res = res;
+
+  // Envia snapshot de sincronização com todo o estado acumulado em memória
+  res.write(`data: ${JSON.stringify({
+    event: 'sync_snapshot',
+    conversation_id: conversationId,
+    reqId: session.reqId,
+    agent: session.agent,
+    model: session.model,
+    text: session.accumulatedText || '',
+    thinking: session.thinkingText || '',
+    toolCalls: session.toolCalls || [],
+    isRunning: true
+  })}\n\n`);
+
+  res.on('close', () => {
+    if (session.res === res) {
+      session.res = null;
+    }
+  });
+});
+
 // Envio de stdin / código diretamente para processo de chat ativo
 chatRouter.post('/submit-auth', (req: Request, res: Response) => {
   let { reqId, code } = req.body || {};
@@ -776,7 +842,10 @@ chatRouter.post('/stop', (req: Request, res: Response) => {
   const { conversationId } = req.body || {};
   let count = 0;
 
-  const terminateSession = (session: { child: import('child_process').ChildProcess; res?: Response | null; reqId?: string }, convId: string) => {
+  const terminateSession = (session: import('../types/chat.js').ActiveSession, convId: string) => {
+    if (session.pingInterval) {
+      clearInterval(session.pingInterval);
+    }
     try {
       const pid = session.child.pid;
       if (pid) {

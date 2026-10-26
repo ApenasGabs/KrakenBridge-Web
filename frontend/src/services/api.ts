@@ -24,6 +24,8 @@ import type {
 
 export interface SSECallbacks {
   onSessionStart?: (data: { conversation_id: string; reqId: string; subproject?: string; tags?: string[] }) => void;
+  onSyncSnapshot?: (data: { text: string; thinking: string; toolCalls: ToolCall[]; conversation_id: string }) => void;
+  onConnectionDrop?: () => void;
   onTextDelta?: (delta: string) => void;
   onThinkingDelta?: (delta: string) => void;
   onToolUpdate?: (tool: ToolCall) => void;
@@ -411,6 +413,120 @@ export const api = {
   },
 
   /**
+   * Consulta status de execução de uma conversa no backend
+   */
+  async getChatStatus(conversationId: string): Promise<{ conversationId: string; isRunning: boolean; agent?: string; model?: string; startTime?: number }> {
+    const res = await fetch(`${getApiBase()}/chat/status/${encodeURIComponent(conversationId)}`, {
+      headers: authHeaders()
+    });
+    if (!res.ok) {
+      return { conversationId, isRunning: false };
+    }
+    return res.json();
+  },
+
+  /**
+   * Re-acopla a uma stream SSE ativa após queda de conexão ou reload
+   */
+  async streamReconnect(
+    conversationId: string,
+    callbacks: SSECallbacks,
+    abortSignal?: AbortSignal
+  ): Promise<void> {
+    const response = await fetch(`${getApiBase()}/chat/stream/${encodeURIComponent(conversationId)}`, {
+      method: 'GET',
+      headers: authHeaders({
+        'Accept': 'text/event-stream'
+      }),
+      signal: abortSignal
+    });
+
+    if (!response.ok) {
+      callbacks.onError?.(`Erro HTTP ${response.status} ao tentar reconectar.`);
+      return;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      callbacks.onError?.('ReadableStream não suportado neste navegador.');
+      return;
+    }
+
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let receivedDone = false;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+
+        const dataStr = trimmed.slice(5).trim();
+        if (!dataStr) continue;
+
+        try {
+          const parsed = JSON.parse(dataStr);
+
+          if (parsed.event === 'sync_snapshot') {
+            callbacks.onSyncSnapshot?.({
+              text: parsed.text || '',
+              thinking: parsed.thinking || '',
+              toolCalls: parsed.toolCalls || [],
+              conversation_id: parsed.conversation_id || conversationId
+            });
+          } else if (parsed.event === 'step_update' && parsed.step_update) {
+            const su = parsed.step_update;
+            if (su.step_type === 'agent_response') {
+              if (su.text_delta) callbacks.onTextDelta?.(su.text_delta);
+              if (su.thinking_delta) callbacks.onThinkingDelta?.(su.thinking_delta);
+            } else if (su.step_type === 'thinking') {
+              if (su.thinking_delta || su.text_delta) callbacks.onThinkingDelta?.(su.thinking_delta || su.text_delta);
+            } else if (su.step_type === 'tool') {
+              const params = su.tool_info?.parameters || {};
+              const command = params.CommandLine 
+                || (params.toolAction ? `${params.toolAction}${params.toolSummary ? ': ' + params.toolSummary : ''}` : '')
+                || params.AbsolutePath 
+                || params.TargetFile 
+                || '';
+
+              callbacks.onToolUpdate?.({
+                step_index: su.step_index,
+                name: su.tool_name || 'tool',
+                command: command,
+                action: params.toolAction,
+                summary: params.toolSummary,
+                args: params,
+                output: su.tool_info?.output,
+                state: su.state,
+                duration: su.duration_seconds
+              });
+            }
+          } else if (parsed.event === 'raw') {
+            if (parsed.text) callbacks.onTextDelta?.(parsed.text + '\n');
+          } else if (parsed.event === 'done') {
+            receivedDone = true;
+            callbacks.onDone?.(parsed);
+          } else if (parsed.event === 'error') {
+            receivedDone = true;
+            callbacks.onError?.(parsed.error);
+          }
+        } catch {}
+      }
+    }
+
+    if (!receivedDone && !abortSignal?.aborted) {
+      callbacks.onConnectionDrop?.();
+    }
+  },
+
+  /**
    * Stream de Chat com suporte a SSE via Fetch ReadableStream
    */
   async streamChat(
@@ -476,6 +592,7 @@ export const api = {
 
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
+    let receivedDone = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -540,16 +657,23 @@ export const api = {
             if (parsed.text) callbacks.onTextDelta?.(parsed.text + '\n');
           } else if (parsed.event === 'interrupted') {
             callbacks.onTextDelta?.('\n\n*(Interrompido por novo envio forçado)*');
+            receivedDone = true;
             callbacks.onDone?.({ code: 130, conversation_id: payload.conversationId || '' });
           } else if (parsed.event === 'done') {
+            receivedDone = true;
             callbacks.onDone?.(parsed);
           } else if (parsed.event === 'error') {
+            receivedDone = true;
             callbacks.onError?.(parsed.error);
           }
         } catch {
           // ignore non-json payload in SSE stream
         }
       }
+    }
+
+    if (!receivedDone && !abortSignal?.aborted) {
+      callbacks.onConnectionDrop?.();
     }
   },
 

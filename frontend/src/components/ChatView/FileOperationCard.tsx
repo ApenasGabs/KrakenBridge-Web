@@ -109,7 +109,16 @@ export const FileOperationCard: React.FC<FileOperationCardProps> = ({
           </span>
 
           {/* Nome e Diretório do Arquivo */}
-          <div className="min-w-0 flex items-baseline gap-1.5 truncate" title={data.filePath}>
+          <div 
+            className="min-w-0 flex items-baseline gap-1.5 truncate cursor-pointer hover:underline" 
+            title={`Visualizar arquivo: ${data.filePath}`}
+            onClick={(e) => {
+              if (onOpenFilePreview && data.filePath) {
+                e.stopPropagation();
+                onOpenFilePreview(data.filePath);
+              }
+            }}
+          >
             <span className="font-bold text-base-content font-mono truncate">
               {data.fileName}
             </span>

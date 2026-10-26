@@ -285,10 +285,23 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
 
   const markdownComponents = useMemo(() => ({
     code: MarkdownCode,
-    // Intercepta links markdown file:/// para permitir abrir no visualizador in-app (ArtifactDrawer) ou na IDE
+    // Intercepta links markdown para permitir abrir no visualizador in-app (ArtifactDrawer) ou na IDE
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     a({ href, children, ...props }: any) {
-      if (href && (href.startsWith('file:///') || href.startsWith('file://') || href.startsWith('file:'))) {
+      if (!href) {
+        return <span {...props}>{children}</span>;
+      }
+
+      const isFileLink = (
+        href.startsWith('file:') ||
+        href.startsWith('/workspace/') ||
+        href.startsWith('/app/') ||
+        href.startsWith('./') ||
+        href.startsWith('../') ||
+        /\.(tsx?|jsx?|json|ya?ml|css|scss|html?|md|py|sh|sql|go|rs|env|toml|dockerfile)(#.*)?$/i.test(href)
+      );
+
+      if (isFileLink) {
         const rawClean = href.replace(/^file:\/\/\/?/, '/').replace(/^file:\/\//, '/').replace(/^file:/, '');
         const cleanPath = (!rawClean.match(/^[a-zA-Z]:/) && !rawClean.startsWith('/')) ? '/' + rawClean : rawClean;
         return (
@@ -296,6 +309,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
             type="button"
             onClick={(e) => {
               e.preventDefault();
+              e.stopPropagation();
               if (onOpenFilePreview) {
                 onOpenFilePreview(cleanPath);
               } else {
@@ -304,11 +318,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
                 const lineMatch = anchor?.match(/L?(\d+)/i);
                 const lineSuffix = lineMatch ? `:${lineMatch[1]}` : '';
                 const ideUrl = `http://${hostname}:${codeServerPort || 8089}/?file=${encodeURIComponent(targetPath)}${lineSuffix}`;
-                window.open(ideUrl, '_blank');
+                window.open(ideUrl, '_blank', 'noopener,noreferrer');
               }
             }}
             className="inline-flex items-center gap-1 text-primary font-mono text-[11px] hover:underline bg-primary/10 px-1.5 py-0.5 rounded border border-primary/20 align-baseline mx-0.5 cursor-pointer text-left"
-            title={`Visualizar artefato/arquivo: ${cleanPath}`}
+            title={`Visualizar arquivo in-app: ${cleanPath}`}
             data-testid="message-file-link"
             {...props}
           >
@@ -318,8 +332,21 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
           </button>
         );
       }
+
       return (
-        <a href={href} target="_blank" rel="noreferrer" className="text-primary hover:underline" {...props}>
+        <a 
+          href={href} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-primary hover:underline inline-flex items-center gap-0.5" 
+          onClick={(e) => {
+            // Previne navegação da aba atual caso seja rota relativa genérica
+            if (!href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('mailto:')) {
+              e.preventDefault();
+            }
+          }}
+          {...props}
+        >
           {children}
         </a>
       );
