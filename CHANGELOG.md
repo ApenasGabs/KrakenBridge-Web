@@ -5,6 +5,13 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.17.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.16.0...v1.17.0) (2026-10-26)
+
+### ✨ Features
+
+* **skills:** integrar classificador semântico via gemini-3.8-flash-low no Skill Scout (Refs [#88](https://github.com/ApenasGabs/KrakenBridge-Web/issues/88)) ([50f3de0](https://github.com/ApenasGabs/KrakenBridge-Web/commit/50f3de0044f4adb1bcea647967b5128b5632e56c))
+* **skills:** integrar classificador semântico via gemini-3.8-flash-low no Skill Scout (Refs [#88](https://github.com/ApenasGabs/KrakenBridge-Web/issues/88)) ([#89](https://github.com/ApenasGabs/KrakenBridge-Web/issues/89)) ([985c197](https://github.com/ApenasGabs/KrakenBridge-Web/commit/985c1978c43dd4c7719dc3a1c95c406226a8c986))
+
 ## [1.16.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.15.0...v1.16.0) (2026-10-26)
 
 ### ✨ Features
