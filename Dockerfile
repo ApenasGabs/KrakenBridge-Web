@@ -36,8 +36,8 @@ WORKDIR /app
 # Copiar manifestos de dependências do backend
 COPY package*.json tsconfig.json ./
 
-# Instalar dependências completas para viabilizar auto-evolução e build TypeScript
-RUN npm install
+# Instalar dependências completas e CLI oficial skills (skills.sh da Vercel Labs)
+RUN npm install && npm install -g skills
 
 # Copiar código-fonte TypeScript e scripts
 COPY src ./src

@@ -6,7 +6,7 @@
   "main": "dist-server/server.js",
   "scripts": {
     "start": "node dist-server/server.js",
-    "build:server": "tsc",
+    "build:server": "tsc && mkdir -p dist-server/templates && cp -r src/templates/* dist-server/templates/ 2>/dev/null || true",
     "build:frontend": "NODE_OPTIONS=--max-old-space-size=1536 npm run --prefix frontend build",
     "build": "npm run build:frontend && npm run build:server",
     "test": "npm run --prefix frontend test -- --run",

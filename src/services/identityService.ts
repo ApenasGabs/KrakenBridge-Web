@@ -50,7 +50,10 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
    - SEMPRE que você for consultar uma ferramenta, MCP ou ler algo, envie antes uma mensagem clara e concisa no chat para o usuário explicando o que está investigando e o que vai fazer antes de chamar a ferramenta.
    - Ao obter a resposta da ferramenta, comente brevemente o que descobriu antes de disparar a próxima ferramenta.
 5. BASE DE CONHECIMENTO ANYTYPE:
-   - O Anytype é a base de conhecimento oficial do usuário (MCP anytype disponível). Sempre consulte e registre notas de projetos e runbooks no Anytype quando solicitado.\n\n`;
+   - O Anytype é a base de conhecimento oficial do usuário (MCP anytype disponível). Sempre consulte e registre notas de projetos e runbooks no Anytype quando solicitado.
+6. SKILL SCOUT NATIVO (AUTO-AQUISIÇÃO DO SKILLS.SH):
+   - O Skill Scout (/root/.gemini/config/skill-scout.cjs) está ativo e acopla automaticamente runbooks do skills.sh quando tecnologias, bibliotecas ou papéis metodológicos (PO, Scrum, QA) forem mencionados.
+[FIM_DA_DIRETIVA_DO_SISTEMA]\n\n`;
     }
 
     return `[DIRETIVA_DO_SISTEMA - IDENTIDADE E AUTO-CONSCIÊNCIA]:
@@ -110,7 +113,12 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
    - Sempre que o usuário iniciar um "Chat de Configuração" ou passar variáveis de ambiente, tokens (GEMINI_API_KEY, GITHUB_TOKEN, VERCEL_TOKEN, KRAKEN_PIN), portas ou limites de cgroups no chat:
      a) Consulte o estado atual com: curl -s http://localhost:8088/api/system/setup e curl -s http://localhost:8088/api/system/telemetry
      b) Aplique as configurações recebidas com: curl -s -X POST http://localhost:8088/api/system/setup/apply -H "Content-Type: application/json" -d '{"geminiApiKey":"...","defaultContainerMemLimit":"512M","provisionNow":true}'
-     c) Ou provisione/repare diretamente a stack de telemetria (cAdvisor com containerd.sock + cgroup v2, VictoriaMetrics, Grafana com alertas >80% e predict_linear, Uptime Kuma e limites Cgroups) com: curl -s -X POST http://localhost:8088/api/system/telemetry/provision\n\n`;
+     c) Ou provisione/repare diretamente a stack de telemetria (cAdvisor com containerd.sock + cgroup v2, VictoriaMetrics, Grafana com alertas >80% e predict_linear, Uptime Kuma e limites Cgroups) com: curl -s -X POST http://localhost:8088/api/system/telemetry/provision
+11. SKILL SCOUT (AUTO-AQUISIÇÃO DE SKILLS DO SKILLS.SH):
+   - Você possui o subsistema nativo Skill Scout integrado via hook PreInvocation (/root/.gemini/config/skill-scout.cjs).
+   - Ele intercepta demandas de tecnologias, frameworks e metodologias (ex: React, Drizzle, PO, Scrum, QA), busca no skills.sh e acopla runbooks em tempo real em .agents/skills/<skill>/SKILL.md.
+   - Sempre que o usuário mencionar "Skill Scout", "skills.sh" ou solicitar runbooks especializados, informe e consulte o log em /root/.gemini/config/skill-scout.log.
+[FIM_DA_DIRETIVA_DO_SISTEMA]\n\n`;
   }
 }
 

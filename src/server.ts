@@ -21,6 +21,7 @@ import { evolutionService } from './services/evolutionService.js';
 import { telemetryService } from './services/telemetryService.js';
 import { workspaceManager } from './services/workspaceManager.js';
 import { mcpService } from './services/mcpService.js';
+import { skillScoutService } from './services/skillScoutService.js';
 import { coucouPhoneLinkService } from './services/coucouPhoneLinkService.js';
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
@@ -193,6 +194,11 @@ app.listen(PORT, '0.0.0.0', () => {
   // Provisionar servidor MCP Crawl4AI do Homelab
   mcpService.ensureHomelabCrawl4AiServer().catch((err) => {
     console.warn('[KrakenBridge] Aviso ao provisionar MCP Crawl4AI:', err?.message || err);
+  });
+
+  // Auto-provisionar o subsistema nativo Skill Scout e hooks do skills.sh
+  skillScoutService.ensureSkillScoutProvisioned().catch((err) => {
+    console.warn('[KrakenBridge] Aviso ao provisionar Skill Scout nativo:', err?.message || err);
   });
 
   // Inicializar servidor Coucou Phone Link TLS/WebSocket para smartphone
