@@ -38,6 +38,10 @@ export interface ActiveSession {
   startedAt?: string;
   startTime?: number;
   isStream?: boolean;
+  accumulatedText?: string;
+  thinkingText?: string;
+  toolCalls?: ToolCall[];
+  pingInterval?: NodeJS.Timeout;
 }
 
 export interface AgentDriverArgs {

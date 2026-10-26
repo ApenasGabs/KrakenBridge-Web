@@ -28,11 +28,40 @@ import { NotificationsModal } from './components/NotificationsModal';
 import { SystemUpdateModal } from './components/SystemUpdateModal';
 import { PodDrainBanner, PodDrainReloadBubble } from './components/PodDrain';
 
+// Helper para recuperar a rota e conversa inicial a partir da URL do navegador
+const getInitialRoute = (): { tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory'; convId: string | null } => {
+  if (typeof window === 'undefined') return { tab: 'status', convId: null };
+
+  const pathname = window.location.pathname;
+  const searchParams = new URLSearchParams(window.location.search);
+  const queryConvId = searchParams.get('c');
+
+  // /c/:id ou /chat/c/:id
+  const convMatch = pathname.match(/(?:\/chat)?\/c\/([a-zA-Z0-9_-]+)/);
+  if (convMatch) {
+    return { tab: 'chat', convId: convMatch[1] };
+  }
+
+  if (queryConvId) {
+    return { tab: 'chat', convId: queryConvId };
+  }
+
+  if (pathname.includes('/whatsnext')) return { tab: 'whatsnext', convId: null };
+  if (pathname.includes('/ide')) return { tab: 'ide', convId: null };
+  if (pathname.includes('/memory')) return { tab: 'memory', convId: null };
+  if (pathname.includes('/chat')) return { tab: 'chat', convId: null };
+  if (pathname.includes('/status')) return { tab: 'status', convId: null };
+
+  return { tab: 'status', convId: null };
+};
+
 export const App: React.FC = () => {
-  // Estado das Conversas
+  const initialRoute = useMemo(() => getInitialRoute(), []);
+
+  // Estado das Conversas (inicializado pela rota da URL se presente)
   const [conversations, setConversations] = useState<ConversationSession[]>([]);
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
-  const activeConvIdRef = useRef<string | null>(null);
+  const [activeConvId, setActiveConvId] = useState<string | null>(initialRoute.convId);
+  const activeConvIdRef = useRef<string | null>(initialRoute.convId);
   useEffect(() => {
     activeConvIdRef.current = activeConvId;
   }, [activeConvId]);
@@ -44,8 +73,8 @@ export const App: React.FC = () => {
   // Segurança por PIN
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
-  // Layout & Abas (Inicia no Status por padrão)
-  const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide' | 'memory'>('status');
+  // Layout & Abas (Sincronizado com a URL do navegador)
+  const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide' | 'memory'>(initialRoute.tab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
@@ -176,14 +205,43 @@ export const App: React.FC = () => {
         api.getMcpServers().then(servers => setMcpCount(servers.length)).catch(() => {}),
         api.getSystemVersion().then(v => { if (v?.success) setVersionInfo(v); }).catch(() => {})
       ]);
+
+      if (initialRoute.convId) {
+        selectConversationRef.current(initialRoute.convId, false);
+      }
     } catch (err) {
       console.error('Erro na inicialização do app:', err);
     }
-  }, [refreshAuthStatus, loadConversations]);
+  }, [refreshAuthStatus, loadConversations, initialRoute.convId]);
 
   useEffect(() => {
     checkPinAndInit();
   }, [checkPinAndInit]);
+
+  // Sincronização da URL do navegador
+  const updateUrl = useCallback((tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory', convId: string | null) => {
+    if (typeof window === 'undefined') return;
+    const isSubpath = window.location.pathname.startsWith('/chat');
+    const basePrefix = isSubpath ? '/chat' : '';
+
+    let newPath = basePrefix || '/';
+    if (tab === 'chat') {
+      newPath = convId ? `${basePrefix}/c/${convId}` : (basePrefix ? `${basePrefix}` : '/chat');
+    } else if (tab === 'status') {
+      newPath = basePrefix ? `${basePrefix}/status` : '/';
+    } else {
+      newPath = `${basePrefix}/${tab}`;
+    }
+
+    if (window.location.pathname !== newPath) {
+      window.history.pushState({ tab, convId }, '', newPath);
+    }
+  }, []);
+
+  const handleTabChange = useCallback((newTab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory') => {
+    setActiveTab(newTab);
+    updateUrl(newTab, newTab === 'chat' ? activeConvIdRef.current : null);
+  }, [updateUrl]);
 
   // Polling de Status da Auto-Evolução / Pod Drain
   useEffect(() => {
@@ -209,6 +267,123 @@ export const App: React.FC = () => {
     };
   }, [evolutionStatus?.isDraining, evolutionStatus?.status]);
 
+  // Tentativa de reconexão / re-acoplamento resiliente
+  const attemptReconnect = useCallback(async (convId: string, targetMsgId?: string) => {
+    if (!convId) return;
+    try {
+      const status = await api.getChatStatus(convId);
+      if (!status.isRunning) {
+        const sess = await api.getConversation(convId).catch(() => null);
+        if (sess?.messages) {
+          setMessages(sess.messages);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      await api.streamReconnect(
+        convId,
+        {
+          onSyncSnapshot: (snapshot) => {
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                return prev.map((m, idx) => idx === prev.length - 1 ? {
+                  ...m,
+                  isStreaming: true,
+                  text: snapshot.text || m.text,
+                  thinking: snapshot.thinking || m.thinking,
+                  toolCalls: snapshot.toolCalls && snapshot.toolCalls.length > 0 ? snapshot.toolCalls : m.toolCalls
+                } : m);
+              } else {
+                return [...prev, {
+                  id: targetMsgId || `assistant-${Date.now()}`,
+                  role: 'assistant',
+                  text: snapshot.text || '',
+                  thinking: snapshot.thinking || '',
+                  toolCalls: snapshot.toolCalls || [],
+                  timestamp: new Date().toISOString(),
+                  isStreaming: true
+                }];
+              }
+            });
+          },
+          onTextDelta: (delta) => {
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                return prev.map((m, idx) => idx === prev.length - 1 ? { ...m, text: m.text + delta } : m);
+              }
+              return prev;
+            });
+          },
+          onThinkingDelta: (delta) => {
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                return prev.map((m, idx) => idx === prev.length - 1 ? { ...m, thinking: (m.thinking || '') + delta } : m);
+              }
+              return prev;
+            });
+          },
+          onToolUpdate: (toolUpdate) => {
+            setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                const tools = [...(last.toolCalls || [])];
+                const existingIdx = tools.findIndex(t => 
+                  (toolUpdate.step_index !== undefined && t.step_index === toolUpdate.step_index) ||
+                  (t.name === toolUpdate.name && (t.state === 'ACTIVE' || t.state === 'RUNNING'))
+                );
+                if (existingIdx >= 0) {
+                  tools[existingIdx] = {
+                    ...tools[existingIdx],
+                    ...toolUpdate,
+                    command: toolUpdate.command || tools[existingIdx].command,
+                    output: toolUpdate.output || tools[existingIdx].output,
+                    action: toolUpdate.action || tools[existingIdx].action,
+                    summary: toolUpdate.summary || tools[existingIdx].summary
+                  };
+                } else {
+                  tools.push(toolUpdate);
+                }
+                return prev.map((m, idx) => idx === prev.length - 1 ? { ...m, toolCalls: tools } : m);
+              }
+              return prev;
+            });
+          },
+          onDone: () => {
+            setIsLoading(false);
+            setMessages(prev => prev.map((m, idx) => idx === prev.length - 1 ? { ...m, isStreaming: false } : m));
+            loadConversations();
+          },
+          onError: (err) => {
+            setIsLoading(false);
+            console.warn('[KrakenBridge] Erro ao reconectar stream:', err);
+          },
+          onConnectionDrop: () => {
+            console.warn('[KrakenBridge] Queda temporária de rede detectada.');
+            setTimeout(() => {
+              if (activeConvIdRef.current === convId) {
+                attemptReconnect(convId, targetMsgId);
+              }
+            }, 2000);
+          }
+        },
+        abortControllerRef.current.signal
+      );
+    } catch (err) {
+      console.warn('[KrakenBridge] Exceção ao tentar reconectar stream:', err);
+      setIsLoading(false);
+    }
+  }, [loadConversations]);
+
   // Restauração da sessão após reinício (Pod Restabelecido)
   const handleReconnected = useCallback(async () => {
     try {
@@ -227,6 +402,9 @@ export const App: React.FC = () => {
             return m;
           }));
           setIsLoading(!!session.isRunning);
+          if (session.isRunning) {
+            attemptReconnect(currentConvId);
+          }
         }
       }
       const updatedEvo = await api.getEvolutionStatus().catch(() => null);
@@ -236,16 +414,20 @@ export const App: React.FC = () => {
     } catch (e) {
       console.warn('Erro ao restaurar sessão pós-reconexão:', e);
     }
-  }, [loadConversations, refreshAuthStatus]);
+  }, [loadConversations, refreshAuthStatus, attemptReconnect]);
 
-  // Carregar mensagens da conversa ativa
-  const selectConversation = useCallback(async (id: string) => {
+  // Carregar mensagens da conversa ativa (com suporte a sincronização de rota e reconexão)
+  const selectConversation = useCallback(async (id: string, shouldPush = true) => {
     setActiveTab('chat');
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
     setActiveConvId(id);
+    activeConvIdRef.current = id;
+    if (shouldPush) {
+      updateUrl('chat', id);
+    }
     try {
       const session = await api.getConversation(id);
       if (session && session.messages) {
@@ -263,6 +445,10 @@ export const App: React.FC = () => {
           chatMode: session.chatMode || prev.chatMode || 'agent',
           accountEmail: session.accountEmail || undefined
         }));
+
+        if (session.isRunning) {
+          attemptReconnect(id);
+        }
       } else {
         setMessages([]);
         setIsLoading(false);
@@ -272,6 +458,27 @@ export const App: React.FC = () => {
       setMessages([]);
       setIsLoading(false);
     }
+  }, [updateUrl, attemptReconnect]);
+
+  const selectConversationRef = useRef(selectConversation);
+  useEffect(() => {
+    selectConversationRef.current = selectConversation;
+  }, [selectConversation]);
+
+  // Escuta botões Voltar / Avançar do navegador para navegação natural
+  useEffect(() => {
+    const handlePopState = () => {
+      const current = getInitialRoute();
+      setActiveTab(current.tab);
+      setActiveConvId(current.convId);
+      activeConvIdRef.current = current.convId;
+      if (current.convId) {
+        selectConversationRef.current(current.convId, false);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const handleNewChat = useCallback(() => {
@@ -281,10 +488,12 @@ export const App: React.FC = () => {
       abortControllerRef.current = null;
     }
     setActiveConvId(null);
+    activeConvIdRef.current = null;
+    updateUrl('chat', null);
     setMessages([]);
     setPrompt('');
     setIsLoading(false);
-  }, []);
+  }, [updateUrl]);
 
   const handleNewChatInProject = useCallback((subproject: string) => {
     handleNewChat();
@@ -435,6 +644,7 @@ export const App: React.FC = () => {
             if (!activeConvIdRef.current) {
               activeConvIdRef.current = data.conversation_id;
               setActiveConvId(data.conversation_id);
+              updateUrl('chat', data.conversation_id);
             }
             if (data.subproject) {
               setOptions(prev => ({ ...prev, subproject: data.subproject || prev.subproject }));
@@ -443,6 +653,14 @@ export const App: React.FC = () => {
               setConversations(prev => prev.map(c => c.id === data.conversation_id ? { ...c, tags: data.tags } : c));
             }
             loadConversations();
+          },
+          onConnectionDrop: () => {
+            console.warn('[KrakenBridge] Queda de conexão SSE durante geração. Tentando re-acoplar...');
+            setTimeout(() => {
+              if (activeConvIdRef.current) {
+                attemptReconnect(activeConvIdRef.current, streamingId);
+              }
+            }, 1500);
           },
           onTextDelta: (delta) => {
             setMessages(prev => prev.map(msg => {
@@ -547,7 +765,7 @@ export const App: React.FC = () => {
         return msg;
       }));
     }
-  }, [loadConversations, dispatchNextQueueItem]);
+  }, [loadConversations, dispatchNextQueueItem, updateUrl, attemptReconnect]);
 
   useEffect(() => {
     executeTurnRef.current = executeTurn;
@@ -750,7 +968,7 @@ export const App: React.FC = () => {
         {/* Barra Superior */}
         <Header
           activeTab={activeTab}
-          onTabChange={setActiveTab}
+          onTabChange={handleTabChange}
           onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
           isOptionsOpen={isOptionsOpen}
           onToggleOptions={() => setIsOptionsOpen(prev => !prev)}
