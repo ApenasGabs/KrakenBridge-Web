@@ -57,7 +57,10 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 
   try {
-    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    const isSubpath = window.location.pathname.startsWith('/chat');
+    const swUrl = isSubpath ? '/chat/sw.js' : '/sw.js';
+    const scope = isSubpath ? '/chat/' : '/';
+    const reg = await navigator.serviceWorker.register(swUrl, { scope });
     console.log('[PWA] Service Worker registrado com escopo:', reg.scope);
     return reg;
   } catch (err) {

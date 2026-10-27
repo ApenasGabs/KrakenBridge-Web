@@ -23,6 +23,7 @@ import { workspaceManager } from './services/workspaceManager.js';
 import { mcpService } from './services/mcpService.js';
 import { skillScoutService } from './services/skillScoutService.js';
 import { coucouPhoneLinkService } from './services/coucouPhoneLinkService.js';
+import { createSpaAssetMiddleware, createIndexHtmlSender } from './utils/spaRoutingHelper.js';
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
@@ -84,16 +85,34 @@ const distDir = [
   path.resolve('public')
 ].find(dir => fs.existsSync(path.join(dir, 'index.html'))) || path.resolve('public');
 
-// Servir arquivos estáticos na raiz e em /chat
-app.use(express.static(distDir));
-app.use('/chat', express.static(distDir));
+// Interceptar e servir assets estáticos mesmo quando solicitados com caminhos relativos aninhados (ex: /c/assets/*, /chat/c/assets/*)
+app.use(createSpaAssetMiddleware(distDir));
+
+// Servir arquivos estáticos na raiz e em /chat (desativa index automático para permitir injeção dinâmica de <base>)
+app.use(express.static(distDir, { index: false }));
+app.use('/chat', express.static(distDir, { index: false }));
 
 // Servir bundle pré-minificado do Monaco Editor localmente (100% offline no Homelab)
 const monacoMinDir = path.resolve('frontend/node_modules/monaco-editor/min/vs');
 if (fs.existsSync(monacoMinDir)) {
   app.use('/monaco/vs', express.static(monacoMinDir));
   app.use('/chat/monaco/vs', express.static(monacoMinDir));
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const monacoMatch = req.path.match(/\/monaco\/vs\/(.+)$/);
+    if (monacoMatch) {
+      const target = path.join(monacoMinDir, monacoMatch[1]);
+      if (fs.existsSync(target)) return res.sendFile(target);
+    }
+    next();
+  });
 }
+
+// Injeção dinâmica de <base href> ao entregar o index.html para garantir resolução canônica dos assets
+const sendIndexHtml = createIndexHtmlSender(distDir);
+
+// Rotas principais entregam o index.html com <base> configurado
+app.get('/', sendIndexHtml);
+app.get('/chat', sendIndexHtml);
 
 // Aplicar middleware de autenticação nas APIs
 app.use('/api', pinAuthMiddleware);
@@ -131,10 +150,10 @@ const registerRoutes = (prefix: string) => {
 registerRoutes('/api');
 registerRoutes('/chat/api');
 
-// Redirecionamento SPA para index.html (tanto para / quanto para /chat/*)
+// Redirecionamento SPA para index.html (tanto para / quanto para /chat/*) com <base href> dinâmico
 app.get('*', (req: Request, res: Response, next: NextFunction) => {
   if (req.path.startsWith('/api') || req.path.startsWith('/chat/api')) return next();
-  res.sendFile(path.join(distDir, 'index.html'));
+  sendIndexHtml(req, res);
 });
 
 // Função para registrar automaticamente o roteamento no ZimaOS Gateway

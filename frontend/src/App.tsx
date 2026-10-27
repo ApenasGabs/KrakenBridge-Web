@@ -199,16 +199,20 @@ export const App: React.FC = () => {
         }));
       }
 
+      // Inicia imediatamente o carregamento da conversa especificada na rota
+      const loadInitialConversation = async () => {
+        if (initialRoute.convId) {
+          await selectConversationRef.current(initialRoute.convId, false);
+        }
+      };
+
       await Promise.all([
+        loadInitialConversation(),
         refreshAuthStatus(), 
         loadConversations(),
         api.getMcpServers().then(servers => setMcpCount(servers.length)).catch(() => {}),
         api.getSystemVersion().then(v => { if (v?.success) setVersionInfo(v); }).catch(() => {})
       ]);
-
-      if (initialRoute.convId) {
-        selectConversationRef.current(initialRoute.convId, false);
-      }
     } catch (err) {
       console.error('Erro na inicialização do app:', err);
     }
@@ -428,6 +432,7 @@ export const App: React.FC = () => {
     if (shouldPush) {
       updateUrl('chat', id);
     }
+    setIsLoading(true);
     try {
       const session = await api.getConversation(id);
       if (session && session.messages) {
