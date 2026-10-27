@@ -42,7 +42,24 @@ NODE_PID=$(pgrep -f "server.js" | grep -v "^1$" | grep -v "$$" | grep -v "self-r
 
 if [ -n "$NODE_PID" ]; then
     echo "[SelfReload] Encerrando Node PID: $NODE_PID para reinício atômico..." >> data/evolution.log 2>&1
-    kill -15 "$NODE_PID" 2>/dev/null || kill -9 "$NODE_PID" 2>/dev/null
+    kill -15 "$NODE_PID" 2>/dev/null
+    
+    # Aguarda até 4 segundos para finalização graciosa
+    KILLED=0
+    for i in 1 2 3 4; do
+        if ! kill -0 "$NODE_PID" 2>/dev/null; then
+            KILLED=1
+            break
+        fi
+        sleep 1
+    done
+
+    # Se ainda estiver rodando, força com SIGKILL (-9)
+    if [ "$KILLED" -eq 0 ] && kill -0 "$NODE_PID" 2>/dev/null; then
+        echo "[SelfReload] Forçando encerramento imediato (SIGKILL) no Node PID: $NODE_PID..." >> data/evolution.log 2>&1
+        kill -9 "$NODE_PID" 2>/dev/null
+        sleep 1
+    fi
 fi
 
 # 4. Fallback: Se o container não reiniciar automaticamente pelo supervisor do PID 1, sobe em background
