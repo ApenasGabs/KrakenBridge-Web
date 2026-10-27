@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.18.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.0...v1.18.1) (2026-10-27)
+
+### 🐛 Bug Fixes
+
+* **system:** resiliência no graceful reload do pod drain e salvaguarda do workspace ([#92](https://github.com/ApenasGabs/KrakenBridge-Web/issues/92)) ([1b8971a](https://github.com/ApenasGabs/KrakenBridge-Web/commit/1b8971a13f9de6cdcdd69414fbeb666cff8f5242))
+
 ## [1.18.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.17.0...v1.18.0) (2026-10-26)
 
 ### ✨ Features
