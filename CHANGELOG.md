@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.18.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.1...v1.18.2) (2026-10-27)
+
+### 🐛 Bug Fixes
+
+* **routing:** corrigir tela branca ao recarregar página em rotas de chat (Refs [#93](https://github.com/ApenasGabs/KrakenBridge-Web/issues/93)) ([d45abba](https://github.com/ApenasGabs/KrakenBridge-Web/commit/d45abbab421de85cb3e4980061853caee0f63e9d))
+
 ## [1.18.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.0...v1.18.1) (2026-10-27)
 
 ### 🐛 Bug Fixes
