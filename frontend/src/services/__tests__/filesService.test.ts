@@ -51,7 +51,7 @@ describe('Files Service - Path Traversal & Security Validation (Issue #50)', () 
   });
 
   it('deve bloquear bypass por prefixo de nome de diretório similar', () => {
-    const maliciousPrefix = path.resolve(process.cwd()) + '-malicious/hack.txt';
+    const maliciousPrefix = path.join(path.dirname(path.resolve(os.tmpdir())), path.basename(path.resolve(os.tmpdir())) + '-malicious', 'hack.txt');
     expect(isPathAllowed(maliciousPrefix)).toBe(false);
   });
 

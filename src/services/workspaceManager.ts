@@ -75,6 +75,22 @@ export class WorkspaceManager {
       return allocation;
     }
 
+    // Salvaguarda: NUNCA copiar a raiz do workspace (/workspace) contendo todos os projetos do homelab
+    const rootWorkspace = path.resolve(process.env.WORKSPACE_DIR || '/workspace');
+    if (resolvedBase === rootWorkspace) {
+      console.log(`[WorkspaceManager] Concorrencia na raiz /workspace permitida sem copia recursiva para conv: ${conversationId}`);
+      const allocation: WorkspaceAllocation = {
+        conversationId,
+        baseDir: resolvedBase,
+        workDir: resolvedBase,
+        isEphemeral: false,
+        subproject: options?.subproject,
+        createdAt: Date.now()
+      };
+      this.allocations.set(conversationId, allocation);
+      return allocation;
+    }
+
     // CONCORRÊNCIA DETECTADA: Instancia workspace efêmero isolado
     console.log(`[WorkspaceManager] Concorrência detectada em "${resolvedBase}". Criando workspace efêmero para conv: ${conversationId}`);
 
