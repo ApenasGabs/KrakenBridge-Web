@@ -39,9 +39,14 @@ class SystemVersionService {
   private cachedReleases: ReleaseInfo[] = [];
   private lastFetchTime = 0;
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+  private isUpdating = false;
 
   constructor() {
     this.ensureDataDir();
+  }
+
+  public isUpdateInProgress(): boolean {
+    return this.isUpdating;
   }
 
   private ensureDataDir() {
@@ -227,18 +232,35 @@ class SystemVersionService {
   }
 
   public async updateToVersion(targetTag?: string): Promise<{ success: boolean; message: string; targetVersion: string }> {
+    if (this.isUpdating) {
+      const err = new Error('Já existe uma atualização de versão em andamento. Aguarde a conclusão.');
+      (err as any).statusCode = 409;
+      throw err;
+    }
+
     const status = await this.getStatus();
     const selectedTag = targetTag || (status.releases[0] ? status.releases[0].tag : `v${status.latestVersion}`);
     const cleanTarget = selectedTag.replace(/^v/, '');
-
-    console.log(`[SystemVersionService] Iniciando atualização de sistema para a versão "${selectedTag}"...`);
 
     // Valida se a versão está fixada e o usuário não especificou tag explícita
     if (!targetTag && status.policy === 'pinned') {
       throw new Error(`O sistema está fixado na versão ${status.pinnedVersion}. Altere a política para 'auto' ou informe uma versão alvo.`);
     }
 
+    this.isUpdating = true;
+    let originalRef: string | null = null;
+
     try {
+      // 0. Salva ref atual para rollback atômico em caso de falha de build
+      try {
+        const refRes = await execAsync('git rev-parse HEAD');
+        originalRef = refRes.stdout.trim();
+      } catch (refErr) {
+        console.warn('[SystemVersionService] Não foi possível capturar commit atual do HEAD:', refErr);
+      }
+
+      console.log(`[SystemVersionService] Iniciando atualização de sistema para a versão "${selectedTag}"...`);
+
       // 1. Git fetch das tags remotas
       console.log('[SystemVersionService] Buscando tags do repositório...');
       await execAsync('git fetch --tags origin');
@@ -247,15 +269,15 @@ class SystemVersionService {
       console.log(`[SystemVersionService] Realizando checkout de ${selectedTag}...`);
       await execAsync(`git checkout ${selectedTag}`);
 
-      // 3. Compilação do servidor e frontend
-      console.log('[SystemVersionService] Compilando nova versão...');
+      // 3. Compilação do servidor e frontend com limites controlados de heap
       console.log('[SystemVersionService] Compilando backend TypeScript...');
-      await execAsync('npx tsc');
+      await execAsync('npx tsc', {
+        env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1536' }
+      });
+
       console.log('[SystemVersionService] Compilando frontend...');
       await execAsync('npm run --prefix frontend build', {
-        env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1024' }
-      }).catch((buildErr) => {
-        console.warn('[SystemVersionService] Aviso no build do frontend (mantendo fallback):', buildErr?.message);
+        env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1536' }
       });
 
       // 4. Disparo do Graceful Pod Drain Reload
@@ -272,7 +294,28 @@ class SystemVersionService {
       };
     } catch (err: any) {
       console.error('[SystemVersionService] Erro ao executar atualização:', err);
+
+      // Rollback do checkout caso tenha falhado após trocar de branch/tag
+      if (originalRef) {
+        try {
+          console.log(`[SystemVersionService] Restaurando ref anterior (${originalRef}) devido a falha no update...`);
+          await execAsync(`git checkout ${originalRef}`);
+        } catch (rollbackErr: any) {
+          console.error('[SystemVersionService] Falha crítica ao restaurar ref anterior:', rollbackErr);
+        }
+      }
+
+      const isOOM = err?.message?.includes('JavaScript heap out of memory') ||
+                    err?.code === 134 ||
+                    err?.stderr?.includes('JavaScript heap out of memory');
+
+      if (isOOM) {
+        throw new Error(`Falha no build da versão ${selectedTag} por estouro de memória (Out of Memory). O repositório foi restaurado para a versão anterior.`);
+      }
+
       throw new Error(`Falha durante a atualização de versão: ${err?.message || err}`);
+    } finally {
+      this.isUpdating = false;
     }
   }
 }

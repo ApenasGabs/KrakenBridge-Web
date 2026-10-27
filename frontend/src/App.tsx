@@ -761,20 +761,57 @@ export const App: React.FC = () => {
       if (err instanceof Error && err.name === 'AbortError') {
         return;
       }
-      console.error('Falha no streaming SSE:', err);
-      setIsLoading(false);
-      setMessages(prev => prev.map(msg => {
-        if (msg.id === streamingId) {
-          return { ...msg, isStreaming: false };
-        }
-        return msg;
-      }));
+      console.warn('[KrakenBridge] Queda de rede no streaming SSE. Mantendo sessão ativa e acionando reconexão resiliente:', err);
+      // Mantém isLoading ativo para o polling de segundo plano e tenta reconectar imediatamente
+      if (activeConvIdRef.current) {
+        attemptReconnect(activeConvIdRef.current, streamingId);
+      }
     }
   }, [loadConversations, dispatchNextQueueItem, updateUrl, attemptReconnect]);
 
   useEffect(() => {
     executeTurnRef.current = executeTurn;
   }, [executeTurn]);
+
+  // Sincronização automática ao retornar para a aba (visibilitychange) ou restabelecer conexão (online)
+  useEffect(() => {
+    const handleSyncOnVisibleOrOnline = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+
+      const currentConvId = activeConvIdRef.current;
+      if (!currentConvId) return;
+
+      try {
+        const status = await api.getChatStatus(currentConvId).catch(() => null);
+        if (!status) return;
+
+        if (status.isRunning) {
+          // Se o agente ainda estiver rodando no backend e não estivermos com stream ativa conectada, reconecta
+          if (!abortControllerRef.current) {
+            console.log(`[KrakenBridge] Retomando reconexão da conversa ${currentConvId} após foco na aba.`);
+            attemptReconnect(currentConvId);
+          }
+        } else {
+          // Se já finalizou em segundo plano, atualiza as mensagens com o resultado definitivo
+          const session = await api.getConversation(currentConvId).catch(() => null);
+          if (session?.messages) {
+            setMessages(session.messages);
+            setIsLoading(false);
+          }
+        }
+      } catch (err) {
+        console.warn('[KrakenBridge] Erro ao sincronizar estado após foco/online:', err);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleSyncOnVisibleOrOnline);
+    window.addEventListener('online', handleSyncOnVisibleOrOnline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleSyncOnVisibleOrOnline);
+      window.removeEventListener('online', handleSyncOnVisibleOrOnline);
+    };
+  }, [attemptReconnect]);
 
   // Polling para sincronizar mensagens se a conversa ativa estiver rodando em segundo plano
   useEffect(() => {

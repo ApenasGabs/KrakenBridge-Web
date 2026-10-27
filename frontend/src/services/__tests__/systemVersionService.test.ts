@@ -50,4 +50,18 @@ describe('SystemVersionService - Version Lifecycle & Auto-Update (Issue #64)', (
     expect(first.tag).toBeDefined();
     expect(first.isLatest).toBe(true);
   });
+
+  it('deve bloquear chamadas simultâneas de update com mutex e código 409', async () => {
+    // Simula que um update já está em andamento
+    (systemVersionService as any).isUpdating = true;
+    expect(systemVersionService.isUpdateInProgress()).toBe(true);
+
+    await expect(systemVersionService.updateToVersion('v1.18.0')).rejects.toThrow(
+      'Já existe uma atualização de versão em andamento. Aguarde a conclusão.'
+    );
+
+    // Libera a trava
+    (systemVersionService as any).isUpdating = false;
+    expect(systemVersionService.isUpdateInProgress()).toBe(false);
+  });
 });
