@@ -42,6 +42,10 @@ export interface ActiveSession {
   thinkingText?: string;
   toolCalls?: ToolCall[];
   pingInterval?: NodeJS.Timeout;
+  stderrBuffer?: string[];
+  stopReason?: string;
+  clientIp?: string;
+  userAgent?: string;
 }
 
 export interface AgentDriverArgs {

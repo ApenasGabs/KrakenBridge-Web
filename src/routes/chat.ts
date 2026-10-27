@@ -13,6 +13,7 @@ import { evolutionService } from '../services/evolutionService.js';
 import { workspaceManager } from '../services/workspaceManager.js';
 import { pushNotificationService } from '../services/pushNotificationService.js';
 import { coucouPhoneLinkService } from '../services/coucouPhoneLinkService.js';
+import { extractAgentFailureReason } from '../utils/agentFailureReason.js';
 import type { AgentDriver, AgentType, ToolCall, ChatRequestBody } from '../types/chat.js';
 
 export const chatRouter = Router();
@@ -331,7 +332,8 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   // Se já havia uma sessão ativa na mesma conversa, encerra a árvore anterior para evitar concorrência e vazamento de RAM
   if (activeSessions.has(conversationId)) {
     const prevSession = activeSessions.get(conversationId)!;
-    console.log(`[KrakenBridge] [ProcessTree] Encerrando sessão anterior para ${conversationId} (PID: ${prevSession.child.pid})`);
+    prevSession.stopReason = 'forced_turn';
+    console.log(`[KrakenBridge] [ProcessTree] Encerrando sessão anterior para ${conversationId} (PID: ${prevSession.child.pid}) por envio prioritário forçado`);
     try {
       if (prevSession.child.pid) {
         killProcessTree(prevSession.child.pid, 'SIGTERM');
@@ -344,6 +346,8 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   }
 
   const executionStartTime = Date.now();
+  const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
+  const userAgent = req.get('user-agent') || 'unknown';
 
   const child = spawn(driver.cmd, args, {
     cwd: effectiveWorkDir,
@@ -360,7 +364,10 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     conversationId,
     accumulatedText: '',
     thinkingText: '',
-    toolCalls: []
+    toolCalls: [],
+    stderrBuffer: [],
+    clientIp,
+    userAgent
   };
 
   activeProcesses.set(reqId, child);
@@ -582,9 +589,18 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     }
   });
 
-  // Repassar logs do stderr
+  // Repassar logs do stderr e armazenar buffer para diagnóstico de encerramentos reais (cota, auth, OOM)
   child.stderr.on('data', (data: Buffer) => {
     const text = data.toString();
+    const session = activeSessions.get(conversationId);
+    if (session) {
+      if (!session.stderrBuffer) session.stderrBuffer = [];
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      session.stderrBuffer.push(...lines);
+      if (session.stderrBuffer.length > 60) {
+        session.stderrBuffer = session.stderrBuffer.slice(-60);
+      }
+    }
     const match = text.match(/(https:\/\/accounts\.google\.com\/o\/oauth2\/auth[^\s\r\n]+)/);
     if (match) {
       safeWrite(`data: ${JSON.stringify({ event: 'auth_required', authUrl: match[1], reqId })}\n\n`);
@@ -601,6 +617,12 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     if (child.pid) {
       killProcessTree(child.pid, 'SIGTERM');
     }
+
+    // Captura metadados da sessão antes de desalocar
+    const session = activeSessions.get(conversationId);
+    const stopReason = session?.stopReason;
+    const stderrLines = session?.stderrBuffer ? [...session.stderrBuffer] : [];
+
     activeProcesses.delete(reqId);
     activeSessions.delete(conversationId);
     workspaceManager.releaseWorkspace(conversationId).catch((err) => {
@@ -632,13 +654,15 @@ chatRouter.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    // Se nenhum texto foi gerado, mas houve pensamento ou interrupção, não deixa o balão vazio
+    // Se nenhum texto foi gerado, ou houve falha/interrupção, define o motivo real detalhado
     if (!accumulatedText || accumulatedText.trim() === '') {
       if (thinkingText && thinkingText.trim()) {
         accumulatedText = thinkingText;
-      } else if (code !== 0 && code !== null) {
-        accumulatedText = `⚠️ A execução foi interrompida (código ${code}) antes de emitir resposta.`;
+      } else if (code !== 0 && code !== null || stopReason) {
+        accumulatedText = extractAgentFailureReason(code, stderrLines, stopReason);
       }
+    } else if (stopReason) {
+      accumulatedText += `\n\n*(${extractAgentFailureReason(code, stderrLines, stopReason)})*`;
     }
 
     // Salvar estado final do assistente no histórico
@@ -710,7 +734,11 @@ chatRouter.post('/', async (req: Request, res: Response) => {
       accumulatedText ? accumulatedText.slice(0, 150) : undefined
     );
 
-    safeWrite(`data: ${JSON.stringify({ event: 'done', code, conversation_id: conversationId })}\n\n`);
+    if ((code !== 0 && code !== null) || stopReason) {
+      safeWrite(`data: ${JSON.stringify({ event: 'agent_response', text_delta: accumulatedText })}\n\n`);
+    }
+
+    safeWrite(`data: ${JSON.stringify({ event: 'done', code, stop_reason: stopReason, conversation_id: conversationId })}\n\n`);
     try {
       if (res && !res.writableEnded && !res.destroyed) {
         res.end();
@@ -839,16 +867,22 @@ chatRouter.post('/submit-auth', (req: Request, res: Response) => {
 
 // Interromper geração ativa (específica de uma conversa ou todas)
 chatRouter.post('/stop', (req: Request, res: Response) => {
-  const { conversationId } = req.body || {};
+  const { conversationId, reason = 'user_stop' } = req.body || {};
+  const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
+  const userAgent = req.get('user-agent') || 'unknown';
   let count = 0;
 
+  console.log(`[ChatRouter] [STOP] Requisição de interrupção recebida: conversationId=${conversationId || 'ALL'}, IP=${clientIp}, UserAgent=${userAgent}, Motivo=${reason}`);
+
   const terminateSession = (session: import('../types/chat.js').ActiveSession, convId: string) => {
+    session.stopReason = reason;
     if (session.pingInterval) {
       clearInterval(session.pingInterval);
     }
     try {
       const pid = session.child.pid;
       if (pid) {
+        console.log(`[ChatRouter] [STOP] Finalizando processo PID=${pid} para conversa ${convId}`);
         killProcessTree(pid, 'SIGTERM');
         setTimeout(() => {
           try {
@@ -856,17 +890,19 @@ chatRouter.post('/stop', (req: Request, res: Response) => {
               killProcessTree(pid, 'SIGKILL');
             }
           } catch {}
-        }, 250);
+        }, 350);
       } else {
         session.child.kill('SIGTERM');
       }
       count++;
     } catch (e) {
-      console.error(`Erro ao finalizar processo da conversa ${convId}:`, e);
+      console.error(`[ChatRouter] [STOP] Erro ao finalizar processo da conversa ${convId}:`, e);
     }
     try {
       if (session.res && !session.res.writableEnded && !session.res.destroyed) {
-        session.res.write(`data: ${JSON.stringify({ event: 'done', code: 130, interrupted: true, conversation_id: convId })}\n\n`);
+        const stopMsg = extractAgentFailureReason(130, [], reason);
+        session.res.write(`data: ${JSON.stringify({ event: 'agent_response', text_delta: `\n\n*(${stopMsg})*` })}\n\n`);
+        session.res.write(`data: ${JSON.stringify({ event: 'done', code: 130, interrupted: true, stop_reason: reason, conversation_id: convId })}\n\n`);
         session.res.end();
       }
     } catch {}

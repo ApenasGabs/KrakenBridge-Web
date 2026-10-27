@@ -146,6 +146,7 @@ systemRouter.post('/version/update', async (req: Request, res: Response) => {
     res.json(result);
   } catch (err: any) {
     console.error('[SystemRoute] Erro ao atualizar sistema:', err);
-    res.status(500).json({ success: false, error: err?.message || 'Falha ao atualizar versão' });
+    const status = err?.statusCode || (err?.message?.includes('em andamento') ? 409 : 500);
+    res.status(status).json({ success: false, error: err?.message || 'Falha ao atualizar versão' });
   }
 });
