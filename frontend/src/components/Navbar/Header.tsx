@@ -194,7 +194,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           data-testid="header-notifications-btn"
           onClick={onOpenNotifications}
-          className="btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1.5 text-xs text-base-content/70 hover:text-primary transition-colors"
+          className="hidden lg:inline-flex btn btn-sm btn-ghost w-auto px-2.5 gap-1.5 text-xs text-base-content/70 hover:text-primary transition-colors"
           title="Configurar Notificações Móveis e PWA (Web Push)"
         >
           <Bell className="w-3.5 h-3.5 text-warning" />
@@ -205,7 +205,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           data-testid="header-version-btn"
           onClick={onOpenUpdate}
-          className={`btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1.5 text-xs font-mono transition-colors ${
+          className={`hidden xl:inline-flex btn btn-sm btn-ghost w-auto px-2.5 gap-1.5 text-xs font-mono transition-colors ${
             hasUpdate 
               ? 'text-primary bg-primary/10 border border-primary/30 animate-pulse' 
               : 'text-base-content/70 hover:text-primary'
@@ -229,7 +229,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           data-testid="header-mcp-btn"
           onClick={onOpenMcp}
-          className="btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1.5 text-xs text-base-content/70 hover:text-primary transition-colors"
+          className="hidden lg:inline-flex btn btn-sm btn-ghost w-auto px-2.5 gap-1.5 text-xs text-base-content/70 hover:text-primary transition-colors"
           title="Visualizar servidores MCP (Model Context Protocol)"
         >
           <Boxes className="w-3.5 h-3.5 text-emerald-400" />
@@ -243,7 +243,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           data-testid="header-options-btn"
           onClick={onToggleOptions}
-          className={`btn btn-sm btn-ghost btn-square sm:btn-auto px-2 gap-1 text-xs ${
+          className={`hidden lg:inline-flex btn btn-sm btn-ghost w-auto px-2.5 gap-1 text-xs ${
             isOptionsOpen ? 'bg-base-200 text-primary' : 'text-base-content/70'
           }`}
           title="Parâmetros avançados do CLI"
@@ -252,11 +252,83 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden lg:inline">Opções</span>
         </button>
 
+        {/* Menu Suspenso de Ações Secundárias para Tablet (< 1024px) */}
+        <div className="dropdown dropdown-end lg:hidden">
+          <div 
+            tabIndex={0} 
+            role="button"
+            className="btn btn-ghost btn-xs btn-square h-8 w-8 rounded-lg flex items-center justify-center cursor-pointer"
+            title="Mais opções do Kraken"
+          >
+            <MoreVertical className="w-4 h-4" />
+          </div>
+          <ul 
+            tabIndex={0} 
+            className="dropdown-content menu z-50 p-2 shadow-2xl bg-base-100/98 backdrop-blur-md rounded-2xl w-56 border border-base-300 text-xs space-y-1 mt-2"
+          >
+            <li>
+              <button 
+                onClick={() => { onOpenMcp?.(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center justify-between py-2"
+              >
+                <span className="flex items-center gap-2">
+                  <Boxes className="w-4 h-4 text-emerald-400" />
+                  Servidores MCP
+                </span>
+                {mcpCount !== undefined && mcpCount > 0 && (
+                  <span className="badge badge-xs badge-primary font-mono">{mcpCount}</span>
+                )}
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { onOpenNotifications?.(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center gap-2 py-2"
+              >
+                <Bell className="w-4 h-4 text-warning" />
+                Notificações & PWA
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { onOpenUpdate?.(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center justify-between py-2"
+              >
+                <span className="flex items-center gap-2">
+                  <Sparkles className={`w-4 h-4 ${hasUpdate ? 'text-primary animate-pulse' : 'text-base-content/60'}`} />
+                  Versão & Updates
+                </span>
+                <span className={`badge badge-xs font-mono ${hasUpdate ? 'badge-primary' : 'badge-ghost'}`}>
+                  {hasUpdate ? 'Update' : (systemVersion || 'v1.11.0')}
+                </span>
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { onToggleOptions(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center gap-2 py-2"
+              >
+                <SlidersHorizontal className="w-4 h-4 text-primary" />
+                Parâmetros do Agente
+              </button>
+            </li>
+            <li>
+              <button 
+                onClick={() => { onToggleQuota?.(); (document.activeElement as HTMLElement)?.blur(); }} 
+                className="flex items-center gap-2 py-2"
+              >
+                <Coins className="w-3.5 h-3.5 text-warning" />
+                Painel de Cotas
+              </button>
+            </li>
+          </ul>
+        </div>
+
         {/* Botão de Autenticação / Contas */}
         <button
           data-testid="header-auth-btn"
           onClick={onOpenAuth}
-          className={`btn btn-sm btn-square sm:btn-auto px-2 gap-1.5 text-xs max-w-[180px] ${
+          className={`btn btn-sm w-auto px-2 sm:px-2.5 gap-1.5 text-xs max-w-[180px] ${
             isAuthOk 
               ? 'btn-ghost text-success hover:bg-success/10' 
               : 'btn-outline btn-warning'
@@ -269,12 +341,12 @@ export const Header: React.FC<HeaderProps> = ({
             <KeyRound className="w-3.5 h-3.5 shrink-0" />
           )}
           {isAuthOk ? (
-            <span className="hidden lg:inline flex items-center gap-1 truncate font-mono text-[11px]">
+            <span className="hidden xl:inline flex items-center gap-1 truncate font-mono text-[11px]">
               <CheckCircle2 className="w-3 h-3 inline text-success shrink-0" />
               <span className="truncate">{authStatus?.email ? authStatus.email.split('@')[0] : 'Conectado'}</span>
             </span>
           ) : (
-            <span className="hidden lg:inline flex items-center gap-1">
+            <span className="hidden xl:inline flex items-center gap-1">
               <AlertCircle className="w-3 h-3 inline text-warning shrink-0" />
               Conectar
             </span>
