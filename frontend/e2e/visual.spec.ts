@@ -8,6 +8,10 @@ test.describe('Visual Regression: Snapshots Visuais do KrakenBridge-Web', () => 
 
     // Fecha o balão de cotas para snapshot limpo e estável da tela
     const quotaCloseBtn = page.getByTestId('quota-bubble-close');
+    const quotaMinCloseBtn = page.getByTestId('quota-bubble-minimized-close');
+    if (await quotaMinCloseBtn.isVisible()) {
+      await quotaMinCloseBtn.click();
+    }
     if (await quotaCloseBtn.isVisible()) {
       await quotaCloseBtn.click();
     }
@@ -70,6 +74,10 @@ test.describe('Visual Regression: Snapshots Visuais do KrakenBridge-Web', () => 
     await page.goto('/');
 
     const quotaCloseBtn = page.getByTestId('quota-bubble-close');
+    const quotaMinCloseBtn = page.getByTestId('quota-bubble-minimized-close');
+    if (await quotaMinCloseBtn.isVisible()) {
+      await quotaMinCloseBtn.click();
+    }
     if (await quotaCloseBtn.isVisible()) {
       await quotaCloseBtn.click();
     }
@@ -86,6 +94,10 @@ test.describe('Visual Regression: Snapshots Visuais do KrakenBridge-Web', () => 
     await page.goto('/');
 
     const quotaCloseBtn = page.getByTestId('quota-bubble-close');
+    const quotaMinCloseBtn = page.getByTestId('quota-bubble-minimized-close');
+    if (await quotaMinCloseBtn.isVisible()) {
+      await quotaMinCloseBtn.click();
+    }
     if (await quotaCloseBtn.isVisible()) {
       await quotaCloseBtn.click();
     }
