@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.18.6](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.5...v1.18.6) (2026-10-28)
+
+### 🐛 Bug Fixes
+
+* **ux:** adequar touch targets mobile nas abas da Navbar, controles do Prompt e QuotaBubble (Refs [#98](https://github.com/ApenasGabs/KrakenBridge-Web/issues/98)) ([#101](https://github.com/ApenasGabs/KrakenBridge-Web/issues/101)) ([c1943e9](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c1943e9fac6931c762b02674e8b8dd99f06bfe04))
+
 ## [1.18.5](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.4...v1.18.5) (2026-10-28)
 
 ### 🐛 Bug Fixes
