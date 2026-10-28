@@ -519,7 +519,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             <div className="flex items-center gap-1 sm:gap-1.5 model-dropdown-container relative flex-1 min-w-0">
               <button
                 type="button"
-                className="btn btn-ghost btn-xs btn-circle text-base-content/50 hover:text-base-content transition-colors shrink-0"
+                className="btn btn-ghost btn-sm sm:btn-xs btn-circle min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 text-base-content/50 hover:text-base-content transition-colors shrink-0"
                 title="Opções adicionais / contexto"
               >
                 <Plus className="w-4 h-4" />
@@ -529,7 +529,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               <button
                 type="button"
                 onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                className="flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-sky-400 hover:text-sky-300 hover:bg-base-300/50 text-xs font-medium transition-all group select-none shrink-0"
+                className="flex items-center gap-1 min-h-[36px] sm:min-h-[32px] px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg text-sky-400 hover:text-sky-300 hover:bg-base-300/50 text-xs font-medium transition-all group select-none shrink-0"
                 title="Clique para trocar o modelo diretamente aqui"
               >
                 <span>
@@ -544,27 +544,27 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <button
                   type="button"
                   onClick={() => onChatModeChange?.('agent')}
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all ${
+                  className={`flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-0 px-2 sm:px-2 py-1.5 sm:py-0.5 rounded-md text-[11px] font-medium transition-all ${
                     chatMode === 'agent'
                       ? 'bg-primary text-primary-content shadow-sm'
                       : 'text-base-content/60 hover:text-base-content'
                   }`}
                   title="Modo Agente: Autonomia total para criar/editar código e rodar testes"
                 >
-                  <Zap className="w-3 h-3" />
+                  <Zap className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                   <span className="hidden md:inline">Agente</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onChatModeChange?.('chat')}
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium transition-all ${
+                  className={`flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-0 px-2 sm:px-2 py-1.5 sm:py-0.5 rounded-md text-[11px] font-medium transition-all ${
                     chatMode === 'chat'
                       ? 'bg-secondary text-secondary-content shadow-sm'
                       : 'text-base-content/60 hover:text-base-content'
                   }`}
                   title="Modo Chat: Conversas e ferramentas MCP sem editar arquivos locais"
                 >
-                  <MessageSquare className="w-3 h-3" />
+                  <MessageSquare className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
                   <span className="hidden md:inline">Chat</span>
                 </button>
               </div>
@@ -573,7 +573,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               <button
                 type="button"
                 onClick={onOpenMcpModal}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-base-content/60 hover:text-primary hover:bg-base-300/50 transition-all shrink-0"
+                className="flex items-center justify-center gap-1.5 min-h-[36px] min-w-[36px] sm:min-h-[32px] sm:min-w-0 px-2 py-1.5 sm:py-1 rounded-lg text-xs font-medium text-base-content/60 hover:text-primary hover:bg-base-300/50 transition-all shrink-0"
                 title="Visualizar servidores MCP integrados"
               >
                 <Boxes className="w-3.5 h-3.5 text-emerald-400" />
@@ -614,13 +614,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </div>
 
             {/* Lado Direito: Microfone e Botão de Envio */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               
               {/* Botão de Microfone */}
               <button
                 type="button"
                 onClick={toggleMic}
-                className={`p-1.5 rounded-full transition-all flex items-center justify-center ${
+                className={`w-9 h-9 sm:w-8 sm:h-8 rounded-full transition-all flex items-center justify-center shrink-0 ${
                   isListening 
                     ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30' 
                     : 'text-base-content/50 hover:text-base-content hover:bg-base-300/50'
@@ -641,7 +641,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     <button
                       type="button"
                       onClick={onStop}
-                      className="btn btn-error btn-xs btn-circle shadow-sm"
+                      className="btn btn-error btn-sm sm:btn-xs btn-circle min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 shadow-sm"
                       title="Interromper geração ativa para acelerar o Pod Drain"
                     >
                       <Square className="w-3.5 h-3.5 fill-current" />
@@ -651,7 +651,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     data-testid="chat-send-btn"
                     type="button"
                     disabled={true}
-                    className="w-7 h-7 rounded-full bg-warning/20 border border-warning/40 text-warning flex items-center justify-center shadow-sm cursor-not-allowed transition-all opacity-80"
+                    className="w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-warning/20 border border-warning/40 text-warning flex items-center justify-center shadow-sm cursor-not-allowed transition-all opacity-80 shrink-0"
                     title={
                       isReloading
                         ? "Envio pausado temporariamente: Servidor em reinício (Auto-Reload)."
@@ -659,9 +659,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     }
                   >
                     {isReloading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 animate-spin" />
                     ) : (
-                      <Lock className="w-3.5 h-3.5" />
+                      <Lock className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
                     )}
                   </button>
                 </div>
@@ -676,7 +676,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                           if (isListening) stopListening();
                           onSubmit();
                         }}
-                        className="btn btn-info btn-xs gap-1 shadow-sm px-2.5 h-7"
+                        className="btn btn-info btn-xs gap-1 shadow-sm px-2.5 min-h-[36px] sm:min-h-0 h-9 sm:h-7"
                         title="Adicionar à fila para executar após a resposta atual (Enter)"
                       >
                         <ListPlus className="w-3.5 h-3.5" />
@@ -696,7 +696,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                             onSubmit();
                           }
                         }}
-                        className="btn btn-warning btn-xs gap-1 shadow-sm px-2.5 h-7 bg-amber-500 hover:bg-amber-400 text-black font-semibold border-amber-600"
+                        className="btn btn-warning btn-xs gap-1 shadow-sm px-2.5 min-h-[36px] sm:min-h-0 h-9 sm:h-7 bg-amber-500 hover:bg-amber-400 text-black font-semibold border-amber-600"
                         title="Forçar envio imediato — interrompe a tarefa atual e executa já (Ctrl+Enter)"
                       >
                         <Zap className="w-3.5 h-3.5 fill-current" />
@@ -709,7 +709,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   <button
                     type="button"
                     onClick={onStop}
-                    className="btn btn-error btn-xs btn-circle shadow-sm"
+                    className="btn btn-error btn-sm sm:btn-xs btn-circle min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 shadow-sm"
                     title="Interromper geração ativa"
                   >
                     <Square className="w-3.5 h-3.5 fill-current" />
@@ -724,7 +724,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     onSubmit();
                   }}
                   disabled={!prompt.trim() || effectiveDisabled}
-                  className="w-7 h-7 rounded-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white flex items-center justify-center shadow-md transition-all disabled:opacity-30 disabled:pointer-events-none"
+                  className="w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white flex items-center justify-center shadow-md transition-all disabled:opacity-30 disabled:pointer-events-none shrink-0"
                   title="Enviar mensagem (Enter ou Ctrl+Enter)"
                 >
                   <ArrowRight className="w-4 h-4 stroke-[2.5]" />

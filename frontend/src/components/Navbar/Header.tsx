@@ -90,7 +90,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-status"
             onClick={() => onTabChange('status')}
-            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'status' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -104,7 +104,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-whatsnext"
             onClick={() => onTabChange('whatsnext')}
-            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'whatsnext' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -118,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-chat"
             onClick={() => onTabChange('chat')}
-            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'chat' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -131,7 +131,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-ide"
             onClick={() => onTabChange('ide')}
-            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'ide' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -144,7 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-memory"
             onClick={() => onTabChange('memory')}
-            className={`px-1.5 sm:px-2.5 py-1 text-xs rounded-md flex items-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'memory' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'

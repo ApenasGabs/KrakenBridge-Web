@@ -252,7 +252,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
             e.stopPropagation();
             onClose();
           }}
-          className="p-1 rounded-full text-neutral-400 hover:text-red-400 hover:bg-neutral-800/60 transition-colors ml-0.5"
+          className="min-h-[32px] min-w-[32px] sm:min-h-0 sm:min-w-0 p-1.5 sm:p-1 -mr-1 sm:mr-0 flex items-center justify-center rounded-full text-neutral-400 hover:text-red-400 hover:bg-neutral-800/60 transition-colors ml-0.5"
           title="Fechar balão"
         >
           <X className="w-3.5 h-3.5" />
@@ -282,21 +282,21 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
         <div className="flex items-center gap-1">
           <button 
             onClick={() => setShowConfig(!showConfig)}
-            className={`p-1 rounded-md transition-colors ${showConfig ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'}`}
+            className={`min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-[28px] p-2 sm:p-1 flex items-center justify-center rounded-md transition-colors ${showConfig ? 'bg-neutral-800 text-white' : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60'}`}
             title="Ajustar / Calibrar valores manualmente"
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
           </button>
           <button 
             onClick={handleLiveRefresh}
-            className={`p-1 rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 transition-colors ${loading ? 'animate-spin' : ''}`}
+            className={`min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-[28px] p-2 sm:p-1 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 transition-colors ${loading ? 'animate-spin' : ''}`}
             title="Consultar cota oficial do Google agora"
           >
             <RotateCw className="w-3.5 h-3.5" />
           </button>
           <button 
             onClick={() => setIsExpanded(false)}
-            className="p-1 rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 transition-colors"
+            className="min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-[28px] p-2 sm:p-1 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 transition-colors"
             title="Minimizar balão"
           >
             <Minimize2 className="w-3.5 h-3.5" />
@@ -304,7 +304,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
           <button 
             data-testid="quota-bubble-close"
             onClick={onClose}
-            className="p-1 rounded-md text-neutral-400 hover:text-red-400 hover:bg-neutral-800/60 transition-colors"
+            className="min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-[28px] p-2 sm:p-1 flex items-center justify-center rounded-md text-neutral-400 hover:text-red-400 hover:bg-neutral-800/60 transition-colors"
             title="Fechar balão"
           >
             <X className="w-3.5 h-3.5" />
