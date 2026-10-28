@@ -64,7 +64,10 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
   lastTurnTokens
 }) => {
   const [stats, setStats] = useState<QuotaStats | null>(null);
-  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  // Em viewports < 1024px (mobile/tablet) inicia recolhido para não obstruir a área principal
+  const [isExpanded, setIsExpanded] = useState<boolean>(
+    () => typeof window === 'undefined' || window.innerWidth >= 1024
+  );
   const [loading, setLoading] = useState<boolean>(false);
   const [showConfig, setShowConfig] = useState<boolean>(false);
   const [showTokensDetail, setShowTokensDetail] = useState<boolean>(false);
@@ -225,7 +228,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
     return (
       <div 
         onClick={() => setIsExpanded(true)}
-        className="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-50 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#131518]/95 backdrop-blur-md border border-neutral-800 shadow-2xl cursor-pointer hover:border-neutral-700 hover:scale-105 transition-all text-xs font-sans group select-none max-w-[calc(100vw-1.5rem)]"
+        className="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-20 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#131518]/95 backdrop-blur-md border border-neutral-800 shadow-2xl cursor-pointer hover:border-neutral-700 hover:scale-105 transition-all text-xs font-sans group select-none max-w-[calc(100vw-1.5rem)]"
         title="Clique para expandir as cotas oficiais Antigravity"
       >
         {fiveHourBucket && (
@@ -248,7 +251,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
 
   // Modo Balão Expandido - Réplica Fiel do Painel Oficial Antigravity
   return (
-    <div className="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto z-50 sm:w-96 max-w-full sm:max-w-[calc(100vw-2.5rem)] max-h-[85vh] overflow-y-auto rounded-2xl bg-[#121417]/98 backdrop-blur-xl border border-neutral-800/90 shadow-2xl p-3.5 sm:p-4 text-xs font-sans text-neutral-200 select-none animate-in fade-in slide-in-from-bottom-3 duration-200" data-testid="quota-bubble">
+    <div className="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto z-20 sm:w-96 max-w-full sm:max-w-[calc(100vw-2.5rem)] max-h-[85vh] overflow-y-auto rounded-2xl bg-[#121417]/98 backdrop-blur-xl border border-neutral-800/90 shadow-2xl p-3.5 sm:p-4 text-xs font-sans text-neutral-200 select-none animate-in fade-in slide-in-from-bottom-3 duration-200" data-testid="quota-bubble">
       
       {/* Barra de controle discreta no topo */}
       <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-neutral-800/80">
