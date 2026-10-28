@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.18.5](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.4...v1.18.5) (2026-10-28)
+
+### 🐛 Bug Fixes
+
+* **ux:** corrigir colis?o de texto na Navbar Desktop e overflow no Tablet (Refs [#96](https://github.com/ApenasGabs/KrakenBridge-Web/issues/96)) ([#100](https://github.com/ApenasGabs/KrakenBridge-Web/issues/100)) ([abc7f2e](https://github.com/ApenasGabs/KrakenBridge-Web/commit/abc7f2ee96d9d3faa2fd4b4bd2f4f62cad22eb29))
+
 ## [1.18.4](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.3...v1.18.4) (2026-10-28)
 
 ### 🐛 Bug Fixes
