@@ -227,6 +227,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
 
     return (
       <div 
+        data-testid="quota-bubble-minimized"
         onClick={() => setIsExpanded(true)}
         className="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 z-20 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full bg-[#131518]/95 backdrop-blur-md border border-neutral-800 shadow-2xl cursor-pointer hover:border-neutral-700 hover:scale-105 transition-all text-xs font-sans group select-none max-w-[calc(100vw-1.5rem)]"
         title="Clique para expandir as cotas oficiais Antigravity"
@@ -245,6 +246,17 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
           </span>
         )}
         <Maximize2 className="w-3.5 h-3.5 text-neutral-500 group-hover:text-neutral-300 transition-colors ml-0.5" />
+        <button
+          data-testid="quota-bubble-minimized-close"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="p-1 rounded-full text-neutral-400 hover:text-red-400 hover:bg-neutral-800/60 transition-colors ml-0.5"
+          title="Fechar balão"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       </div>
     );
   }
