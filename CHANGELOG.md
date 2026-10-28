@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.18.4](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.3...v1.18.4) (2026-10-28)
+
+### 🐛 Bug Fixes
+
+* **ux:** QuotaBubble recolhido em mobile/tablet e z-index abaixo do Drawer ([#99](https://github.com/ApenasGabs/KrakenBridge-Web/issues/99)) ([661f1f1](https://github.com/ApenasGabs/KrakenBridge-Web/commit/661f1f1e63290cbc85cad9df4e93d84f32390c5e)), closes [#97](https://github.com/ApenasGabs/KrakenBridge-Web/issues/97)
+
 ## [1.18.3](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.2...v1.18.3) (2026-10-27)
 
 ### 🐛 Bug Fixes
