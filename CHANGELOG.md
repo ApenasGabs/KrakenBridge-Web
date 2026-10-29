@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.21.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.20.0...v1.21.0) (2026-10-29)
+
+### ✨ Features
+
+* **observability:** expose standardized /healthz and /readyz endpoints (Refs [#110](https://github.com/ApenasGabs/KrakenBridge-Web/issues/110)) ([#111](https://github.com/ApenasGabs/KrakenBridge-Web/issues/111)) ([2b92587](https://github.com/ApenasGabs/KrakenBridge-Web/commit/2b925874f139b6fc7029c75ff4558edc29b81160))
+
 ## [1.20.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.19.0...v1.20.0) (2026-10-29)
 
 ### ✨ Features
