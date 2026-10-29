@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.20.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.19.0...v1.20.0) (2026-10-29)
+
+### ✨ Features
+
+* **system:** feedback dinamico de etapas no auto-update e blindagem do Pod Drain (Refs [#108](https://github.com/ApenasGabs/KrakenBridge-Web/issues/108)) ([#109](https://github.com/ApenasGabs/KrakenBridge-Web/issues/109)) ([3e4dbeb](https://github.com/ApenasGabs/KrakenBridge-Web/commit/3e4dbeb7fe0a2bda0583d596774c969ddcb4c442))
+
 ## [1.19.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.8...v1.19.0) (2026-10-29)
 
 ### ✨ Features
