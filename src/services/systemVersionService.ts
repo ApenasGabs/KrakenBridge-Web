@@ -265,9 +265,10 @@ class SystemVersionService {
       console.log('[SystemVersionService] Buscando tags do repositório...');
       await execAsync('git fetch --tags origin');
 
-      // 2. Checkout da tag alvo
-      console.log(`[SystemVersionService] Realizando checkout de ${selectedTag}...`);
-      await execAsync(`git checkout ${selectedTag}`);
+      // 2. Checkout forçado da tag alvo (resiliente contra drift em arquivos rastreados no runtime de produção)
+      console.log(`[SystemVersionService] Realizando checkout forçado de ${selectedTag}...`);
+      await execAsync(`git checkout -f ${selectedTag}`);
+      await execAsync(`git reset --hard ${selectedTag}`);
 
       // 3. Compilação do servidor e frontend com limites controlados de heap
       console.log('[SystemVersionService] Compilando backend TypeScript...');
@@ -299,7 +300,8 @@ class SystemVersionService {
       if (originalRef) {
         try {
           console.log(`[SystemVersionService] Restaurando ref anterior (${originalRef}) devido a falha no update...`);
-          await execAsync(`git checkout ${originalRef}`);
+          await execAsync(`git checkout -f ${originalRef}`);
+          await execAsync(`git reset --hard ${originalRef}`);
         } catch (rollbackErr: any) {
           console.error('[SystemVersionService] Falha crítica ao restaurar ref anterior:', rollbackErr);
         }
