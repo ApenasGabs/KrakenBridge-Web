@@ -40,29 +40,32 @@ describe('PromptRefinerService & EnvLoader (Issue #103)', () => {
   it('parseDotEnv e loadDotEnvFiles devem carregar chaves ausentes sem sobrescrever envs já definidas', () => {
     fs.writeFileSync(
       tempEnvPath,
-      '# comentário\nGROQ_API_KEY="gsk_test_from_file_123456789012345"\nexport GROQ_MODEL=\'openai/gpt-oss-20b\'\nOPENAI_API_KEY=from_file\n',
+      '# comentário\nGROQ_API_KEY="mock_groq_from_file_12345"\nexport GROQ_MODEL=\'openai/gpt-oss-20b\'\nOPENAI_API_KEY=from_file\n',
       'utf8'
     );
     process.env.OPENAI_API_KEY = 'already_set_in_container';
     process.env.GROQ_API_KEY = '';
 
     const parsed = parseDotEnv(fs.readFileSync(tempEnvPath, 'utf8'));
-    expect(parsed.GROQ_API_KEY).toBe('gsk_test_from_file_123456789012345');
+    expect(parsed.GROQ_API_KEY).toBe('mock_groq_from_file_12345');
     expect(parsed.GROQ_MODEL).toBe('openai/gpt-oss-20b');
 
     loadDotEnvFiles([tempEnvPath]);
-    expect(process.env.GROQ_API_KEY).toBe('gsk_test_from_file_123456789012345');
+    expect(process.env.GROQ_API_KEY).toBe('mock_groq_from_file_12345');
     expect(process.env.OPENAI_API_KEY).toBe('already_set_in_container');
   });
 
   it('maskSecrets deve mascarar tokens da Groq, GitHub, AI Studio, OpenAI e Bearer antes do envio externo', () => {
+    // Monta tokens de teste dinamicamente para evitar falsos positivos de secret scanners no GitHub
+    const dummyGroq = ['gsk_', '1234567890abcdefghij123456'].join('');
+    const dummyGithub = ['ghp_', 'abcdefghijklmnopqrstuvwxyz123456'].join('');
     const raw =
-      'Configure minha chave gsk_1234567890abcdefghij123456 e token ghp_abcdefghijklmnopqrstuvwxyz123456 com Authorization: Bearer superSecretJwtToken123456789 e api_key=mySecretKeyValue12345';
+      `Configure minha chave ${dummyGroq} e token ${dummyGithub} com Authorization: Bearer superSecretJwtToken123456789 e api_key=mySecretKeyValue12345`;
     const { masked, count } = maskSecrets(raw);
 
     expect(count).toBeGreaterThanOrEqual(4);
-    expect(masked).not.toContain('gsk_1234567890');
-    expect(masked).not.toContain('ghp_abcdefghij');
+    expect(masked).not.toContain('1234567890abcdefghij123456');
+    expect(masked).not.toContain('abcdefghijklmnopqrstuvwxyz123456');
     expect(masked).not.toContain('superSecretJwtToken123456789');
     expect(masked).not.toContain('mySecretKeyValue12345');
     expect(masked).toContain('[SECRET_REDACTED]');
@@ -94,8 +97,8 @@ describe('PromptRefinerService & EnvLoader (Issue #103)', () => {
   });
 
   it('deve usar Groq (openai/gpt-oss-20b) em 1 única tentativa e mascarar segredos no payload enviado', async () => {
-    process.env.GROQ_API_KEY = 'gsk_valid_key_for_unit_test_123456';
-    process.env.GEMINI_API_KEY = 'AIzaSyValidFallbackKey1234567890123456';
+    process.env.GROQ_API_KEY = 'mock_groq_valid_key_12345';
+    process.env.GEMINI_API_KEY = 'mock_gemini_valid_key_12345';
 
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
@@ -118,8 +121,9 @@ describe('PromptRefinerService & EnvLoader (Issue #103)', () => {
       installedSkills: new Set(['debug-issue', 'ux-testing'])
     });
 
+    const dummySecret = ['ghp_', 'secretTokenShouldNeverLeaveHost1234'].join('');
     const res = await service.refinePrompt({
-      draft: 'corrige o bug do botão salvar com token ghp_secretTokenShouldNeverLeaveHost1234 no mobile',
+      draft: `corrige o bug do botão salvar com token ${dummySecret} no mobile`,
       chatMode: 'agent',
       project: 'meu-estoque'
     });
@@ -139,13 +143,13 @@ describe('PromptRefinerService & EnvLoader (Issue #103)', () => {
     const sentBody = JSON.parse(calledInit.body);
     expect(sentBody.model).toBe('openai/gpt-oss-20b');
     expect(sentBody.reasoning_effort).toBe('low');
-    expect(calledInit.body).not.toContain('ghp_secretTokenShouldNeverLeaveHost1234');
+    expect(calledInit.body).not.toContain('secretTokenShouldNeverLeaveHost1234');
     expect(calledInit.body).toContain('[SECRET_REDACTED]');
   });
 
   it('deve cair para AI Studio (1x) quando Groq retornar 429, passando chave no header x-goog-api-key', async () => {
-    process.env.GROQ_API_KEY = 'gsk_quota_exceeded_key_1234567890';
-    process.env.GEMINI_API_KEY = 'AIzaSyFallbackGeminiKey1234567890123456';
+    process.env.GROQ_API_KEY = 'mock_groq_quota_exceeded_12345';
+    process.env.GEMINI_API_KEY = 'mock_gemini_fallback_12345';
 
     const fetchMock = vi
       .fn()
@@ -188,8 +192,8 @@ describe('PromptRefinerService & EnvLoader (Issue #103)', () => {
 
     const [aiStudioUrl, aiStudioInit] = fetchMock.mock.calls[1];
     expect(aiStudioUrl).toContain('generativelanguage.googleapis.com');
-    expect(aiStudioUrl).not.toContain('AIzaSyFallbackGeminiKey');
-    expect(aiStudioInit.headers['x-goog-api-key']).toBe('AIzaSyFallbackGeminiKey1234567890123456');
+    expect(aiStudioUrl).not.toContain('mock_gemini_fallback_12345');
+    expect(aiStudioInit.headers['x-goog-api-key']).toBe('mock_gemini_fallback_12345');
   });
 
   it('deve pular chaves ausentes e cair para agy CLI one-shot sem loop de retries', async () => {
@@ -229,8 +233,8 @@ describe('PromptRefinerService & EnvLoader (Issue #103)', () => {
   });
 
   it('deve encerrar após no máximo 1 tentativa por provider quando todos falharem (sem loop infinito)', async () => {
-    process.env.GROQ_API_KEY = 'gsk_fail_12345678901234567890';
-    process.env.AISTUDIO_API_KEY = 'AIzaSyFail1234567890123456789012345';
+    process.env.GROQ_API_KEY = 'mock_groq_fail_key_12345';
+    process.env.AISTUDIO_API_KEY = 'mock_aistudio_fail_key_12345';
 
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
     const agyMock = vi.fn().mockRejectedValue(new Error('agy unavailable'));
@@ -251,8 +255,8 @@ describe('PromptRefinerService & EnvLoader (Issue #103)', () => {
   });
 
   it('não deve acionar fallback se o usuário cancelar via AbortSignal, e novo clique na mesma sessão deve abortar o anterior', async () => {
-    process.env.GROQ_API_KEY = 'gsk_slow_12345678901234567890';
-    process.env.GEMINI_API_KEY = 'AIzaSyShouldNotBeCalled12345678901234';
+    process.env.GROQ_API_KEY = 'mock_groq_slow_key_12345';
+    process.env.GEMINI_API_KEY = 'mock_gemini_should_not_be_called_key_12345';
 
     const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
       return new Promise((_resolve, reject) => {

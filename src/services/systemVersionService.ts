@@ -261,28 +261,74 @@ class SystemVersionService {
 
       console.log(`[SystemVersionService] Iniciando atualização de sistema para a versão "${selectedTag}"...`);
 
-      // 1. Git fetch das tags remotas
+      // 1. Git fetch das tags remotas com feedback dinâmico
       console.log('[SystemVersionService] Buscando tags do repositório...');
+      await evolutionService.setProgress({
+        stage: 'fetching',
+        message: `Buscando tags e commits mais recentes para ${selectedTag}...`,
+        stepNumber: 1,
+        totalSteps: 5,
+        percent: 20,
+        targetTag: selectedTag
+      });
       await execAsync('git fetch --tags origin');
 
       // 2. Checkout forçado da tag alvo (resiliente contra drift em arquivos rastreados no runtime de produção)
       console.log(`[SystemVersionService] Realizando checkout forçado de ${selectedTag}...`);
+      await evolutionService.setProgress({
+        stage: 'checking_out',
+        message: `Aplicando código da versão ${selectedTag}...`,
+        stepNumber: 2,
+        totalSteps: 5,
+        percent: 40,
+        targetTag: selectedTag
+      });
       await execAsync(`git checkout -f ${selectedTag}`);
       await execAsync(`git reset --hard ${selectedTag}`);
 
-      // 3. Compilação do servidor e frontend com limites controlados de heap
+      // Garante sanitização de quebras de linha em scripts shell contra falhas de CRLF
+      try {
+        await execAsync("sed -i 's/\r$//' scripts/*.sh 2>/dev/null || true");
+      } catch {}
+
+      // 3. Compilação do backend TypeScript com limites controlados de heap
       console.log('[SystemVersionService] Compilando backend TypeScript...');
+      await evolutionService.setProgress({
+        stage: 'building_backend',
+        message: 'Compilando backend TypeScript (dist-server)...',
+        stepNumber: 3,
+        totalSteps: 5,
+        percent: 65,
+        targetTag: selectedTag
+      });
       await execAsync('npx tsc', {
         env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1536' }
       });
 
+      // 4. Compilação do frontend
       console.log('[SystemVersionService] Compilando frontend...');
+      await evolutionService.setProgress({
+        stage: 'building_frontend',
+        message: 'Compilando interface web (Vite build)...',
+        stepNumber: 4,
+        totalSteps: 5,
+        percent: 85,
+        targetTag: selectedTag
+      });
       await execAsync('npm run --prefix frontend build', {
         env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1536' }
       });
 
-      // 4. Disparo do Graceful Pod Drain Reload
+      // 5. Disparo do Graceful Pod Drain Reload
       console.log('[SystemVersionService] Acionando Graceful Reload via Pod Drain...');
+      await evolutionService.setProgress({
+        stage: 'restarting',
+        message: 'Reiniciando servidor na nova versão...',
+        stepNumber: 5,
+        totalSteps: 5,
+        percent: 98,
+        targetTag: selectedTag
+      });
       await evolutionService.triggerReload({
         taskDescription: `Atualização de versão para ${selectedTag}`,
         rebuildFrontend: false
@@ -295,6 +341,16 @@ class SystemVersionService {
       };
     } catch (err: any) {
       console.error('[SystemVersionService] Erro ao executar atualização:', err);
+
+      await evolutionService.setProgress({
+        stage: 'error',
+        message: `Falha na atualização para ${selectedTag}: ${err?.message || err}`,
+        stepNumber: 0,
+        totalSteps: 5,
+        percent: 0,
+        targetTag: selectedTag,
+        error: err?.message || String(err)
+      });
 
       // Rollback do checkout caso tenha falhado após trocar de branch/tag
       if (originalRef) {

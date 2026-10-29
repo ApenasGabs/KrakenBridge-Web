@@ -133,6 +133,11 @@ export const PodDrainReloadBubble: React.FC<PodDrainReloadBubbleProps> = ({
             <p className="text-xs text-base-content/70 mt-1 leading-relaxed">
               {isReconnected ? (
                 'O servidor concluiu o ciclo de reinício e a nova versão já está operacional.'
+              ) : status?.progress?.message || status?.stepMessage ? (
+                <span className="font-medium text-base-content flex items-center gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  {status.progress?.message || status.stepMessage}
+                </span>
               ) : (
                 <>
                   Aplicando modificações: <span className="italic font-medium text-base-content/90">&ldquo;{taskDesc}&rdquo;</span>.

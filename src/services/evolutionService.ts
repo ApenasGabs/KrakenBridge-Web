@@ -1,11 +1,14 @@
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
+import { spawn, exec } from 'child_process';
+import { promisify } from 'util';
 import { randomUUID } from 'crypto';
 import { historyService } from './historyService.js';
 import { getActiveSessionCount } from './sessionState.js';
-import type { EvolutionState, PendingReload, TriggerReloadOptions, TriggerReloadResult } from '../types/evolution.js';
+import type { EvolutionState, EvolutionProgress, PendingReload, TriggerReloadOptions, TriggerReloadResult } from '../types/evolution.js';
 
+const execAsync = promisify(exec);
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const STATE_FILE = path.join(DATA_DIR, 'evolution_state.json');
 
@@ -13,12 +16,34 @@ class EvolutionService {
   private isDraining = false;
   private drainTimer: NodeJS.Timeout | null = null;
   private pendingReload: PendingReload | null = null;
+  private currentProgress: EvolutionProgress | null = null;
 
   /**
    * Indica se o sistema está em processo de Pod Drain ativo
    */
   isDrainingActive(): boolean {
     return this.isDraining;
+  }
+
+  /**
+   * Atualiza o progresso dinâmico de etapas do processo de evolução/atualização
+   */
+  async setProgress(progress: EvolutionProgress): Promise<void> {
+    this.currentProgress = progress;
+    try {
+      const current = await this.getState();
+      current.progress = progress;
+      current.stepMessage = progress.message;
+      if (progress.stage === 'error') {
+        current.status = 'idle';
+        current.active = false;
+        current.isDraining = false;
+        this.isDraining = false;
+      }
+      await fs.writeFile(STATE_FILE, JSON.stringify(current, null, 2), 'utf8');
+    } catch (err) {
+      console.warn('[EvolutionService] Falha ao persistir progresso de evolução:', (err as Error).message);
+    }
   }
 
   /**
@@ -45,7 +70,9 @@ class EvolutionService {
       status: currentStatus,
       isDraining: this.isDraining,
       activeTasksCount: activeCount,
-      pendingReload: this.pendingReload
+      pendingReload: this.pendingReload,
+      progress: this.currentProgress || fileState.progress,
+      stepMessage: this.currentProgress?.message || fileState.stepMessage
     };
   }
 
@@ -66,6 +93,10 @@ class EvolutionService {
       requestedAt: new Date().toISOString()
     };
 
+    const initialStepMessage = activeCount > 0
+      ? `Aguardando conclusão de ${activeCount} tarefa(s) ativa(s)...`
+      : 'Nenhuma tarefa ativa. Iniciando rotina de reinício imediato...';
+
     const state: EvolutionState = {
       active: true,
       status: activeCount > 0 ? 'draining' : 'reloading',
@@ -76,7 +107,8 @@ class EvolutionService {
       triggeredAt: new Date().toISOString(),
       pid: process.pid,
       activeTasksWhenTriggered: activeCount,
-      activeTasksCount: activeCount
+      activeTasksCount: activeCount,
+      stepMessage: initialStepMessage
     };
 
     await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
@@ -147,16 +179,36 @@ class EvolutionService {
       const current = await this.getState();
       current.status = 'reloading';
       current.drainedAt = new Date().toISOString();
+      current.stepMessage = 'Reiniciando o Pod do Kraken na nova versão...';
       await fs.writeFile(STATE_FILE, JSON.stringify(current, null, 2), 'utf8');
     } catch {}
 
+    // Garante que scripts shell nunca tenham quebras de linha CRLF (\r\n) que quebram o bash
+    try {
+      await execAsync("sed -i 's/\r$//' scripts/*.sh 2>/dev/null || true");
+    } catch {}
+
     const scriptPath = path.resolve('scripts/self-reload.sh');
+    const logFilePath = path.join(DATA_DIR, 'evolution.log');
+
+    let outFd: number | 'ignore' = 'ignore';
+    try {
+      outFd = fsSync.openSync(logFilePath, 'a');
+    } catch {}
+
     const child = spawn('bash', [scriptPath, rebuildFrontend ? 'build' : 'quick'], {
       detached: true,
-      stdio: 'ignore',
+      stdio: ['ignore', outFd, outFd],
       env: { ...process.env }
     });
     child.unref();
+
+    // Watchdog de segurança fail-safe: se em até 18s o script de supervisor não tiver derrubado o processo,
+    // o próprio Node encerra graciosamente para que o Docker reinicie o container com o código compilado.
+    setTimeout(() => {
+      console.warn('[EvolutionService] Watchdog ativado: encerrando processo Node graciosamente para reboot do container.');
+      process.exit(0);
+    }, 18000).unref();
   }
 
   /**
@@ -165,6 +217,7 @@ class EvolutionService {
   async checkAndResumeAfterBoot(): Promise<void> {
     this.isDraining = false;
     this.pendingReload = null;
+    this.currentProgress = null;
 
     try {
       const state = await this.getState();
@@ -179,6 +232,12 @@ class EvolutionService {
       state.isDraining = false;
       state.resumedAt = new Date().toISOString();
       state.resumedPid = process.pid;
+      state.stepMessage = 'Serviço reiniciado com sucesso na nova versão.';
+      if (state.progress) {
+        state.progress.stage = 'resumed';
+        state.progress.percent = 100;
+        state.progress.message = 'Serviço reiniciado com sucesso na nova versão.';
+      }
 
       await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
 

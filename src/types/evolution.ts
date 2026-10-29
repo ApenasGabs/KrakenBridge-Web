@@ -1,3 +1,24 @@
+export type UpdateStage =
+  | 'idle'
+  | 'draining'
+  | 'fetching'
+  | 'checking_out'
+  | 'building_backend'
+  | 'building_frontend'
+  | 'restarting'
+  | 'resumed'
+  | 'error';
+
+export interface EvolutionProgress {
+  stage: UpdateStage;
+  message: string;
+  stepNumber: number;
+  totalSteps: number;
+  percent: number;
+  targetTag?: string;
+  error?: string;
+}
+
 export interface PendingReload {
   conversationId: string | null;
   taskDescription: string;
@@ -20,6 +41,8 @@ export interface EvolutionState {
   resumedAt?: string;
   resumedPid?: number;
   pendingReload?: PendingReload | null;
+  progress?: EvolutionProgress;
+  stepMessage?: string;
 }
 
 export interface TriggerReloadOptions {

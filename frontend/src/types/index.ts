@@ -100,6 +100,27 @@ export interface AuthStatus {
   vercel?: VercelAuthStatus;
 }
 
+export type UpdateStage =
+  | 'idle'
+  | 'draining'
+  | 'fetching'
+  | 'checking_out'
+  | 'building_backend'
+  | 'building_frontend'
+  | 'restarting'
+  | 'resumed'
+  | 'error';
+
+export interface EvolutionProgress {
+  stage: UpdateStage;
+  message: string;
+  stepNumber: number;
+  totalSteps: number;
+  percent: number;
+  targetTag?: string;
+  error?: string;
+}
+
 export interface EvolutionStatus {
   active: boolean;
   status: 'idle' | 'draining' | 'reloading' | 'resumed';
@@ -114,6 +135,8 @@ export interface EvolutionStatus {
   drainedAt?: string;
   resumedAt?: string;
   resumedPid?: number;
+  progress?: EvolutionProgress;
+  stepMessage?: string;
 }
 
 export interface ModelOption {
