@@ -20,6 +20,9 @@ services:
       WORKSPACE_DIR: /workspace
       COUCOU_HOST: "192.168.31.60"
       COUCOU_PORT: "47821"
+      GROQ_API_KEY: "${GROQ_API_KEY:-}"
+      GROQ_MODEL: "${GROQ_MODEL:-openai/gpt-oss-20b}"
+      AISTUDIO_API_KEY: "${AISTUDIO_API_KEY:-}"
     image: node:22
     labels:
       icon: https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/kraken.png

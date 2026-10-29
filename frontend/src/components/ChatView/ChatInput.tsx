@@ -1,5 +1,13 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import type { ModelOption, SlashCommand, EvolutionStatus } from '../../types';
+import type {
+  ModelOption,
+  SlashCommand,
+  EvolutionStatus,
+  RefinePromptPayload,
+  RefinePromptResponse,
+  RefineProvider
+} from '../../types';
+import { api } from '../../services/api';
 import { 
   Plus, 
   ChevronUp, 
@@ -22,8 +30,34 @@ import {
   Zap,
   MessageSquare,
   Lock,
-  Loader2
+  Loader2,
+  RotateCcw,
+  Undo2,
+  Pencil,
+  X,
+  ShieldAlert
 } from 'lucide-react';
+
+const MIN_REFINE_CHARS = 10;
+
+function formatRefineProvider(provider: RefineProvider): string {
+  switch (provider) {
+    case 'groq':
+      return 'Groq';
+    case 'aistudio':
+      return 'AI Studio';
+    case 'agy':
+      return 'agy CLI';
+    default:
+      return provider;
+  }
+}
+
+function formatLatency(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '0ms';
+  if (ms >= 1000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.round(ms)}ms`;
+}
 
 interface ChatInputProps {
   prompt: string;
@@ -42,6 +76,9 @@ interface ChatInputProps {
   queuedCount?: number;
   chatMode?: 'agent' | 'chat';
   onChatModeChange?: (mode: 'agent' | 'chat') => void;
+  project?: string;
+  recentMessages?: string[];
+  onRefinePrompt?: (payload: RefinePromptPayload, signal?: AbortSignal) => Promise<RefinePromptResponse>;
 }
 
 // Catálogo oficial de comandos de barra do Antigravity
@@ -208,7 +245,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onOpenMcpModal,
   queuedCount = 0,
   chatMode = 'agent',
-  onChatModeChange
+  onChatModeChange,
+  project,
+  recentMessages,
+  onRefinePrompt
 }) => {
   const isPodDraining = isDraining || evolutionStatus?.isDraining || evolutionStatus?.status === 'draining';
   const isReloading = evolutionStatus?.status === 'reloading';
@@ -220,6 +260,168 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [speechError, setSpeechError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const initialTextRef = useRef<string>('');
+
+  // Estados do Pré-Refinador de Prompt (100% sob demanda, nunca automático ao digitar)
+  const [isRefining, setIsRefining] = useState(false);
+  const [refineHint, setRefineHint] = useState('Refinando via Groq...');
+  const [refineError, setRefineError] = useState<string | null>(null);
+  const [refineSuggestion, setRefineSuggestion] = useState<RefinePromptResponse | null>(null);
+  const [refineSourceDraft, setRefineSourceDraft] = useState<string>('');
+  const [undoDraft, setUndoDraft] = useState<string | null>(null);
+  const refineInFlightRef = useRef(false);
+  const refineAbortRef = useRef<AbortController | null>(null);
+  const fallbackHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refineCardRef = useRef<HTMLDivElement | null>(null);
+
+  const isPureSlashCommand = prompt.trimStart().startsWith('/') && !prompt.trimStart().includes(' ');
+  const canRefine = !effectiveDisabled && !isRefining && !isPureSlashCommand && prompt.trim().length >= MIN_REFINE_CHARS;
+
+  const clearFallbackTimer = useCallback(() => {
+    if (fallbackHintTimerRef.current) {
+      clearTimeout(fallbackHintTimerRef.current);
+      fallbackHintTimerRef.current = null;
+    }
+  }, []);
+
+  const handleCancelRefine = useCallback(() => {
+    clearFallbackTimer();
+    if (refineAbortRef.current) {
+      refineAbortRef.current.abort();
+      refineAbortRef.current = null;
+    }
+    refineInFlightRef.current = false;
+    setIsRefining(false);
+  }, [clearFallbackTimer]);
+
+  // Cancela eventual refinamento pendente ao desmontar
+  useEffect(() => {
+    return () => {
+      clearFallbackTimer();
+      refineAbortRef.current?.abort();
+    };
+  }, [clearFallbackTimer]);
+
+  const triggerRefine = useCallback(async (draftOverride?: string) => {
+    // Lock síncrono: impede requisições paralelas em duplo clique
+    if (refineInFlightRef.current || effectiveDisabled) return;
+
+    const targetDraft = (draftOverride ?? prompt).trim();
+    if (targetDraft.length < MIN_REFINE_CHARS) return;
+
+    refineInFlightRef.current = true;
+    setRefineError(null);
+    setRefineSuggestion(null);
+    setRefineSourceDraft(draftOverride ?? prompt);
+    setIsRefining(true);
+    setRefineHint('Refinando via Groq...');
+
+    const controller = new AbortController();
+    refineAbortRef.current = controller;
+
+    clearFallbackTimer();
+    fallbackHintTimerRef.current = setTimeout(() => {
+      setRefineHint('Tentando fallback (AI Studio / agy ~15s)...');
+    }, 2500);
+
+    try {
+      const refineFn = onRefinePrompt ?? api.refinePrompt;
+      const result = await refineFn(
+        {
+          draft: targetDraft,
+          chatMode,
+          project: project || undefined,
+          recentMessages
+        },
+        controller.signal
+      );
+
+      if (controller.signal.aborted) return;
+      setRefineSuggestion(result);
+      requestAnimationFrame(() => {
+        refineCardRef.current?.focus();
+      });
+    } catch (err) {
+      if (controller.signal.aborted || (err as Error)?.name === 'AbortError') {
+        return;
+      }
+      setRefineError((err as Error)?.message || 'Não foi possível refinar o prompt.');
+    } finally {
+      clearFallbackTimer();
+      if (refineAbortRef.current === controller) {
+        refineAbortRef.current = null;
+      }
+      refineInFlightRef.current = false;
+      setIsRefining(false);
+    }
+  }, [
+    effectiveDisabled,
+    prompt,
+    clearFallbackTimer,
+    onRefinePrompt,
+    chatMode,
+    project,
+    recentMessages
+  ]);
+
+  const handleReplaceWithRefined = useCallback(() => {
+    if (!refineSuggestion) return;
+    setUndoDraft(refineSourceDraft || prompt);
+    onChange(refineSuggestion.refined);
+    setRefineSuggestion(null);
+    setRefineError(null);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  }, [refineSuggestion, refineSourceDraft, prompt, onChange]);
+
+  const handleEditRefined = useCallback(() => {
+    if (!refineSuggestion) return;
+    const nextText = refineSuggestion.refined;
+    setUndoDraft(refineSourceDraft || prompt);
+    onChange(nextText);
+    setRefineSuggestion(null);
+    setRefineError(null);
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(nextText.length, nextText.length);
+      }
+    });
+  }, [refineSuggestion, refineSourceDraft, prompt, onChange]);
+
+  const handleDiscardRefined = useCallback(() => {
+    setRefineSuggestion(null);
+    setRefineError(null);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  }, []);
+
+  const handleUndoRefine = useCallback(() => {
+    if (undoDraft === null) return;
+    onChange(undoDraft);
+    setUndoDraft(null);
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  }, [undoDraft, onChange]);
+
+  // Esc global fecha o card de sugestão ou cancela refinamento em voo
+  useEffect(() => {
+    if (!refineSuggestion && !isRefining) return;
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        if (isRefining) {
+          handleCancelRefine();
+        } else if (refineSuggestion) {
+          handleDiscardRefined();
+        }
+      }
+    };
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [refineSuggestion, isRefining, handleCancelRefine, handleDiscardRefined]);
 
   // Estados do IntelliSense de Comandos (/slash)
   const [isSlashOpen, setIsSlashOpen] = useState(false);
@@ -325,10 +527,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       }
     }
 
+    // Atalho sob demanda para refinar prompt: Ctrl+Shift+R (ou Cmd+Shift+R)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
+      e.preventDefault();
+      if (canRefine) {
+        triggerRefine();
+      }
+      return;
+    }
+
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       if (prompt.trim() && !effectiveDisabled) {
         if (isListening) stopListening();
+        setUndoDraft(null);
+        setRefineSuggestion(null);
         if (onForceSubmit) {
           onForceSubmit();
         } else {
@@ -342,6 +555,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       e.preventDefault();
       if (prompt.trim() && !effectiveDisabled) {
         if (isListening) stopListening();
+        setUndoDraft(null);
+        setRefineSuggestion(null);
         onSubmit();
       }
     }
@@ -439,6 +654,200 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </div>
         )}
 
+        {/* Banner de progresso durante o refinamento sob demanda */}
+        {isRefining && (
+          <div
+            data-testid="refine-loading-banner"
+            role="status"
+            aria-live="polite"
+            className="mb-2.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2 text-xs flex items-center justify-between gap-2 animate-in fade-in"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
+              <span className="font-medium text-base-content/90 truncate">{refineHint}</span>
+            </div>
+            <button
+              data-testid="refine-cancel-btn"
+              type="button"
+              onClick={handleCancelRefine}
+              aria-label="Cancelar refinamento"
+              className="btn btn-ghost btn-xs text-base-content/70 hover:text-error gap-1 shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+              <span>Cancelar</span>
+            </button>
+          </div>
+        )}
+
+        {/* Banner de erro do refinador (sem retry automático) */}
+        {refineError && !isRefining && (
+          <div
+            data-testid="refine-error-banner"
+            role="alert"
+            className="mb-2.5 text-xs text-error bg-error/10 border border-error/30 rounded-xl px-3 py-2 flex items-center justify-between gap-2 animate-in fade-in"
+          >
+            <span className="min-w-0 break-words">{refineError}</span>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                data-testid="refine-retry-btn"
+                type="button"
+                onClick={() => triggerRefine(refineSourceDraft || prompt)}
+                className="btn btn-ghost btn-xs text-error hover:bg-error/15 gap-1"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Tentar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRefineError(null)}
+                aria-label="Fechar erro de refinamento"
+                className="btn btn-ghost btn-xs"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Card de Sugestão do Prompt Refinado (nunca envia automaticamente) */}
+        {refineSuggestion && !isRefining && (
+          <div
+            ref={refineCardRef}
+            data-testid="refine-suggestion-card"
+            role="region"
+            aria-label="Sugestão de prompt refinado"
+            tabIndex={-1}
+            className="mb-2.5 rounded-2xl border border-primary/35 bg-base-200/95 backdrop-blur-md p-3 shadow-lg outline-none animate-in fade-in slide-in-from-bottom-1 duration-150"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 mb-2 border-b border-base-300/60">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Sparkles className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span className="text-xs font-semibold text-base-content">Sugestão refinada</span>
+                <span
+                  data-testid="refine-provider-badge"
+                  className="badge badge-xs sm:badge-sm bg-primary/15 text-primary border-primary/30 font-mono"
+                >
+                  {formatRefineProvider(refineSuggestion.provider)} • {formatLatency(refineSuggestion.latencyMs)}
+                </span>
+                {(refineSuggestion.maskedSecretsCount ?? 0) > 0 && (
+                  <span
+                    data-testid="refine-secret-badge"
+                    className="badge badge-xs sm:badge-sm bg-warning/15 text-warning border-warning/30 gap-1"
+                    title="Segredos aparentes foram mascarados antes do envio ao provedor"
+                  >
+                    <ShieldAlert className="w-2.5 h-2.5" />
+                    Segredo mascarado
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleDiscardRefined}
+                aria-label="Fechar sugestão (Esc)"
+                title="Descartar sugestão (Esc)"
+                className="btn btn-ghost btn-xs btn-circle text-base-content/50 hover:text-base-content"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {refineSuggestion.skills && refineSuggestion.skills.length > 0 && (
+              <div
+                data-testid="refine-skills-list"
+                className="flex items-center gap-1 flex-wrap mb-2 text-[11px]"
+              >
+                <span className="text-base-content/60 font-medium">Skills:</span>
+                {refineSuggestion.skills.map((skill) => (
+                  <span
+                    key={skill}
+                    className="px-1.5 py-0.5 rounded-md bg-base-300/80 text-emerald-400 font-mono text-[10px]"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div
+              data-testid="refine-suggestion-text"
+              className="max-h-52 overflow-y-auto whitespace-pre-wrap break-words text-xs sm:text-sm leading-relaxed text-base-content/95 bg-base-100/85 rounded-xl p-2.5 border border-base-300/60"
+            >
+              {refineSuggestion.refined}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-2.5 pt-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  data-testid="refine-replace-btn"
+                  type="button"
+                  onClick={handleReplaceWithRefined}
+                  className="btn btn-primary btn-xs sm:btn-sm gap-1 rounded-lg"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Substituir</span>
+                </button>
+                <button
+                  data-testid="refine-edit-btn"
+                  type="button"
+                  onClick={handleEditRefined}
+                  className="btn btn-ghost bg-base-300/60 hover:bg-base-300 btn-xs sm:btn-sm gap-1 rounded-lg"
+                >
+                  <Pencil className="w-3 h-3" />
+                  <span>Editar antes</span>
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  data-testid="refine-regenerate-btn"
+                  type="button"
+                  onClick={() => triggerRefine(refineSourceDraft || prompt)}
+                  className="btn btn-ghost btn-xs sm:btn-sm gap-1 rounded-lg text-base-content/75 hover:text-primary"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Gerar de novo</span>
+                </button>
+                <button
+                  data-testid="refine-discard-btn"
+                  type="button"
+                  onClick={handleDiscardRefined}
+                  className="btn btn-ghost btn-xs sm:btn-sm rounded-lg text-base-content/60 hover:text-error"
+                >
+                  <span>Descartar</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pílula reversível para desfazer a substituição do prompt */}
+        {undoDraft !== null && !refineSuggestion && !isRefining && (
+          <div
+            data-testid="refine-undo-banner"
+            className="mb-2 px-3 py-1.5 rounded-xl bg-base-200/80 border border-base-300/80 text-xs flex items-center justify-between gap-2 animate-in fade-in"
+          >
+            <span className="text-base-content/70 truncate">Prompt substituído pela versão refinada.</span>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                data-testid="refine-undo-btn"
+                type="button"
+                onClick={handleUndoRefine}
+                className="btn btn-ghost btn-xs text-primary gap-1"
+              >
+                <Undo2 className="w-3 h-3" />
+                <span>Desfazer</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setUndoDraft(null)}
+                aria-label="Ocultar aviso de desfazer"
+                className="btn btn-ghost btn-xs text-base-content/50"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* POPUP INTELLISENSE DE COMANDOS /SLASH */}
         {isSlashOpen && filteredCommands.length > 0 && (
           <div className="slash-intellisense-container absolute bottom-full mb-3 left-0 z-50 w-full sm:w-96 max-w-[calc(100vw-2rem)] rounded-2xl bg-base-100/98 backdrop-blur-xl border border-base-300 shadow-2xl p-2 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
@@ -512,8 +921,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             className="w-full bg-transparent border-0 outline-none resize-none px-4 pt-3 pb-1 text-sm leading-relaxed text-base-content placeholder:text-base-content/40 max-h-48 overflow-y-auto"
           />
 
-          {/* Barra de Ferramentas Inferior do Prompt (Modelo, MCPs, Microfone, Envio) */}
-          <div className="flex items-center justify-between px-2.5 sm:px-3 pb-2 sm:pb-2.5 pt-1 border-t border-base-300/40 gap-1">
+          {/* Barra de Ferramentas Inferior do Prompt (Modelo, MCPs, Refinar, Microfone, Envio) */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between px-2.5 sm:px-3 pb-2 sm:pb-2.5 pt-1 border-t border-base-300/40 gap-1">
             
             {/* Lado Esquerdo: Botão +, Dropdown do Modelo, Toggle Agente/Chat e Botão MCPs */}
             <div className="flex items-center gap-1 sm:gap-1.5 model-dropdown-container relative flex-1 min-w-0">
@@ -613,8 +1022,40 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               )}
             </div>
 
-            {/* Lado Direito: Microfone e Botão de Envio */}
-            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Lado Direito: Refinar Prompt, Microfone e Botão de Envio */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+
+              {/* Botão Sob Demanda: ✨ Refinar Prompt */}
+              <button
+                data-testid="chat-refine-btn"
+                type="button"
+                onClick={() => triggerRefine()}
+                disabled={!canRefine}
+                aria-label="Refinar prompt"
+                title={
+                  effectiveDisabled
+                    ? 'Refinamento pausado durante Pod Drain / atualização'
+                    : isRefining
+                      ? 'Refinando prompt...'
+                      : prompt.trim().length < MIN_REFINE_CHARS
+                        ? `Digite pelo menos ${MIN_REFINE_CHARS} caracteres para refinar (Ctrl+Shift+R)`
+                        : 'Refinar prompt sob demanda (Ctrl+Shift+R)'
+                }
+                className={`flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-h-[32px] sm:min-w-0 px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-medium transition-all shrink-0 ${
+                  isRefining
+                    ? 'bg-primary/15 text-primary border border-primary/30'
+                    : canRefine
+                      ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/25'
+                      : 'text-base-content/30 cursor-not-allowed'
+                }`}
+              >
+                {isRefining ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden md:inline">Refinar</span>
+              </button>
               
               {/* Botão de Microfone */}
               <button
@@ -674,6 +1115,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         type="button"
                         onClick={() => {
                           if (isListening) stopListening();
+                          setUndoDraft(null);
+                          setRefineSuggestion(null);
                           onSubmit();
                         }}
                         className="btn btn-info btn-xs gap-1 shadow-sm px-2.5 min-h-[36px] sm:min-h-0 h-9 sm:h-7"
@@ -690,6 +1133,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         type="button"
                         onClick={() => {
                           if (isListening) stopListening();
+                          setUndoDraft(null);
+                          setRefineSuggestion(null);
                           if (onForceSubmit) {
                             onForceSubmit();
                           } else {
@@ -721,6 +1166,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   type="button"
                   onClick={() => {
                     if (isListening) stopListening();
+                    setUndoDraft(null);
+                    setRefineSuggestion(null);
                     onSubmit();
                   }}
                   disabled={!prompt.trim() || effectiveDisabled}
@@ -739,7 +1186,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         <div className="flex items-center justify-between text-[11px] text-base-content/40 mt-2 px-1 select-none gap-2">
           <div className="flex items-center gap-1.5 truncate">
             <Sparkles className="w-3 h-3 text-primary/70 shrink-0" />
-            <span className="truncate">Digite <code className="bg-base-200 text-primary px-1 rounded font-mono">/</code> para comandos<span className="hidden sm:inline"> ou use o microfone</span></span>
+            <span className="truncate">Digite <code className="bg-base-200 text-primary px-1 rounded font-mono">/</code> para comandos<span className="hidden sm:inline">, ✨ para refinar (<code className="bg-base-200 px-1 rounded font-mono">Ctrl+Shift+R</code>) ou use o microfone</span></span>
           </div>
           <span className="hidden sm:inline shrink-0">Shift + Enter para nova linha</span>
         </div>

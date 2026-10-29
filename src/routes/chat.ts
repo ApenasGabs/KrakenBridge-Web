@@ -13,6 +13,12 @@ import { evolutionService } from '../services/evolutionService.js';
 import { workspaceManager } from '../services/workspaceManager.js';
 import { pushNotificationService } from '../services/pushNotificationService.js';
 import { coucouPhoneLinkService } from '../services/coucouPhoneLinkService.js';
+import {
+  promptRefinerService,
+  RefineValidationError,
+  RefineCancelledError,
+  RefineProvidersExhaustedError
+} from '../services/promptRefinerService.js';
 import { extractAgentFailureReason } from '../utils/agentFailureReason.js';
 import type { AgentDriver, AgentType, ToolCall, ChatRequestBody } from '../types/chat.js';
 
@@ -934,4 +940,66 @@ chatRouter.post('/stop', (req: Request, res: Response) => {
   }
 
   res.json({ status: 'stopped', terminated: count });
+});
+
+// Status dos provedores configurados para refinamento sob demanda
+chatRouter.get('/refine/providers', (_req: Request, res: Response) => {
+  res.json(promptRefinerService.getProvidersAvailability());
+});
+
+// Pré-refinamento sob demanda de rascunho de prompt (Groq -> AI Studio -> agy)
+chatRouter.post('/refine', async (req: Request, res: Response) => {
+  const evoState = await evolutionService.getState();
+  if (evoState.isDraining || evoState.status === 'draining' || evoState.status === 'reloading') {
+    return res.status(503).json({
+      error: 'Refinamento indisponível temporariamente durante Pod Drain / atualização.',
+      isDraining: true
+    });
+  }
+
+  const { draft, chatMode, project, recentMessages, sessionId } = req.body || {};
+  const authSeed = (req.headers['authorization'] || req.ip || 'anon').toString().slice(-24);
+  const sessionKey = typeof sessionId === 'string' && sessionId.trim()
+    ? `${authSeed}:${sessionId.trim().slice(0, 64)}`
+    : authSeed;
+
+  const reqAbort = new AbortController();
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      reqAbort.abort(new Error('client_disconnected'));
+    }
+  });
+
+  try {
+    const result = await promptRefinerService.refinePrompt({
+      draft,
+      chatMode: chatMode === 'chat' ? 'chat' : 'agent',
+      project: typeof project === 'string' ? project : undefined,
+      recentMessages: Array.isArray(recentMessages) ? recentMessages : undefined,
+      sessionKey,
+      signal: reqAbort.signal
+    });
+
+    if (res.headersSent || res.writableEnded) return;
+    return res.json({
+      refined: result.refined,
+      provider: result.provider,
+      model: result.model,
+      latencyMs: result.latencyMs,
+      skills: result.skills,
+      maskedSecretsCount: result.maskedSecretsCount
+    });
+  } catch (err) {
+    if (res.headersSent || res.writableEnded) return;
+    if (err instanceof RefineValidationError) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (err instanceof RefineCancelledError) {
+      return res.status(499).json({ error: err.message, cancelled: true });
+    }
+    if (err instanceof RefineProvidersExhaustedError) {
+      return res.status(502).json({ error: err.message, attempts: err.attempts });
+    }
+    return res.status(500).json({ error: (err as Error).message || 'Falha ao refinar prompt.' });
+  }
 });

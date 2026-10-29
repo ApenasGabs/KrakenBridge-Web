@@ -420,40 +420,38 @@ authRouter.post('/antigravity/submit-code', async (req: Request, res: Response) 
   }
 });
 
-// Endpoint para Salvar Chaves de API (Claude / OpenAI / Gemini)
+// Endpoint para Salvar Chaves de API (Claude / OpenAI / Gemini / Groq / AI Studio)
 authRouter.post('/keys', async (req: Request, res: Response) => {
-  const { geminiApiKey, anthropicApiKey, openaiApiKey } = req.body || {};
+  const { geminiApiKey, anthropicApiKey, openaiApiKey, groqApiKey, aistudioApiKey } = req.body || {};
   if (geminiApiKey) process.env.GEMINI_API_KEY = geminiApiKey.trim();
   if (anthropicApiKey) process.env.ANTHROPIC_API_KEY = anthropicApiKey.trim();
   if (openaiApiKey) process.env.OPENAI_API_KEY = openaiApiKey.trim();
+  if (groqApiKey) process.env.GROQ_API_KEY = groqApiKey.trim();
+  if (aistudioApiKey) process.env.AISTUDIO_API_KEY = aistudioApiKey.trim();
 
   try {
     const envPath = path.join(WORKSPACE_DIR, '.env');
     let envContent = '';
     try { envContent = await fs.readFile(envPath, 'utf8'); } catch (e) {}
 
-    if (geminiApiKey) {
-      if (envContent.includes('GEMINI_API_KEY=')) {
-        envContent = envContent.replace(/GEMINI_API_KEY=.*/, `GEMINI_API_KEY=${geminiApiKey.trim()}`);
+    const upsertKey = (k: string, v?: string) => {
+      if (!v || !v.trim()) return;
+      const clean = v.trim();
+      const rx = new RegExp(`^${k}=.*$`, 'm');
+      if (rx.test(envContent)) {
+        envContent = envContent.replace(rx, `${k}=${clean}`);
       } else {
-        envContent += `\nGEMINI_API_KEY=${geminiApiKey.trim()}\n`;
+        envContent += `\n${k}=${clean}\n`;
       }
-    }
-    if (anthropicApiKey) {
-      if (envContent.includes('ANTHROPIC_API_KEY=')) {
-        envContent = envContent.replace(/ANTHROPIC_API_KEY=.*/, `ANTHROPIC_API_KEY=${anthropicApiKey.trim()}`);
-      } else {
-        envContent += `\nANTHROPIC_API_KEY=${anthropicApiKey.trim()}\n`;
-      }
-    }
-    if (openaiApiKey) {
-      if (envContent.includes('OPENAI_API_KEY=')) {
-        envContent = envContent.replace(/OPENAI_API_KEY=.*/, `OPENAI_API_KEY=${openaiApiKey.trim()}`);
-      } else {
-        envContent += `\nOPENAI_API_KEY=${openaiApiKey.trim()}\n`;
-      }
-    }
-    await fs.writeFile(envPath, envContent.trim() + '\n', 'utf8');
+    };
+
+    upsertKey('GEMINI_API_KEY', geminiApiKey);
+    upsertKey('ANTHROPIC_API_KEY', anthropicApiKey);
+    upsertKey('OPENAI_API_KEY', openaiApiKey);
+    upsertKey('GROQ_API_KEY', groqApiKey);
+    upsertKey('AISTUDIO_API_KEY', aistudioApiKey);
+
+    await fs.writeFile(envPath, envContent.trim() + '\n', { encoding: 'utf8', mode: 0o600 });
   } catch (e) {
     console.error('Erro ao persistir .env:', e);
   }
@@ -462,7 +460,9 @@ authRouter.post('/keys', async (req: Request, res: Response) => {
     status: 'saved',
     gemini: !!process.env.GEMINI_API_KEY,
     claude: !!process.env.ANTHROPIC_API_KEY,
-    aider: !!process.env.OPENAI_API_KEY
+    aider: !!process.env.OPENAI_API_KEY,
+    groq: !!process.env.GROQ_API_KEY,
+    aistudio: !!(process.env.AISTUDIO_API_KEY || process.env.GEMINI_API_KEY)
   });
 });
 

@@ -12,6 +12,8 @@ import type {
 } from '../types/telemetry.js';
 import { githubAuthService } from './githubAuthService.js';
 import { vercelAuthService } from './vercelAuthService.js';
+import { loadDotEnvFiles } from '../utils/envLoader.js';
+import { DEFAULT_GROQ_MODEL } from './promptRefinerService.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -79,9 +81,14 @@ export class TelemetryService {
     const ghStatus = await githubAuthService.getStatus().catch(() => ({ authenticated: false, hasToken: false }));
     const vcStatus = await vercelAuthService.getStatus().catch(() => ({ authenticated: false, hasToken: false }));
 
+    loadDotEnvFiles();
+
     const geminiKey = (process.env.GEMINI_API_KEY || '').trim();
     const anthropicKey = (process.env.ANTHROPIC_API_KEY || '').trim();
     const openaiKey = (process.env.OPENAI_API_KEY || '').trim();
+    const groqKey = (process.env.GROQ_API_KEY || '').trim();
+    const aistudioKey = (process.env.AISTUDIO_API_KEY || '').trim();
+    const groqModel = (process.env.GROQ_MODEL || '').trim() || DEFAULT_GROQ_MODEL;
     const krakenPin = (process.env.KRAKEN_PIN || '').trim();
 
     return {
@@ -91,6 +98,14 @@ export class TelemetryService {
       hasGeminiKey: !!geminiKey,
       hasAnthropicKey: !!anthropicKey,
       hasOpenaiKey: !!openaiKey,
+      hasGroqKey: !!groqKey,
+      hasAistudioKey: !!(aistudioKey || geminiKey),
+      groqModel,
+      refineProviders: {
+        groq: !!groqKey,
+        aistudio: !!(aistudioKey || geminiKey),
+        agy: true
+      },
       hasGithubToken: !!(ghStatus.authenticated || ghStatus.hasToken),
       hasVercelToken: !!(vcStatus.authenticated || vcStatus.hasToken),
       autoProvisionTelemetry: saved.autoProvisionTelemetry ?? (process.env.AUTO_PROVISION_TELEMETRY !== 'false'),
@@ -121,6 +136,15 @@ export class TelemetryService {
     }
     if (payload.openaiApiKey !== undefined && payload.openaiApiKey.trim()) {
       process.env.OPENAI_API_KEY = payload.openaiApiKey.trim();
+    }
+    if (payload.groqApiKey !== undefined && payload.groqApiKey.trim()) {
+      process.env.GROQ_API_KEY = payload.groqApiKey.trim();
+    }
+    if (payload.aistudioApiKey !== undefined && payload.aistudioApiKey.trim()) {
+      process.env.AISTUDIO_API_KEY = payload.aistudioApiKey.trim();
+    }
+    if (payload.groqModel !== undefined && payload.groqModel.trim()) {
+      process.env.GROQ_MODEL = payload.groqModel.trim();
     }
     if (payload.krakenPin !== undefined) {
       process.env.KRAKEN_PIN = payload.krakenPin.trim();
@@ -189,6 +213,9 @@ export class TelemetryService {
     if (payload.geminiApiKey?.trim()) updates.GEMINI_API_KEY = payload.geminiApiKey.trim();
     if (payload.anthropicApiKey?.trim()) updates.ANTHROPIC_API_KEY = payload.anthropicApiKey.trim();
     if (payload.openaiApiKey?.trim()) updates.OPENAI_API_KEY = payload.openaiApiKey.trim();
+    if (payload.groqApiKey?.trim()) updates.GROQ_API_KEY = payload.groqApiKey.trim();
+    if (payload.aistudioApiKey?.trim()) updates.AISTUDIO_API_KEY = payload.aistudioApiKey.trim();
+    if (payload.groqModel?.trim()) updates.GROQ_MODEL = payload.groqModel.trim();
     if (payload.krakenPin !== undefined) updates.KRAKEN_PIN = payload.krakenPin.trim();
 
     let lines = content.split('\n');
@@ -200,7 +227,7 @@ export class TelemetryService {
         lines.push(`${key}=${val}`);
       }
     }
-    await fs.writeFile(envPath, lines.join('\n'), 'utf8');
+    await fs.writeFile(envPath, lines.join('\n'), { encoding: 'utf8', mode: 0o600 });
   }
 
   /**

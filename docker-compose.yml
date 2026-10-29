@@ -22,6 +22,9 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL=${GROQ_MODEL:-openai/gpt-oss-20b}
+      - AISTUDIO_API_KEY=${AISTUDIO_API_KEY:-}
       - AUTO_PROVISION_TELEMETRY=${AUTO_PROVISION_TELEMETRY:-true}
       - TELEMETRY_DIR=${TELEMETRY_DIR:-/DATA/AppData/telemetria}
       - GRAFANA_PORT=${GRAFANA_PORT:-3003}
@@ -60,6 +63,18 @@ services:
           description:
             en_US: OpenAI API Key (for Codex / Aider)
             pt_BR: Chave de API OpenAI (para Codex / Aider)
+        - container: GROQ_API_KEY
+          description:
+            en_US: Groq API Key (for fast on-demand Prompt Refiner)
+            pt_BR: Chave de API Groq (para Refinador rápido de Prompts sob demanda)
+        - container: GROQ_MODEL
+          description:
+            en_US: Groq Model ID for Prompt Refiner (default openai/gpt-oss-20b)
+            pt_BR: Modelo Groq para Refinador de Prompts (padrão openai/gpt-oss-20b)
+        - container: AISTUDIO_API_KEY
+          description:
+            en_US: Google AI Studio API Key (optional fallback for Prompt Refiner)
+            pt_BR: Chave de API Google AI Studio (fallback opcional do Refinador de Prompts)
         - container: AUTO_PROVISION_TELEMETRY
           description:
             en_US: Automatically provision telemetry stack (cAdvisor, VictoriaMetrics, Grafana, Uptime Kuma)

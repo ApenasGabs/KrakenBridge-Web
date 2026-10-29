@@ -19,7 +19,9 @@ import type {
   MemorySearchResult,
   MemoryPage,
   MemoryHandoff,
-  EvolutionStatus
+  EvolutionStatus,
+  RefinePromptPayload,
+  RefinePromptResponse
 } from '../types';
 
 export interface SSECallbacks {
@@ -267,13 +269,27 @@ export const api = {
     return data;
   },
 
-  async saveApiKeys(keys: { geminiApiKey?: string }): Promise<{ success: boolean }> {
+  async saveApiKeys(keys: { geminiApiKey?: string; groqApiKey?: string; aistudioApiKey?: string }): Promise<{ success: boolean }> {
     const res = await fetch(`${getApiBase()}/auth/keys`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(keys)
     });
     return res.json();
+  },
+
+  async refinePrompt(payload: RefinePromptPayload, signal?: AbortSignal): Promise<RefinePromptResponse> {
+    const res = await fetchWithAuth(`${getApiBase()}/chat/refine`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || `Falha ao refinar prompt (HTTP ${res.status})`);
+    }
+    return data as RefinePromptResponse;
   },
 
   async getGithubStatus(): Promise<{ authenticated: boolean; username?: string; hasToken?: boolean }> {
