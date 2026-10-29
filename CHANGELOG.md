@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.18.8](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.7...v1.18.8) (2026-10-29)
+
+### 🐛 Bug Fixes
+
+* **system:** checkout resiliente com descarte de drift em atualizacoes de producao Refs [#105](https://github.com/ApenasGabs/KrakenBridge-Web/issues/105) ([df085b7](https://github.com/ApenasGabs/KrakenBridge-Web/commit/df085b78d7d12dcb41f95abd3e21613c14518838))
+
 ## [1.18.7](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.6...v1.18.7) (2026-10-29)
 
 ### 🐛 Bug Fixes
