@@ -5,6 +5,12 @@ import { api } from '../../../services/api';
 
 vi.mock('../../../services/api', () => ({
   api: {
+    getEvolutionStatus: vi.fn().mockResolvedValue({
+      active: false,
+      status: 'idle',
+      isDraining: false,
+      activeTasksCount: 0
+    }),
     getSystemVersion: vi.fn().mockResolvedValue({
       success: true,
       currentVersion: '1.10.0',

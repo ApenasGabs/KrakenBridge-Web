@@ -41,11 +41,41 @@ export const SystemUpdateModal: React.FC<SystemUpdateModalProps> = ({ isOpen, on
   const [selectedTag, setSelectedTag] = useState<string>('');
   const [policy, setPolicy] = useState<'auto' | 'pinned'>('auto');
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [liveProgress, setLiveProgress] = useState<{ message?: string; percent?: number; stage?: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     loadStatus();
   }, [isOpen]);
+
+  // Monitora progresso dinâmico durante atualização
+  useEffect(() => {
+    if (!updating) {
+      setLiveProgress(null);
+      return;
+    }
+
+    let isMounted = true;
+    const interval = setInterval(async () => {
+      try {
+        const evo = await api.getEvolutionStatus();
+        if (evo && isMounted) {
+          if (evo.progress || evo.stepMessage) {
+            setLiveProgress({
+              message: evo.progress?.message || evo.stepMessage,
+              percent: evo.progress?.percent,
+              stage: evo.progress?.stage || evo.status
+            });
+          }
+        }
+      } catch {}
+    }, 1200);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [updating]);
 
   const loadStatus = async () => {
     try {
@@ -149,6 +179,30 @@ export const SystemUpdateModal: React.FC<SystemUpdateModalProps> = ({ isOpen, on
           }`}>
             {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
             <span>{message.text}</span>
+          </div>
+        )}
+
+        {/* Banner de Progresso Dinâmico durante Atualização */}
+        {updating && (
+          <div data-testid="update-progress-banner" className="mb-4 p-3.5 rounded-xl bg-primary/10 border border-primary/30 text-base-content space-y-2 animate-in fade-in">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-primary flex items-center gap-1.5">
+                <span className="loading loading-spinner loading-xs text-primary" />
+                {liveProgress?.message || 'Iniciando atualização de versão...'}
+              </span>
+              {liveProgress?.percent !== undefined && (
+                <span className="badge badge-primary badge-sm font-mono text-[11px]">
+                  {liveProgress.percent}%
+                </span>
+              )}
+            </div>
+            {liveProgress?.percent !== undefined && (
+              <progress
+                className="progress progress-primary w-full h-1.5"
+                value={liveProgress.percent}
+                max="100"
+              />
+            )}
           </div>
         )}
 
@@ -312,12 +366,12 @@ export const SystemUpdateModal: React.FC<SystemUpdateModalProps> = ({ isOpen, on
             data-testid="apply-version-btn"
             onClick={handleApplyUpdate}
             disabled={updating || isCurrentSelected}
-            className="btn btn-sm btn-primary gap-1.5 font-medium"
+            className="btn btn-sm btn-primary gap-1.5 font-medium max-w-xs"
           >
             {updating ? (
               <>
                 <span className="loading loading-spinner loading-xs"></span>
-                <span>Compilando & Aplicando...</span>
+                <span className="truncate">{liveProgress?.message || 'Compilando & Aplicando...'}</span>
               </>
             ) : isRollback ? (
               <>

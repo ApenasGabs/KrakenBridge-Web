@@ -57,6 +57,45 @@ describe('PodDrainBanner Component', () => {
     expect(screen.getByText(/1 tarefa ativa/i)).toBeInTheDocument();
     expect(screen.getByText(/1 tarefa em execução/i)).toBeInTheDocument();
   });
+
+  it('deve exibir mensagem dinâmica de progresso e porcentagem quando disponíveis', () => {
+    const progressStatus: EvolutionStatus = {
+      active: true,
+      status: 'draining',
+      isDraining: true,
+      activeTasksCount: 0,
+      taskDescription: 'Atualização para v1.19.1',
+      stepMessage: 'Compilando backend TypeScript (dist-server)...',
+      progress: {
+        stage: 'building_backend',
+        message: 'Compilando backend TypeScript (dist-server)...',
+        stepNumber: 3,
+        totalSteps: 5,
+        percent: 65,
+        targetTag: 'v1.19.1'
+      }
+    };
+
+    render(<PodDrainBanner status={progressStatus} />);
+
+    expect(screen.getByText(/Compilando backend TypeScript \(dist-server\)\.\.\./i)).toBeInTheDocument();
+    expect(screen.getByText('65%')).toBeInTheDocument();
+  });
+
+  it('deve renderizar status de reinício do pod quando status === reloading', () => {
+    const reloadingStatus: EvolutionStatus = {
+      active: true,
+      status: 'reloading',
+      isDraining: false,
+      activeTasksCount: 0,
+      stepMessage: 'Reiniciando servidor na nova versão...'
+    };
+
+    render(<PodDrainBanner status={reloadingStatus} />);
+
+    expect(screen.getByText(/Reiniciando Pod do Kraken/i)).toBeInTheDocument();
+    expect(screen.getByText(/Reiniciando servidor na nova versão\.\.\./i)).toBeInTheDocument();
+  });
 });
 
 describe('PodDrainReloadBubble Component', () => {
