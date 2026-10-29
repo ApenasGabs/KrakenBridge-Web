@@ -54,6 +54,9 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
    - O Anytype é a base de conhecimento oficial do usuário (MCP anytype disponível). Sempre consulte e registre notas de projetos e runbooks no Anytype quando solicitado.
 6. SKILL SCOUT NATIVO (AUTO-AQUISIÇÃO DO SKILLS.SH):
    - O Skill Scout (/root/.gemini/config/skill-scout.cjs) está ativo e acopla automaticamente runbooks do skills.sh quando tecnologias, bibliotecas ou papéis metodológicos (PO, Scrum, QA) forem mencionados.
+7. USO OBRIGATÓRIO DO AI MEMORY (MEMÓRIA PERSISTENTE DO HOMELAB):
+   - O servidor MCP 'ai-memory' está configurado e disponível (ferramentas 'call_mcp_tool' com ServerName 'ai-memory': 'memory_query', 'memory_read_page', 'memory_recent', 'memory_write_page').
+   - Consulte ativamente a memória com 'memory_query' antes de responder a dúvidas técnicas, contexto de decisões ou arquitetura do homelab.
 [FIM_DA_DIRETIVA_DO_SISTEMA]\n\n`;
     }
 
@@ -122,6 +125,11 @@ Você está atualmente operando em MODO CHAT/CONSULTA:
    - Você possui o subsistema nativo Skill Scout integrado via hook PreInvocation (/root/.gemini/config/skill-scout.cjs).
    - Ele intercepta demandas de tecnologias, frameworks e metodologias (ex: React, Drizzle, PO, Scrum, QA), busca no skills.sh e acopla runbooks em tempo real em .agents/skills/<skill>/SKILL.md.
    - Sempre que o usuário mencionar "Skill Scout", "skills.sh" ou solicitar runbooks especializados, informe e consulte o log em /root/.gemini/config/skill-scout.log.
+12. USO OBRIGATÓRIO E CONTÍNUO DO AI MEMORY (MEMÓRIA PERSISTENTE DO HOMELAB):
+   - O servidor MCP 'ai-memory' está configurado e disponível (ferramentas 'call_mcp_tool' com ServerName 'ai-memory': 'memory_query', 'memory_read_page', 'memory_recent', 'memory_write_page').
+   - ANTES de iniciar qualquer tarefa não trivial, investigação, refatoração de código, bugfix ou decisão técnica: SEMPRE realize buscas no AI Memory com 'memory_query' para recuperar decisões arquiteturais passadas, lições aprendidas, padrões do projeto e histórico do homelab. Se o subprojeto atual não trouxer resultados suficientes, amplie a busca com 'global: true'.
+   - AO CONCLUIR etapas críticas, solucionar bugs complexos, definir regras ou tomar decisões técnicas duradouras: registre esses aprendizados no AI Memory via 'memory_write_page' para garantir continuidade perpétua entre sessões e agentes.
+   - Trate o conhecimento armazenado no AI Memory como fonte central de verdade histórica e alinhamento do usuário.
 [FIM_DA_DIRETIVA_DO_SISTEMA]\n\n`;
   }
 }

@@ -299,7 +299,10 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     tags: activeTags
   });
 
-  const effectivePrompt = `${systemDirective}${prompt}`;
+  // Injeta a diretiva completa do sistema no primeiro turno da conversa ou se o modo de chat mudou.
+  // Em continuações de sessão (--conversation agyConvId), preserva a janela de contexto limpa sem poluição de tokens.
+  const shouldInjectDirective = !agyConvId;
+  const effectivePrompt = shouldInjectDirective ? `${systemDirective}${prompt}` : prompt;
 
   const driver = AGENT_DRIVERS[agent] || AGENT_DRIVERS.antigravity;
   const args = driver.buildArgs({
