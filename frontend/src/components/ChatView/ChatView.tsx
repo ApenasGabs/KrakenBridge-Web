@@ -309,7 +309,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
       )}
 
-      {/* Input de Envio de Mensagem com Seletor de Modelo, MCPs e Microfone */}
+      {/* Input de Envio de Mensagem com Seletor de Modelo, MCPs, Refinar e Microfone */}
       <ChatInput
         prompt={prompt}
         onChange={onPromptChange}
@@ -326,6 +326,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
         queuedCount={messageQueue.length}
         chatMode={chatMode}
         onChatModeChange={onChatModeChange}
+        project={subproject}
+        recentMessages={messages.slice(-4).map((m) => `${m.role}: ${(m.text || '').slice(0, 350)}`)}
       />
 
       <SpinnerVerbsModal

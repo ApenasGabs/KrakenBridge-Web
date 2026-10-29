@@ -383,6 +383,25 @@ export interface TelemetryStackStatus {
   lastCheckedAt: string;
 }
 
+export type RefineProvider = 'groq' | 'aistudio' | 'agy';
+
+export interface RefinePromptPayload {
+  draft: string;
+  chatMode?: 'agent' | 'chat';
+  project?: string;
+  recentMessages?: string[];
+  sessionId?: string;
+}
+
+export interface RefinePromptResponse {
+  refined: string;
+  provider: RefineProvider;
+  model?: string;
+  latencyMs: number;
+  skills: string[];
+  maskedSecretsCount?: number;
+}
+
 export interface OutOfBoxSetupConfig {
   workspacePath: string;
   codeServerPort: number;
@@ -390,6 +409,14 @@ export interface OutOfBoxSetupConfig {
   hasGeminiKey: boolean;
   hasAnthropicKey: boolean;
   hasOpenaiKey: boolean;
+  hasGroqKey?: boolean;
+  hasAistudioKey?: boolean;
+  groqModel?: string;
+  refineProviders?: {
+    groq: boolean;
+    aistudio: boolean;
+    agy: boolean;
+  };
   hasGithubToken: boolean;
   hasVercelToken: boolean;
   autoProvisionTelemetry: boolean;
@@ -411,6 +438,9 @@ export interface ApplySetupPayload {
   geminiApiKey?: string;
   anthropicApiKey?: string;
   openaiApiKey?: string;
+  groqApiKey?: string;
+  aistudioApiKey?: string;
+  groqModel?: string;
   githubToken?: string;
   vercelToken?: string;
   autoProvisionTelemetry?: boolean;

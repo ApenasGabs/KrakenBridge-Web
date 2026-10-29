@@ -24,6 +24,10 @@ import { mcpService } from './services/mcpService.js';
 import { skillScoutService } from './services/skillScoutService.js';
 import { coucouPhoneLinkService } from './services/coucouPhoneLinkService.js';
 import { createSpaAssetMiddleware, createIndexHtmlSender } from './utils/spaRoutingHelper.js';
+import { loadDotEnvFiles } from './utils/envLoader.js';
+
+// Carrega variáveis locais (.env) que não tenham sido injetadas diretamente pelo container
+loadDotEnvFiles();
 
 const PORT = parseInt(process.env.PORT || '8088', 10);
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';

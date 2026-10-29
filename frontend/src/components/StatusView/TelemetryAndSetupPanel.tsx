@@ -32,6 +32,7 @@ export const TelemetryAndSetupPanel: React.FC<TelemetryAndSetupPanelProps> = ({
 
   // Form states para o Setup Out-of-the-Box
   const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [groqApiKey, setGroqApiKey] = useState('');
   const [githubToken, setGithubToken] = useState('');
   const [vercelToken, setVercelToken] = useState('');
   const [krakenPin, setKrakenPin] = useState('');
@@ -93,6 +94,7 @@ export const TelemetryAndSetupPanel: React.FC<TelemetryAndSetupPanelProps> = ({
     try {
       const res = await api.applySetupConfig({
         geminiApiKey: geminiApiKey.trim() || undefined,
+        groqApiKey: groqApiKey.trim() || undefined,
         githubToken: githubToken.trim() || undefined,
         vercelToken: vercelToken.trim() || undefined,
         krakenPin: krakenPin.trim() || undefined,
@@ -103,6 +105,7 @@ export const TelemetryAndSetupPanel: React.FC<TelemetryAndSetupPanelProps> = ({
         provisionNow: true
       });
       setGeminiApiKey('');
+      setGroqApiKey('');
       setGithubToken('');
       setVercelToken('');
       setKrakenPin('');
@@ -426,13 +429,26 @@ export const TelemetryAndSetupPanel: React.FC<TelemetryAndSetupPanelProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="label py-1 font-medium">
-                    Gemini API Key {setupConfig?.hasGeminiKey && <span className="text-success">(Já configurada)</span>}
+                    Gemini / AI Studio Key {setupConfig?.hasGeminiKey && <span className="text-success">(Já configurada)</span>}
                   </label>
                   <input
                     type="password"
                     value={geminiApiKey}
                     onChange={(e) => setGeminiApiKey(e.target.value)}
                     placeholder={setupConfig?.hasGeminiKey ? '•••••••• (manter atual)' : 'AIzaSy...'}
+                    className="input input-sm input-bordered w-full font-mono text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="label py-1 font-medium">
+                    Groq API Key (✨ Refinar) {setupConfig?.hasGroqKey && <span className="text-success">(Já configurada)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={groqApiKey}
+                    onChange={(e) => setGroqApiKey(e.target.value)}
+                    placeholder={setupConfig?.hasGroqKey ? '•••••••• (manter atual)' : 'gsk_...'}
                     className="input input-sm input-bordered w-full font-mono text-xs"
                   />
                 </div>
