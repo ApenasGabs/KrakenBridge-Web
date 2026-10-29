@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.19.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.8...v1.19.0) (2026-10-29)
+
+### ✨ Features
+
+* **chat:** add on-demand prompt refiner with Groq -> AI Studio -> agy fallback (Refs [#103](https://github.com/ApenasGabs/KrakenBridge-Web/issues/103)) ([133ea3c](https://github.com/ApenasGabs/KrakenBridge-Web/commit/133ea3c1415fb6043f547c34b5773e3bddb1639a))
+
 ## [1.18.8](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.7...v1.18.8) (2026-10-29)
 
 ### 🐛 Bug Fixes
