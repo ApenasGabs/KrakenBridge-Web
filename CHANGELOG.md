@@ -5,6 +5,16 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.18.7](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.6...v1.18.7) (2026-10-29)
+
+### 🐛 Bug Fixes
+
+* **system:** integracao mandatoria do ai-memory e retencao de contexto no chat Refs [#102](https://github.com/ApenasGabs/KrakenBridge-Web/issues/102) ([1c1dbd0](https://github.com/ApenasGabs/KrakenBridge-Web/commit/1c1dbd0f1ac1581d1c3df86dfc1a9f23e87f6a62))
+
+### 📚 Documentation
+
+* **policy:** proibir varreduras recursivas irrestritas na raiz do workspace ([a32ec6f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/a32ec6fa035e01465b6abcc2d048e034cffbf906))
+
 ## [1.18.6](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.18.5...v1.18.6) (2026-10-28)
 
 ### 🐛 Bug Fixes
