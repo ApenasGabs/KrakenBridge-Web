@@ -25,6 +25,7 @@ import { skillScoutService } from './services/skillScoutService.js';
 import { coucouPhoneLinkService } from './services/coucouPhoneLinkService.js';
 import { createSpaAssetMiddleware, createIndexHtmlSender } from './utils/spaRoutingHelper.js';
 import { loadDotEnvFiles } from './utils/envLoader.js';
+import { buildLivenessPayload, buildReadinessPayload } from './utils/healthCheck.js';
 
 // Carrega variáveis locais (.env) que não tenham sido injetadas diretamente pelo container
 loadDotEnvFiles();
@@ -59,6 +60,8 @@ const pinAuthMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const fullPath = (req.baseUrl || '') + (req.path || '');
   if (
     fullPath.endsWith('/health') ||
+    fullPath.endsWith('/healthz') ||
+    fullPath.endsWith('/readyz') ||
     fullPath.endsWith('/auth/pin/status') ||
     fullPath.endsWith('/auth/pin/verify') ||
     fullPath.endsWith('/system/evolution/status') ||
@@ -118,6 +121,24 @@ const sendIndexHtml = createIndexHtmlSender(distDir);
 app.get('/', sendIndexHtml);
 app.get('/chat', sendIndexHtml);
 
+// Endpoints padronizados de Liveness e Readiness (Status Hub Health Contract)
+const handleHealthz = (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).json(buildLivenessPayload());
+};
+
+const handleReadyz = (_req: Request, res: Response) => {
+  const { httpCode, body } = buildReadinessPayload({
+    workspaceDir: WORKSPACE_DIR,
+    isDraining: evolutionService.isDrainingActive(),
+  });
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(httpCode).json(body);
+};
+
+app.get('/healthz', handleHealthz);
+app.get('/readyz', handleReadyz);
+
 // Aplicar middleware de autenticação nas APIs
 app.use('/api', pinAuthMiddleware);
 app.use('/chat/api', pinAuthMiddleware);
@@ -139,6 +160,9 @@ const registerRoutes = (prefix: string) => {
   app.use(`${prefix}/crawler`, crawlerRouter);
 
   app.post(`${prefix}/stop`, (_req: Request, res: Response) => res.redirect(307, `${prefix}/chat/stop`));
+
+  app.get(`${prefix}/healthz`, handleHealthz);
+  app.get(`${prefix}/readyz`, handleReadyz);
 
   app.get(`${prefix}/health`, (_req: Request, res: Response) => {
     res.json({
