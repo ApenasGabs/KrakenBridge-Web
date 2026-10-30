@@ -5,7 +5,8 @@ import type {
   EvolutionStatus,
   RefinePromptPayload,
   RefinePromptResponse,
-  RefineProvider
+  RefineProvider,
+  MultiAccountQuotaOverview
 } from '../../types';
 import { api } from '../../services/api';
 import { 
@@ -260,6 +261,94 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [speechError, setSpeechError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const initialTextRef = useRef<string>('');
+
+  // Estados do Roteamento Inteligente por Cota e Multi-Contas
+  const [quotaOverview, setQuotaOverview] = useState<MultiAccountQuotaOverview | null>(null);
+  const [autoRouteEnabled, setAutoRouteEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('kraken_auto_route_model');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+  const [isRoutingModel, setIsRoutingModel] = useState(false);
+  const [routingNotice, setRoutingNotice] = useState<{ message: string; type: 'success' | 'warning' | 'info' } | null>(null);
+
+  const toggleAutoRoute = (enabled: boolean) => {
+    setAutoRouteEnabled(enabled);
+    try {
+      localStorage.setItem('kraken_auto_route_model', String(enabled));
+    } catch {}
+  };
+
+  const fetchQuotaOverview = useCallback(async (force = false) => {
+    try {
+      const data = await api.getMultiAccountQuotaOverview(force);
+      setQuotaOverview(data);
+    } catch (e) {
+      console.warn('[ChatInput] Falha ao carregar visão multi-contas de cota:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isModelMenuOpen) {
+      fetchQuotaOverview();
+    }
+  }, [isModelMenuOpen, fetchQuotaOverview]);
+
+  // Limpa toast de roteamento após 5 segundos
+  useEffect(() => {
+    if (routingNotice) {
+      const t = setTimeout(() => setRoutingNotice(null), 5500);
+      return () => clearTimeout(t);
+    }
+  }, [routingNotice]);
+
+  const handleSelectModelWithRouting = async (modelId: string) => {
+    if (!autoRouteEnabled) {
+      onModelChange?.(modelId);
+      setIsModelMenuOpen(false);
+      return;
+    }
+
+    const quotaInfo = quotaOverview?.modelQuotaMap?.[modelId];
+    if (quotaInfo?.isBlocked) {
+      setRoutingNotice({
+        message: `⚠️ Atenção: Cota esgotada em todas as contas (< 5%) para ${formatModelName(modelId)}.`,
+        type: 'warning'
+      });
+      onModelChange?.(modelId);
+      setIsModelMenuOpen(false);
+      return;
+    }
+
+    try {
+      setIsRoutingModel(true);
+      const res = await api.routeByModel(modelId, 5);
+      onModelChange?.(modelId);
+      setIsModelMenuOpen(false);
+
+      if (res.switched) {
+        setRoutingNotice({
+          message: `✨ Roteamento por Cota: alternado automaticamente para ${res.accountName} (${res.remainingQuota}% disponível).`,
+          type: 'success'
+        });
+      } else if (res.isBlocked) {
+        setRoutingNotice({
+          message: `⚠️ Cota crítica ou esgotada para ${formatModelName(modelId)} em todas as contas (< 5%).`,
+          type: 'warning'
+        });
+      }
+      fetchQuotaOverview(true);
+    } catch (err) {
+      console.warn('[ChatInput] Falha no roteamento automático por modelo:', err);
+      onModelChange?.(modelId);
+      setIsModelMenuOpen(false);
+    } finally {
+      setIsRoutingModel(false);
+    }
+  };
 
   // Estados do Pré-Refinador de Prompt (100% sob demanda, nunca automático ao digitar)
   const [isRefining, setIsRefining] = useState(false);
@@ -654,6 +743,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </div>
         )}
 
+        {/* Banner de notificação do Roteamento Inteligente por Cota */}
+        {routingNotice && (
+          <div
+            data-testid="quota-routing-notice"
+            role="status"
+            aria-live="polite"
+            className={`mb-2.5 rounded-xl border px-3 py-2 text-xs flex items-center justify-between gap-2 animate-in fade-in ${
+              routingNotice.type === 'success'
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+            }`}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <Zap className="w-3.5 h-3.5 shrink-0" />
+              <span className="font-medium truncate">{routingNotice.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setRoutingNotice(null)}
+              className="btn btn-ghost btn-xs text-base-content/60 hover:text-base-content"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Banner de progresso durante o refinamento sob demanda */}
         {isRefining && (
           <div
@@ -991,32 +1106,112 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
               {/* Menu Popover Suspenso dos Modelos (abre para cima) */}
               {isModelMenuOpen && (
-                <div className="absolute bottom-full mb-2 left-0 z-50 w-64 max-w-[calc(100vw-3rem)] max-h-72 overflow-y-auto rounded-xl bg-base-100/98 backdrop-blur-md border border-base-300 shadow-2xl p-1.5 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150">
-                  <div className="px-2.5 py-1.5 text-[10px] font-semibold tracking-wider text-base-content/50 uppercase border-b border-base-200 mb-1">
-                    Selecione o Modelo
+                <div 
+                  data-testid="model-selection-popover"
+                  className="absolute bottom-full mb-2 left-0 z-50 w-72 max-w-[calc(100vw-3rem)] max-h-80 overflow-y-auto rounded-xl bg-base-100/98 backdrop-blur-md border border-base-300 shadow-2xl p-1.5 text-xs animate-in fade-in slide-in-from-bottom-2 duration-150"
+                >
+                  {/* Cabeçalho com Toggle de Roteamento por Cota */}
+                  <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-base-200/80 mb-1 bg-base-200/40 rounded-lg">
+                    <div className="flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span className="text-[11px] font-semibold text-base-content/90">
+                        Auto-Rotear por Cota
+                      </span>
+                    </div>
+                    <label className="cursor-pointer flex items-center">
+                      <input 
+                        type="checkbox"
+                        checked={autoRouteEnabled}
+                        onChange={(e) => toggleAutoRoute(e.target.checked)}
+                        className="toggle toggle-primary toggle-xs"
+                        title="Alterna automaticamente para a conta do pool com maior cota disponível para o modelo"
+                      />
+                    </label>
                   </div>
+
+                  <div className="px-2 py-1 flex items-center justify-between text-[10px] font-semibold tracking-wider text-base-content/50 uppercase">
+                    <span>Modelos Disponíveis</span>
+                    {autoRouteEnabled && (
+                      <span className="text-emerald-400 font-mono text-[9px] lowercase">
+                        pool ativo ({quotaOverview?.accounts?.length || 0} contas)
+                      </span>
+                    )}
+                  </div>
+
                   <div className="space-y-0.5">
                     {modelsList.map((m) => {
                       const isSelected = m.id === currentModel;
+                      const quotaInfo = quotaOverview?.modelQuotaMap?.[m.id];
+                      
+                      const remaining = autoRouteEnabled
+                        ? (quotaInfo?.bestPoolRemaining ?? quotaInfo?.currentAccountRemaining ?? null)
+                        : (quotaInfo?.currentAccountRemaining ?? null);
+                      
+                      const isBlocked = !!quotaInfo?.isBlocked;
+                      const targetAccountName = quotaInfo?.bestAccountName;
+
+                      // Cores da tag de cota
+                      let badgeColor = 'text-neutral-500 bg-neutral-800/60';
+                      if (remaining !== null) {
+                        if (remaining > 50) badgeColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+                        else if (remaining >= 20) badgeColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+                        else if (remaining > 5) badgeColor = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+                        else badgeColor = 'text-neutral-400 bg-neutral-800/80 border-neutral-700 line-through';
+                      }
+
                       return (
                         <button
                           key={m.id}
                           type="button"
-                          onClick={() => {
-                            onModelChange?.(m.id);
-                            setIsModelMenuOpen(false);
-                          }}
+                          disabled={isRoutingModel}
+                          onClick={() => handleSelectModelWithRouting(m.id)}
+                          title={
+                            isBlocked
+                              ? 'Cota esgotada em todas as contas cadastradas (< 5%)'
+                              : autoRouteEnabled && targetAccountName
+                                ? `Cota disponível: ${remaining ?? 0}% • Alterna para ${targetAccountName}`
+                                : `Cota na conta ativa: ${remaining ?? 0}%`
+                          }
                           className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
                             isSelected 
                               ? 'bg-sky-500/10 text-sky-400 font-semibold' 
-                              : 'text-base-content/80 hover:bg-base-200 hover:text-base-content'
+                              : isBlocked
+                                ? 'text-base-content/40 hover:bg-base-200/60'
+                                : 'text-base-content/80 hover:bg-base-200 hover:text-base-content'
                           }`}
                         >
-                          <span className="truncate">{m.name || formatModelName(m.id)}</span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
+                          <span className={`truncate mr-1.5 ${isBlocked ? 'line-through text-base-content/40' : ''}`}>
+                            {m.name || formatModelName(m.id)}
+                          </span>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {remaining !== null && (
+                              <span 
+                                data-testid={`model-quota-badge-${m.id}`}
+                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${badgeColor}`}
+                              >
+                                {isBlocked ? '< 5%' : `${remaining}%`}
+                              </span>
+                            )}
+                            {isSelected && <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
+                          </div>
                         </button>
                       );
                     })}
+                  </div>
+
+                  {/* Rodapé informativo do seletor */}
+                  <div className="mt-1 pt-1.5 border-t border-base-200/60 px-2 py-0.5 text-[10px] text-base-content/50 flex items-center justify-between">
+                    <span>
+                      {autoRouteEnabled 
+                        ? '⚡ Auto-roteando para conta com mais cota' 
+                        : '🔒 Modo manual: usa conta ativa'}
+                    </span>
+                    {quotaOverview?.activeEmail && (
+                      <span className="truncate max-w-[100px] text-base-content/70 font-mono">
+                        {quotaOverview.activeEmail.split('@')[0]}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

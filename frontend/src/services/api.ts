@@ -7,6 +7,8 @@ import type {
   ModelsConfig, 
   ProjectWorkspace, 
   QuotaStats, 
+  MultiAccountQuotaOverview,
+  RouteByModelResponse,
   ToolCall, 
   TurnTokens,
   GithubIssueItem,
@@ -135,6 +137,28 @@ export const api = {
     });
     if (!res.ok) {
       throw new Error(`Erro ao consultar cota ao vivo (${res.status})`);
+    }
+    return res.json();
+  },
+
+  async getMultiAccountQuotaOverview(force = false): Promise<MultiAccountQuotaOverview> {
+    const query = force ? '?force=true' : '';
+    const res = await fetch(`${getApiBase()}/quota/accounts${query}`, { headers: authHeaders() });
+    if (!res.ok) {
+      throw new Error(`Erro ao buscar cotas multi-contas (${res.status})`);
+    }
+    return res.json();
+  },
+
+  async routeByModel(model: string, minQuotaThreshold = 5): Promise<RouteByModelResponse> {
+    const res = await fetch(`${getApiBase()}/quota/route-by-model`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, minQuotaThreshold })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Erro ao rotear por modelo (${res.status})`);
     }
     return res.json();
   },
