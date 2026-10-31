@@ -14,8 +14,10 @@ import {
   BarChart2, 
   FolderKanban, 
   Cpu, 
-  Activity
+  Activity,
+  Droplets
 } from 'lucide-react';
+import { formatWaterLiters } from '../../utils/waterConsumption';
 
 interface StatsDashboardProps {
   runningCount: number;
@@ -70,6 +72,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hoveredDay, setHoveredDay] = useState<DailyIntensityPoint | null>(null);
+  const [showWaterMetrics, setShowWaterMetrics] = useState<boolean>(false);
 
   const loadStats = useCallback(async (isRefresh = false) => {
     try {
@@ -100,7 +103,8 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
   const modelBreakdown = stats?.tokens?.modelBreakdown || {};
   const workspaceBreakdown = stats?.workspaceBreakdown || stats?.tokens?.workspaceBreakdown || {};
 
-  // Token mix
+  // Token mix & total
+  const totalTokensAllTime = aggregates?.totalTokensAllTime || stats?.tokens?.weekly.totalTokens || 0;
   const totalInp = aggregates?.totalInputTokens || stats?.tokens?.weekly.inputTokens || 0;
   const totalOut = aggregates?.totalOutputTokens || stats?.tokens?.weekly.outputTokens || 0;
   const totalThk = aggregates?.totalThinkingTokens || stats?.tokens?.weekly.thinkingTokens || 0;
@@ -144,19 +148,67 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
           </div>
         </div>
 
-        {/* Botão de Atualização Oficial */}
-        <button
-          onClick={() => loadStats(true)}
-          disabled={refreshing || loading}
-          className="btn btn-xs sm:btn-sm btn-ghost border border-base-300 gap-1.5 rounded-xl hover:bg-base-200 transition-all self-end sm:self-auto"
-          title="Consulta ao vivo das cotas e recalibração"
-        >
-          <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-primary' : 'text-base-content/70'}`} />
-          <span className="text-xs font-medium">
-            {refreshing ? 'Consultando Google...' : 'Atualizar Cota'}
-          </span>
-        </button>
+        {/* Ações do Cabeçalho: Alternância de Água e Atualização de Cota */}
+        <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+          {/* Botão de Alternância de Métricas: Água (Litros) vs Tokens */}
+          <button
+            onClick={() => setShowWaterMetrics((prev) => !prev)}
+            className={`btn btn-xs sm:btn-sm gap-1.5 rounded-xl border transition-all ${
+              showWaterMetrics
+                ? 'btn-info text-info-content border-info shadow-xs'
+                : 'btn-ghost border-base-300 hover:bg-base-200 text-base-content/80'
+            }`}
+            title={
+              showWaterMetrics
+                ? 'Alternar para contagem padrão de tokens'
+                : 'Exibir consumo equivalente em litros de água (pegada hídrica estimada)'
+            }
+            aria-label="Alternar métrica entre tokens e litros de água"
+            aria-pressed={showWaterMetrics}
+            data-testid="toggle-water-metrics-btn"
+          >
+            <Droplets className={`w-3.5 h-3.5 ${showWaterMetrics ? 'text-info-content' : 'text-info'}`} />
+            <span className="text-xs font-medium">
+              {showWaterMetrics ? 'Ver Tokens' : 'Equivalente em Água (L)'}
+            </span>
+          </button>
+
+          {/* Botão de Atualização Oficial */}
+          <button
+            onClick={() => loadStats(true)}
+            disabled={refreshing || loading}
+            className="btn btn-xs sm:btn-sm btn-ghost border border-base-300 gap-1.5 rounded-xl hover:bg-base-200 transition-all"
+            title="Consulta ao vivo das cotas e recalibração"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-primary' : 'text-base-content/70'}`} />
+            <span className="text-xs font-medium">
+              {refreshing ? 'Consultando Google...' : 'Atualizar Cota'}
+            </span>
+          </button>
+        </div>
       </div>
+
+      {/* Banner Informativo de Pegada Hídrica quando ativado */}
+      {showWaterMetrics && (
+        <div 
+          data-testid="water-metrics-banner"
+          className="flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-xl bg-info/10 border border-info/20 text-xs text-info animate-in fade-in slide-in-from-top-1 duration-200"
+        >
+          <div className="flex items-center gap-2">
+            <Droplets className="w-4 h-4 shrink-0 text-info" />
+            <div>
+              <span className="font-semibold">Pegada Hídrica Ativa:</span> Exibindo consumo de água equivalente (~0.5 L por 1.000 tokens) resultante do resfriamento e geração elétrica nos data centers de IA (UC Riverside).
+            </div>
+          </div>
+          <button
+            onClick={() => setShowWaterMetrics(false)}
+            className="btn btn-ghost btn-xs h-6 min-h-0 text-[10px] text-info hover:bg-info/20 px-2 rounded-md shrink-0"
+            title="Voltar para exibição de tokens"
+          >
+            Voltar a tokens
+          </button>
+        </div>
+      )}
 
       {/* 1. CARDS DE RESUMO EXECUTIVO (ORCA STYLE STAT CARDS) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
@@ -194,18 +246,63 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
           </div>
         </div>
 
-        {/* Card 3: Tokens Totais */}
-        <div className="rounded-2xl border border-base-300/80 bg-base-200/40 p-3.5 flex flex-col justify-between shadow-xs hover:border-primary/40 transition-colors">
+        {/* Card 3: Tokens Totais / Consumo de Água */}
+        <div className={`rounded-2xl border ${showWaterMetrics ? 'border-info/50 bg-info/5' : 'border-base-300/80 bg-base-200/40'} p-3.5 flex flex-col justify-between shadow-xs hover:border-primary/40 transition-colors`}>
           <div className="flex items-center justify-between text-base-content/60 mb-2">
-            <span className="text-[11px] font-medium uppercase tracking-wider">Tokens Totais</span>
-            <Coins className="w-4 h-4 text-secondary" />
+            <span className="text-[11px] font-medium uppercase tracking-wider flex items-center gap-1.5">
+              {showWaterMetrics ? (
+                <>
+                  <Droplets className="w-3.5 h-3.5 text-info" />
+                  <span className="text-info font-semibold">Água Estimada (Litros)</span>
+                </>
+              ) : (
+                'Tokens Totais'
+              )}
+            </span>
+            <button
+              onClick={() => setShowWaterMetrics((prev) => !prev)}
+              className={`btn btn-ghost btn-xs h-6 min-h-0 px-2 rounded-lg transition-colors flex items-center gap-1 ${
+                showWaterMetrics ? 'bg-info/20 text-info font-medium' : 'text-secondary hover:bg-base-300/60'
+              }`}
+              title={showWaterMetrics ? 'Alternar para tokens' : 'Ver consumo equivalente em litros de água'}
+              aria-label="Alternar métrica de tokens para litros de água"
+              data-testid="card-water-toggle-btn"
+            >
+              {showWaterMetrics ? (
+                <>
+                  <Coins className="w-3.5 h-3.5 text-secondary" />
+                  <span className="text-[10px] font-mono">Tokens</span>
+                </>
+              ) : (
+                <>
+                  <Droplets className="w-3.5 h-3.5 text-info" />
+                  <span className="text-[10px] font-mono">Água (L)</span>
+                </>
+              )}
+            </button>
           </div>
           <div>
             <div className="text-xl sm:text-2xl font-black text-base-content font-mono tracking-tight">
-              {formatTokens(aggregates?.totalTokensAllTime || stats?.tokens?.weekly.totalTokens)}
+              {showWaterMetrics ? (
+                <span className="text-info font-black" data-testid="water-liters-value">
+                  {formatWaterLiters(totalTokensAllTime, true)}
+                </span>
+              ) : (
+                <span data-testid="tokens-value">
+                  {formatTokens(totalTokensAllTime)}
+                </span>
+              )}
             </div>
             <div className="text-[10px] sm:text-[11px] text-base-content/60 mt-0.5">
-              In: {formatTokens(totalInp)} • Out: {formatTokens(totalOut)}
+              {showWaterMetrics ? (
+                <span title="Estimativa científica: ~0.5 litros a cada 1.000 tokens (UC Riverside)">
+                  In: {formatWaterLiters(totalInp, true)} • Out: {formatWaterLiters(totalOut, true)}
+                </span>
+              ) : (
+                <span>
+                  In: {formatTokens(totalInp)} • Out: {formatTokens(totalOut)}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -280,7 +377,13 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
             <div className="min-h-5 flex items-center">
               {hoveredDay ? (
                 <span className="font-mono text-primary font-medium animate-fadeIn">
-                  📅 {hoveredDay.day}: {hoveredDay.totalTokens.toLocaleString()} tokens ({hoveredDay.turnsCount} turnos)
+                  📅 {hoveredDay.day}: {hoveredDay.totalTokens.toLocaleString()} tokens
+                  {showWaterMetrics && (
+                    <span className="text-info font-bold ml-1.5">
+                      (~{formatWaterLiters(hoveredDay.totalTokens, true)} água)
+                    </span>
+                  )}
+                  {' '}({hoveredDay.turnsCount} turnos)
                 </span>
               ) : (
                 <span className="text-[11px] text-base-content/50">
@@ -346,7 +449,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                 <span className="w-2 h-2 rounded-full bg-primary" />
                 Input
               </div>
-              <div className="font-bold text-base-content mt-1">{formatTokens(totalInp)}</div>
+              <div className="font-bold text-base-content mt-1">
+                {showWaterMetrics ? formatWaterLiters(totalInp, true) : formatTokens(totalInp)}
+              </div>
               <div className="text-[10px] text-base-content/50">{inpPercent}%</div>
             </div>
 
@@ -355,7 +460,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                 <span className="w-2 h-2 rounded-full bg-secondary" />
                 Output
               </div>
-              <div className="font-bold text-base-content mt-1">{formatTokens(totalOut)}</div>
+              <div className="font-bold text-base-content mt-1">
+                {showWaterMetrics ? formatWaterLiters(totalOut, true) : formatTokens(totalOut)}
+              </div>
               <div className="text-[10px] text-base-content/50">{outPercent}%</div>
             </div>
 
@@ -364,7 +471,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                 <span className="w-2 h-2 rounded-full bg-warning" />
                 Thinking
               </div>
-              <div className="font-bold text-base-content mt-1">{formatTokens(totalThk)}</div>
+              <div className="font-bold text-base-content mt-1">
+                {showWaterMetrics ? formatWaterLiters(totalThk, true) : formatTokens(totalThk)}
+              </div>
               <div className="text-[10px] text-base-content/50">{thkPercent}%</div>
             </div>
           </div>
