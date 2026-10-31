@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.23.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.22.0...v1.23.0) (2026-10-31)
+
+### ✨ Features
+
+* **metrics:** adicionar botão e visualização de consumo equivalente em litros de água (Refs [#115](https://github.com/ApenasGabs/KrakenBridge-Web/issues/115)) ([#116](https://github.com/ApenasGabs/KrakenBridge-Web/issues/116)) ([1174ef4](https://github.com/ApenasGabs/KrakenBridge-Web/commit/1174ef40fd58d5b593d6600908b2ece5482d486b))
+
 ## [1.22.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.21.0...v1.22.0) (2026-10-31)
 
 ### ✨ Features
