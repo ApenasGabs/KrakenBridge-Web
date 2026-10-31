@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.22.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.21.0...v1.22.0) (2026-10-31)
+
+### ✨ Features
+
+* **quota:** seleção inteligente por modelo com transição automática de conta e exibição de cotas (closes [#112](https://github.com/ApenasGabs/KrakenBridge-Web/issues/112)) ([#113](https://github.com/ApenasGabs/KrakenBridge-Web/issues/113)) ([ea33972](https://github.com/ApenasGabs/KrakenBridge-Web/commit/ea3397236f4e6592438aad32945f852c5629ca4f))
+
 ## [1.21.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.20.0...v1.21.0) (2026-10-29)
 
 ### ✨ Features
