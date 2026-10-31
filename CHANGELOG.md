@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.24.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.23.0...v1.24.0) (2026-10-31)
+
+### ✨ Features
+
+* **metrics:** converter integralmente todas as ocorrencias de tokens para litros de agua (Refs [#117](https://github.com/ApenasGabs/KrakenBridge-Web/issues/117)) ([#118](https://github.com/ApenasGabs/KrakenBridge-Web/issues/118)) ([f622fcf](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f622fcfe7b4a458b4454dc0cffd53427f10b48d5))
+
 ## [1.23.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.22.0...v1.23.0) (2026-10-31)
 
 ### ✨ Features
