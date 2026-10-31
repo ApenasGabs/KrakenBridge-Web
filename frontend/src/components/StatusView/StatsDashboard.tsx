@@ -17,20 +17,17 @@ import {
   Activity,
   Droplets
 } from 'lucide-react';
-import { formatWaterLiters } from '../../utils/waterConsumption';
+import { 
+  formatWaterLiters, 
+  formatTokens, 
+  useWaterMetrics 
+} from '../../utils/waterConsumption';
 
 interface StatsDashboardProps {
   runningCount: number;
   totalConversations: number;
   totalWorkspaces: number;
   onStartSetupChat?: (data: { conversationId: string; suggestedPrompt: string }) => void;
-}
-
-function formatTokens(value?: number): string {
-  if (!value || value <= 0) return '0';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return value.toLocaleString();
 }
 
 function formatDuration(ms?: number): string {
@@ -72,7 +69,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hoveredDay, setHoveredDay] = useState<DailyIntensityPoint | null>(null);
-  const [showWaterMetrics, setShowWaterMetrics] = useState<boolean>(false);
+  const [showWaterMetrics, setShowWaterMetrics] = useWaterMetrics();
 
   const loadStats = useCallback(async (isRefresh = false) => {
     try {
@@ -143,7 +140,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
               )}
             </div>
             <p className="text-xs text-base-content/60">
-              Telemetria de tokens, cotas ao vivo do Google e histórico de execuções
+              {showWaterMetrics
+                ? 'Telemetria de pegada hídrica (L), cotas ao vivo do Google e histórico de execuções'
+                : 'Telemetria de tokens, cotas ao vivo do Google e histórico de execuções'}
             </p>
           </div>
         </div>
@@ -338,18 +337,22 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-primary" />
-              Intensidade Diária de Tokens (Últimos 42 dias)
+              {showWaterMetrics ? (
+                <Droplets className="w-4 h-4 text-info" />
+              ) : (
+                <CalendarDays className="w-4 h-4 text-primary" />
+              )}
+              {showWaterMetrics ? 'Intensidade Diária de Água (Últimos 42 dias)' : 'Intensidade Diária de Tokens (Últimos 42 dias)'}
             </h3>
             <p className="text-xs text-base-content/60">
-              Mapa térmico de execuções de agentes e consumo de LLMs
+              {showWaterMetrics ? 'Mapa térmico de execuções de agentes e pegada hídrica estimada' : 'Mapa térmico de execuções de agentes e consumo de LLMs'}
             </p>
           </div>
 
           {bestDay && bestDay.totalTokens > 0 && (
-            <div className="badge badge-sm badge-outline border-primary/40 text-primary gap-1 font-mono text-[11px] py-2.5">
-              <Flame className="w-3 h-3 text-primary" />
-              <span>Recorde: {formatDayLabel(bestDay.day)} ({formatTokens(bestDay.totalTokens)})</span>
+            <div className={`badge badge-sm badge-outline ${showWaterMetrics ? 'border-info/40 text-info' : 'border-primary/40 text-primary'} gap-1 font-mono text-[11px] py-2.5`}>
+              {showWaterMetrics ? <Droplets className="w-3 h-3 text-info" /> : <Flame className="w-3 h-3 text-primary" />}
+              <span>Recorde: {formatDayLabel(bestDay.day)} ({showWaterMetrics ? formatWaterLiters(bestDay.totalTokens, true) : formatTokens(bestDay.totalTokens)})</span>
             </div>
           )}
         </div>
@@ -367,7 +370,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                 className={`aspect-square rounded-md border transition-all cursor-pointer hover:scale-125 hover:z-10 ${
                   INTENSITY_CLASSES[point.intensity]
                 }`}
-                title={`${point.day}: ${point.totalTokens.toLocaleString()} tokens (${point.turnsCount} turnos)`}
+                title={showWaterMetrics ? `${point.day}: ${formatWaterLiters(point.totalTokens, true)} (${point.turnsCount} turnos)` : `${point.day}: ${point.totalTokens.toLocaleString()} tokens (${point.turnsCount} turnos)`}
               />
             ))}
           </div>
@@ -376,13 +379,8 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
           <div className="flex items-center justify-between pt-1 text-xs text-base-content/60">
             <div className="min-h-5 flex items-center">
               {hoveredDay ? (
-                <span className="font-mono text-primary font-medium animate-fadeIn">
-                  📅 {hoveredDay.day}: {hoveredDay.totalTokens.toLocaleString()} tokens
-                  {showWaterMetrics && (
-                    <span className="text-info font-bold ml-1.5">
-                      (~{formatWaterLiters(hoveredDay.totalTokens, true)} água)
-                    </span>
-                  )}
+                <span className={`font-mono ${showWaterMetrics ? 'text-info font-bold' : 'text-primary font-medium'} animate-fadeIn`}>
+                  📅 {hoveredDay.day}: {showWaterMetrics ? formatWaterLiters(hoveredDay.totalTokens, true) : `${hoveredDay.totalTokens.toLocaleString()} tokens`}
                   {' '}({hoveredDay.turnsCount} turnos)
                 </span>
               ) : (
@@ -411,15 +409,17 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
       {/* 3. TOKEN MIX & BARRAS DIÁRIAS (GRID DE DUAS COLUNAS) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         
-        {/* Coluna A: Mix Proporcional de Tokens */}
+        {/* Coluna A: Mix Proporcional de Tokens / Água */}
         <div className="rounded-2xl border border-base-300/80 bg-base-200/30 p-4 flex flex-col justify-between gap-3 shadow-xs">
           <div>
             <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-              <Layers className="w-4 h-4 text-secondary" />
-              Distribuição do Mix de Tokens
+              {showWaterMetrics ? <Droplets className="w-4 h-4 text-info" /> : <Layers className="w-4 h-4 text-secondary" />}
+              {showWaterMetrics ? 'Distribuição do Consumo de Água' : 'Distribuição do Mix de Tokens'}
             </h3>
             <p className="text-xs text-base-content/60">
-              Proporção entre dados de entrada, resposta gerada e raciocínio profundo
+              {showWaterMetrics
+                ? 'Proporção hídrica entre dados de entrada, resposta gerada e raciocínio profundo'
+                : 'Proporção entre dados de entrada, resposta gerada e raciocínio profundo'}
             </p>
           </div>
 
@@ -428,17 +428,17 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
             <div 
               style={{ width: `${inpPercent}%` }} 
               className="bg-primary h-full transition-all duration-500" 
-              title={`Input: ${inpPercent}% (${formatTokens(totalInp)})`}
+              title={`Input: ${inpPercent}% (${showWaterMetrics ? formatWaterLiters(totalInp, true) : formatTokens(totalInp)})`}
             />
             <div 
               style={{ width: `${outPercent}%` }} 
               className="bg-secondary h-full transition-all duration-500" 
-              title={`Output: ${outPercent}% (${formatTokens(totalOut)})`}
+              title={`Output: ${outPercent}% (${showWaterMetrics ? formatWaterLiters(totalOut, true) : formatTokens(totalOut)})`}
             />
             <div 
               style={{ width: `${thkPercent}%` }} 
               className="bg-warning h-full transition-all duration-500" 
-              title={`Thinking: ${thkPercent}% (${formatTokens(totalThk)})`}
+              title={`Thinking: ${thkPercent}% (${showWaterMetrics ? formatWaterLiters(totalThk, true) : formatTokens(totalThk)})`}
             />
           </div>
 
@@ -483,11 +483,11 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
         <div className="rounded-2xl border border-base-300/80 bg-base-200/30 p-4 flex flex-col justify-between gap-3 shadow-xs">
           <div>
             <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-primary" />
-              Consumo Diário Recente
+              {showWaterMetrics ? <Droplets className="w-4 h-4 text-info" /> : <BarChart2 className="w-4 h-4 text-primary" />}
+              {showWaterMetrics ? 'Consumo Hídrico Diário Recente' : 'Consumo Diário Recente'}
             </h3>
             <p className="text-xs text-base-content/60">
-              Histórico diário empilhado dos últimos dias
+              {showWaterMetrics ? 'Histórico diário de água estimada dos últimos dias' : 'Histórico diário empilhado dos últimos dias'}
             </p>
           </div>
 
@@ -500,7 +500,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                   className="flex-1 flex flex-col items-center h-full justify-end group relative"
                 >
                   <div className="absolute -top-8 bg-base-300 text-base-content text-[10px] font-mono py-0.5 px-1.5 rounded shadow pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-20 whitespace-nowrap">
-                    {formatDayLabel(d.day)}: {formatTokens(d.totalTokens)}
+                    {formatDayLabel(d.day)}: {showWaterMetrics ? formatWaterLiters(d.totalTokens, true) : formatTokens(d.totalTokens)}
                   </div>
 
                   <div 
@@ -516,8 +516,8 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
           </div>
 
           <div className="flex items-center justify-between text-xs text-base-content/60 font-mono">
-            <span>Pico: {formatTokens(maxRecentDaily)}</span>
-            <span>Total Recente: {formatTokens(recentDaily.reduce((acc, cur) => acc + cur.totalTokens, 0))}</span>
+            <span>Pico: {showWaterMetrics ? formatWaterLiters(maxRecentDaily, true) : formatTokens(maxRecentDaily)}</span>
+            <span>Total Recente: {showWaterMetrics ? formatWaterLiters(recentDaily.reduce((acc, cur) => acc + cur.totalTokens, 0), true) : formatTokens(recentDaily.reduce((acc, cur) => acc + cur.totalTokens, 0))}</span>
           </div>
         </div>
       </div>
@@ -528,8 +528,8 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
         {/* Model Breakdown */}
         <div className="rounded-2xl border border-base-300/80 bg-base-200/30 p-4 flex flex-col gap-3 shadow-xs">
           <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-primary" />
-            Consumo por Modelo de IA
+            {showWaterMetrics ? <Droplets className="w-4 h-4 text-info" /> : <Cpu className="w-4 h-4 text-primary" />}
+            {showWaterMetrics ? 'Consumo de Água por Modelo de IA' : 'Consumo por Modelo de IA'}
           </h3>
           
           <div className="flex flex-col gap-2.5">
@@ -546,7 +546,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                       <div className="flex items-center justify-between text-xs font-mono">
                         <span className="font-bold text-base-content truncate max-w-[200px]">{modName}</span>
                         <span className="text-base-content/70">
-                          {formatTokens(modData.totalTokens)} ({modData.count} turnos)
+                          {showWaterMetrics ? formatWaterLiters(modData.totalTokens, true) : formatTokens(modData.totalTokens)} ({modData.count} turnos)
                         </span>
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-base-300 overflow-hidden">
@@ -565,8 +565,8 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
         {/* Workspace Breakdown */}
         <div className="rounded-2xl border border-base-300/80 bg-base-200/30 p-4 flex flex-col gap-3 shadow-xs">
           <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-            <FolderKanban className="w-4 h-4 text-secondary" />
-            Consumo por Workspace / Projeto
+            {showWaterMetrics ? <Droplets className="w-4 h-4 text-info" /> : <FolderKanban className="w-4 h-4 text-secondary" />}
+            {showWaterMetrics ? 'Consumo de Água por Workspace' : 'Consumo por Workspace / Projeto'}
           </h3>
 
           <div className="flex flex-col gap-2.5">
@@ -583,7 +583,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                       <div className="flex items-center justify-between text-xs font-mono">
                         <span className="font-bold text-base-content truncate max-w-[200px]">{wsName}</span>
                         <span className="text-base-content/70">
-                          {formatTokens(wsData.totalTokens)} ({wsData.count} turnos)
+                          {showWaterMetrics ? formatWaterLiters(wsData.totalTokens, true) : formatTokens(wsData.totalTokens)} ({wsData.count} turnos)
                         </span>
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-base-300 overflow-hidden">
@@ -604,8 +604,8 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
       <div className="rounded-2xl border border-base-300/80 bg-base-200/30 p-4 flex flex-col gap-3 shadow-xs">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-            <Clock className="w-4 h-4 text-primary" />
-            Últimas Execuções de Turnos
+            {showWaterMetrics ? <Droplets className="w-4 h-4 text-info" /> : <Clock className="w-4 h-4 text-primary" />}
+            {showWaterMetrics ? 'Últimas Execuções de Turnos (Água Estimada)' : 'Últimas Execuções de Turnos'}
           </h3>
           <span className="text-xs text-base-content/60 font-mono">
             {recentTurns.length} turnos recentes
@@ -619,8 +619,8 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                 <th>Horário</th>
                 <th>Workspace</th>
                 <th>Modelo</th>
-                <th>In / Out / Thk</th>
-                <th>Total Tokens</th>
+                <th>{showWaterMetrics ? 'In / Out / Thk (Água)' : 'In / Out / Thk'}</th>
+                <th>{showWaterMetrics ? 'Total Água' : 'Total Tokens'}</th>
               </tr>
             </thead>
             <tbody className="font-mono text-xs">
@@ -649,10 +649,14 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                         {turn.model}
                       </td>
                       <td className="text-base-content/60">
-                        {formatTokens(turn.input_tokens)} / {formatTokens(turn.output_tokens)} / {formatTokens(turn.thinking_tokens)}
+                        {showWaterMetrics ? (
+                          `${formatWaterLiters(turn.input_tokens, true)} / ${formatWaterLiters(turn.output_tokens, true)} / ${formatWaterLiters(turn.thinking_tokens, true)}`
+                        ) : (
+                          `${formatTokens(turn.input_tokens)} / ${formatTokens(turn.output_tokens)} / ${formatTokens(turn.thinking_tokens)}`
+                        )}
                       </td>
-                      <td className="font-bold text-primary">
-                        {formatTokens(turn.total_tokens)}
+                      <td className={`font-bold ${showWaterMetrics ? 'text-info' : 'text-primary'}`}>
+                        {showWaterMetrics ? formatWaterLiters(turn.total_tokens, true) : formatTokens(turn.total_tokens)}
                       </td>
                     </tr>
                   );
