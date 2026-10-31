@@ -35,6 +35,35 @@ quotaRouter.post('/sync', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/quota/accounts - Retorna visão multi-contas de cotas de todo o pool
+quotaRouter.get('/accounts', async (req: Request, res: Response) => {
+  try {
+    const force = req.query.force === 'true';
+    const overview = await quotaService.getMultiAccountQuotaOverview(force);
+    res.json(overview);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// POST /api/quota/route-by-model - Roteia automaticamente para a conta com melhor cota do modelo
+quotaRouter.post('/route-by-model', async (req: Request, res: Response) => {
+  try {
+    const { model, minQuotaThreshold } = req.body || {};
+    if (!model || typeof model !== 'string') {
+      res.status(400).json({ error: 'Campo model é obrigatório.' });
+      return;
+    }
+    const result = await quotaService.routeByModel(
+      model,
+      typeof minQuotaThreshold === 'number' ? minQuotaThreshold : 5
+    );
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // POST /api/quota/record - Registra um consumo de tokens manualmente
 quotaRouter.post('/record', async (req: Request, res: Response) => {
   try {

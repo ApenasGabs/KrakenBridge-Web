@@ -107,7 +107,8 @@ export const App: React.FC = () => {
       skipPermissions: true,
       disableSlashCommands: false,
       subproject: '',
-      showQuotaBubble: saved !== null ? saved === 'true' : true
+      showQuotaBubble: saved !== null ? saved === 'true' : true,
+      autoRouteByModelQuota: localStorage.getItem('kraken_auto_route_model') !== 'false'
     };
   });
   const optionsRef = useRef<ChatOptions>(options);
@@ -119,6 +120,9 @@ export const App: React.FC = () => {
     setOptions(newOptions);
     if (newOptions.showQuotaBubble !== undefined) {
       localStorage.setItem('kraken_show_quota', String(newOptions.showQuotaBubble));
+    }
+    if (newOptions.autoRouteByModelQuota !== undefined) {
+      localStorage.setItem('kraken_auto_route_model', String(newOptions.autoRouteByModelQuota));
     }
   }, []);
 

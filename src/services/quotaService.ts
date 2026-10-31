@@ -2,7 +2,16 @@ import fs from 'fs/promises';
 import path from 'path';
 import { exec } from 'child_process';
 import util from 'util';
-import type { TokenUsageRecord, QuotaGroup, QuotaBucket } from '../types/quota.js';
+import type { 
+  TokenUsageRecord, 
+  QuotaGroup, 
+  QuotaBucket,
+  MultiAccountQuotaOverview,
+  AccountQuotaProfile,
+  AccountModelQuotaSummary,
+  RouteByModelResponse
+} from '../types/quota.js';
+import { accountService } from './accountService.js';
 
 const execPromise = util.promisify(exec);
 
@@ -609,6 +618,330 @@ class QuotaService {
         bestDay,
         aggregates
       }
+    };
+  }
+
+  // Cache de cotas por conta: email -> { groups, lastFetchedAt }
+  private accountQuotaCache = new Map<string, { groups: QuotaGroup[]; lastFetchedAt: number }>();
+
+  /**
+   * Identifica a família a que pertence um determinado modelo
+   */
+  getModelFamily(modelId?: string): 'gemini' | 'claudeGpt' | 'geminiArgon' {
+    if (!modelId) return 'gemini';
+    const lower = modelId.toLowerCase();
+    if (lower.includes('argon')) return 'geminiArgon';
+    if (lower.includes('claude') || lower.includes('gpt')) return 'claudeGpt';
+    return 'gemini';
+  }
+
+  /**
+   * Extrai o resumo por família a partir dos grupos de cotas oficiais
+   */
+  extractModelSummaryFromGroups(groups: QuotaGroup[]): {
+    gemini: AccountModelQuotaSummary;
+    claudeGpt: AccountModelQuotaSummary;
+    geminiArgon: AccountModelQuotaSummary;
+  } {
+    const summarizeGroup = (nameRegex: RegExp): AccountModelQuotaSummary => {
+      const group = groups.find(g => nameRegex.test(g.name));
+      if (!group || !group.buckets || group.buckets.length === 0) {
+        return {
+          remaining: 100,
+          weeklyRemaining: 100,
+          fiveHourRemaining: 100,
+          resetAt: null,
+          isAvailable: true
+        };
+      }
+
+      let weeklyRemaining = 100;
+      let fiveHourRemaining = 100;
+      let resetAt: number | null = null;
+      let message: string | null = null;
+
+      for (const b of group.buckets) {
+        const isWeekly = b.window === 'weekly' || (b.name && b.name.toLowerCase().includes('weekly'));
+        if (isWeekly) {
+          weeklyRemaining = b.remaining;
+          if (b.resetAt) resetAt = b.resetAt;
+          if (b.message) message = b.message;
+        } else {
+          fiveHourRemaining = b.remaining;
+          if (b.resetAt && !resetAt) resetAt = b.resetAt;
+          if (b.message && !message) message = b.message;
+        }
+      }
+
+      // O percentual efetivo é o menor entre o limite semanal e o limite de 5h
+      const remaining = Math.min(weeklyRemaining, fiveHourRemaining);
+      const isAvailable = remaining > 0;
+
+      return {
+        remaining,
+        weeklyRemaining,
+        fiveHourRemaining,
+        resetAt,
+        isAvailable,
+        message
+      };
+    };
+
+    return {
+      gemini: summarizeGroup(/gemini models/i),
+      claudeGpt: summarizeGroup(/claude.*gpt/i),
+      geminiArgon: summarizeGroup(/gemini 4 argon/i)
+    };
+  }
+
+  /**
+   * Consulta cotas oficiais para uma conta específica
+   */
+  async fetchLiveQuotaForAccount(email?: string | null, force = false): Promise<QuotaGroup[]> {
+    const activeEmail = await accountService.getActiveEmail();
+    const targetEmail = (email || activeEmail || '').toLowerCase();
+
+    const now = Date.now();
+    const cached = this.accountQuotaCache.get(targetEmail);
+    if (!force && cached && now - cached.lastFetchedAt < 60000) {
+      return cached.groups;
+    }
+
+    try {
+      let envHome = '/root';
+      if (email && (!activeEmail || email.toLowerCase() !== activeEmail.toLowerCase())) {
+        envHome = await accountService.prepareAccountHome(email);
+      }
+
+      const { stdout } = await execPromise('agy --print "/usage" --output-format json', {
+        env: { ...process.env, HOME: envHome },
+        timeout: 12000
+      });
+
+      const parsed = JSON.parse(stdout.trim());
+      const rawGroups = parsed?.command?.data?.groups || [];
+      const dynamicGroups: QuotaGroup[] = [];
+
+      for (const group of rawGroups) {
+        const groupName = (group.name || '').trim();
+        const groupDesc = group.description ? String(group.description).trim() : undefined;
+        const buckets: QuotaBucket[] = [];
+
+        for (const b of (group.buckets || [])) {
+          const fraction = typeof b.remaining_fraction === 'number' ? b.remaining_fraction : 1;
+          const percent = Math.round(fraction * 100);
+          const resetAt = b.reset_time ? new Date(b.reset_time).getTime() : null;
+          const windowType = b.window || (b.id && b.id.includes('weekly') ? 'weekly' : '5h');
+
+          buckets.push({
+            id: b.id || undefined,
+            name: b.name || (windowType === 'weekly' ? 'Weekly Limit Remaining' : 'Five Hour Limit Remaining'),
+            description: b.description || undefined,
+            window: windowType,
+            remaining: percent,
+            message: b.description || null,
+            resetAt
+          });
+        }
+
+        dynamicGroups.push({
+          name: groupName,
+          description: groupDesc,
+          buckets
+        });
+      }
+
+      if (dynamicGroups.length > 0) {
+        this.accountQuotaCache.set(targetEmail, { groups: dynamicGroups, lastFetchedAt: now });
+        return dynamicGroups;
+      }
+    } catch (e) {
+      console.warn(`[QuotaService] Falha ao consultar cotas para conta ${targetEmail}:`, (e as Error).message);
+    }
+
+    // Se falhou ou cache não existe, retorna cotas do estado atual como fallback
+    return (this.state.groups && this.state.groups.length > 0) ? this.state.groups : [];
+  }
+
+  /**
+   * Consolida visão multi-contas de cotas de todo o pool
+   */
+  async getMultiAccountQuotaOverview(forceRefresh = false): Promise<MultiAccountQuotaOverview> {
+    await this.init();
+    const { activeEmail, accounts } = await accountService.listAccounts();
+
+    const profiles: AccountQuotaProfile[] = [];
+
+    for (const acc of accounts) {
+      const email = acc.email;
+      let groups: QuotaGroup[];
+
+      if (acc.isActive) {
+        // Se for a conta ativa, usa os grupos oficiais conhecidos do state
+        groups = (this.state.groups && this.state.groups.length > 0) 
+          ? this.state.groups 
+          : await this.fetchLiveQuotaForAccount(email, forceRefresh);
+      } else {
+        groups = await this.fetchLiveQuotaForAccount(email, forceRefresh);
+      }
+
+      const modelSummary = this.extractModelSummaryFromGroups(groups);
+
+      profiles.push({
+        email: acc.email,
+        name: acc.name,
+        picture: acc.picture,
+        isActive: acc.isActive,
+        groups,
+        modelSummary,
+        lastUpdated: new Date().toISOString()
+      });
+    }
+
+    // Identificar a melhor conta por família
+    const getBest = (family: 'gemini' | 'claudeGpt' | 'geminiArgon') => {
+      if (profiles.length === 0) return null;
+      let best = profiles[0];
+      let maxQuota = best.modelSummary[family]?.remaining ?? -1;
+
+      for (const p of profiles) {
+        const q = p.modelSummary[family]?.remaining ?? -1;
+        if (q > maxQuota) {
+          maxQuota = q;
+          best = p;
+        }
+      }
+      return {
+        email: best.email,
+        name: best.name,
+        remaining: Math.max(0, maxQuota)
+      };
+    };
+
+    const bestAccountsByFamily = {
+      gemini: getBest('gemini'),
+      claudeGpt: getBest('claudeGpt'),
+      geminiArgon: getBest('geminiArgon')
+    };
+
+    // Mapeamento dos modelos conhecidos para suas cotas
+    const knownModels = [
+      'gemini-3.8-flash-high',
+      'gemini-3.8-flash-medium',
+      'gemini-3.7-flash-high',
+      'gemini-3.1-pro-high',
+      'gemini-4-argon-high',
+      'claude-opus-5-5-high',
+      'claude-opus-5-5-medium',
+      'claude-sonnet-5-5-high',
+      'gpt-oss-120b-medium'
+    ];
+
+    const modelQuotaMap: MultiAccountQuotaOverview['modelQuotaMap'] = {};
+    const activeProfile = profiles.find(p => p.isActive) || profiles[0];
+
+    for (const modelId of knownModels) {
+      const family = this.getModelFamily(modelId);
+      const currentRemaining = activeProfile?.modelSummary[family]?.remaining ?? 0;
+      const best = bestAccountsByFamily[family];
+      const bestRemaining = best?.remaining ?? currentRemaining;
+      
+      modelQuotaMap[modelId] = {
+        family,
+        currentAccountRemaining: currentRemaining,
+        bestPoolRemaining: bestRemaining,
+        bestAccountEmail: best?.email ?? null,
+        bestAccountName: best?.name ?? null,
+        isBlocked: bestRemaining <= 5
+      };
+    }
+
+    return {
+      activeEmail,
+      accounts: profiles,
+      bestAccountsByFamily,
+      modelQuotaMap
+    };
+  }
+
+  /**
+   * Roteia automaticamente para a conta do pool com maior cota para o modelo selecionado
+   */
+  async routeByModel(modelId: string, minQuotaThreshold = 5): Promise<RouteByModelResponse> {
+    await this.init();
+    const family = this.getModelFamily(modelId);
+    const overview = await this.getMultiAccountQuotaOverview(false);
+
+    const activeProfile = overview.accounts.find(p => p.isActive);
+    const currentEmail = overview.activeEmail || (activeProfile ? activeProfile.email : '');
+    const currentQuota = activeProfile?.modelSummary[family]?.remaining ?? 0;
+
+    const best = overview.bestAccountsByFamily[family];
+    const bestQuota = best?.remaining ?? 0;
+
+    // Se a melhor conta do pool tiver cota crítica/esgotada (ex <= 5%)
+    if (bestQuota < minQuotaThreshold) {
+      return {
+        success: false,
+        model: modelId,
+        family,
+        switched: false,
+        previousEmail: currentEmail,
+        currentEmail,
+        accountName: activeProfile?.name || 'Conta Atual',
+        remainingQuota: currentQuota,
+        isBlocked: true,
+        message: `Cota esgotada para ${modelId} em todas as contas cadastradas (< ${minQuotaThreshold}% restante).`
+      };
+    }
+
+    // Se a conta atual já tem cota suficiente e é a melhor (ou tem pelo menos 20% e a diferença é pequena)
+    if (activeProfile && activeProfile.email.toLowerCase() === best?.email.toLowerCase()) {
+      return {
+        success: true,
+        model: modelId,
+        family,
+        switched: false,
+        previousEmail: currentEmail,
+        currentEmail,
+        accountName: activeProfile.name,
+        remainingQuota: currentQuota,
+        isBlocked: false,
+        message: `Conta atual (${activeProfile.name}) já possui a melhor cota (${currentQuota}% restante).`
+      };
+    }
+
+    // Se outra conta tiver significativamente mais cota (ou a atual estiver <= 5%)
+    if (best && best.email && best.email.toLowerCase() !== currentEmail.toLowerCase()) {
+      const switchResult = await accountService.switchAccount(best.email);
+      // Atualiza o estado da cota para refletir a nova conta
+      await this.fetchLiveQuotaFromGoogle(true).catch(() => {});
+
+      return {
+        success: true,
+        model: modelId,
+        family,
+        switched: true,
+        previousEmail: currentEmail,
+        currentEmail: switchResult.email,
+        accountName: switchResult.name,
+        remainingQuota: bestQuota,
+        isBlocked: false,
+        message: `Roteamento por Cota: alternado automaticamente para ${switchResult.name} (${bestQuota}% disponível).`
+      };
+    }
+
+    return {
+      success: true,
+      model: modelId,
+      family,
+      switched: false,
+      previousEmail: currentEmail,
+      currentEmail,
+      accountName: activeProfile?.name || 'Conta Atual',
+      remainingQuota: currentQuota,
+      isBlocked: false,
+      message: `Conta mantida com ${currentQuota}% disponível.`
     };
   }
 }

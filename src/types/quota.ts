@@ -53,12 +53,62 @@ export interface TokenAggregatedUsage {
   last_recorded_at: string | null;
 }
 
-export interface QuotaStatsResponse {
-  gemini: ModelQuotaGroup;
-  claudeGpt: ModelQuotaGroup;
-  tokenUsage: TokenAggregatedUsage;
-  lastSync: number;
-  isLive: boolean;
-  accountEmail: string | null;
-  recordsCount: number;
+export interface AccountModelQuotaSummary {
+  remaining: number; // Menor entre weekly e 5h, ou 0 se bloqueado
+  weeklyRemaining: number;
+  fiveHourRemaining: number;
+  resetAt: number | null;
+  isAvailable: boolean;
+  message?: string | null;
 }
+
+export interface AccountQuotaProfile {
+  email: string;
+  name: string;
+  picture: string | null;
+  isActive: boolean;
+  groups: QuotaGroup[];
+  modelSummary: {
+    gemini: AccountModelQuotaSummary;
+    claudeGpt: AccountModelQuotaSummary;
+    geminiArgon: AccountModelQuotaSummary;
+  };
+  lastUpdated: string;
+}
+
+export interface MultiAccountQuotaOverview {
+  activeEmail: string | null;
+  accounts: AccountQuotaProfile[];
+  bestAccountsByFamily: {
+    gemini: { email: string; remaining: number; name: string } | null;
+    claudeGpt: { email: string; remaining: number; name: string } | null;
+    geminiArgon: { email: string; remaining: number; name: string } | null;
+  };
+  modelQuotaMap: Record<string, {
+    family: 'gemini' | 'claudeGpt' | 'geminiArgon';
+    currentAccountRemaining: number;
+    bestPoolRemaining: number;
+    bestAccountEmail: string | null;
+    bestAccountName: string | null;
+    isBlocked: boolean; // se todas as contas no pool têm <= threshold
+  }>;
+}
+
+export interface RouteByModelRequest {
+  model: string;
+  minQuotaThreshold?: number; // Padrão 5%
+}
+
+export interface RouteByModelResponse {
+  success: boolean;
+  model: string;
+  family: 'gemini' | 'claudeGpt' | 'geminiArgon';
+  switched: boolean;
+  previousEmail: string | null;
+  currentEmail: string;
+  accountName: string;
+  remainingQuota: number;
+  isBlocked: boolean;
+  message: string;
+}
+

@@ -173,6 +173,24 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             <Activity className="w-3.5 h-3.5 text-secondary" />
             <span>Balão de Cotas</span>
           </label>
+
+          <label className="cursor-pointer flex items-center gap-1.5 text-base-content/80 select-none">
+            <input
+              data-testid="options-auto-route-model"
+              type="checkbox"
+              checked={options.autoRouteByModelQuota !== false}
+              onChange={(e) => {
+                const val = e.target.checked;
+                update({ autoRouteByModelQuota: val });
+                try {
+                  localStorage.setItem('kraken_auto_route_model', String(val));
+                } catch {}
+              }}
+              className="checkbox checkbox-xs checkbox-primary"
+            />
+            <Zap className="w-3.5 h-3.5 text-amber-400" />
+            <span>Auto-Rotear por Cota</span>
+          </label>
         </div>
       </div>
     </div>

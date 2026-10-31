@@ -163,6 +163,61 @@ export interface ChatOptions {
   chatMode?: 'agent' | 'chat';
   accountEmail?: string;
   showQuotaBubble?: boolean;
+  autoRouteByModelQuota?: boolean;
+}
+
+export interface AccountModelQuotaSummary {
+  remaining: number;
+  weeklyRemaining: number;
+  fiveHourRemaining: number;
+  resetAt: number | null;
+  isAvailable: boolean;
+  message?: string | null;
+}
+
+export interface AccountQuotaProfile {
+  email: string;
+  name: string;
+  picture: string | null;
+  isActive: boolean;
+  groups: QuotaGroup[];
+  modelSummary: {
+    gemini: AccountModelQuotaSummary;
+    claudeGpt: AccountModelQuotaSummary;
+    geminiArgon: AccountModelQuotaSummary;
+  };
+  lastUpdated: string;
+}
+
+export interface MultiAccountQuotaOverview {
+  activeEmail: string | null;
+  accounts: AccountQuotaProfile[];
+  bestAccountsByFamily: {
+    gemini: { email: string; remaining: number; name: string } | null;
+    claudeGpt: { email: string; remaining: number; name: string } | null;
+    geminiArgon: { email: string; remaining: number; name: string } | null;
+  };
+  modelQuotaMap: Record<string, {
+    family: 'gemini' | 'claudeGpt' | 'geminiArgon';
+    currentAccountRemaining: number;
+    bestPoolRemaining: number;
+    bestAccountEmail: string | null;
+    bestAccountName: string | null;
+    isBlocked: boolean;
+  }>;
+}
+
+export interface RouteByModelResponse {
+  success: boolean;
+  model: string;
+  family: 'gemini' | 'claudeGpt' | 'geminiArgon';
+  switched: boolean;
+  previousEmail: string | null;
+  currentEmail: string;
+  accountName: string;
+  remainingQuota: number;
+  isBlocked: boolean;
+  message: string;
 }
 
 export interface ProjectWorkspace {
