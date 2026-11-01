@@ -4,12 +4,14 @@ import type { Request, Response, NextFunction } from 'express';
 
 /**
  * Injeta ou substitui a tag <base href="..."> no <head> do HTML.
+ * Suporta tags auto-fechadas com ou sem espaços (ex: <base href="/" />).
  */
 export function injectBaseHref(html: string, baseHref: string): string {
-  if (!html.includes('<base ')) {
+  const baseRegex = /<base\s+href="[^"]*"\s*\/?>/i;
+  if (!baseRegex.test(html)) {
     return html.replace('<head>', `<head>\n    <base href="${baseHref}">`);
   }
-  return html.replace(/<base href="[^"]*">/, `<base href="${baseHref}">`);
+  return html.replace(baseRegex, `<base href="${baseHref}">`);
 }
 
 /**

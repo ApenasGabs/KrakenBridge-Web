@@ -22,11 +22,14 @@ describe('SPA Routing Resilience & Asset Interception (Issue #93)', () => {
 
     fs.mkdirSync(assetsDir, { recursive: true });
 
-    // Mock index.html
+    // Mock index.html com tag auto-fechada como em produção (Issue #114)
     const sampleHtml = `<!doctype html>
 <html>
   <head>
     <meta charset="UTF-8" />
+    <base href="/" />
+    <link rel="icon" type="image/svg+xml" href="./kraken-icon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <title>Kraken</title>
     <script type="module" src="./assets/index-test.js"></script>
     <link rel="stylesheet" href="./assets/index-test.css" />
@@ -68,6 +71,34 @@ describe('SPA Routing Resilience & Asset Interception (Issue #93)', () => {
       const result = injectBaseHref(html, '/chat/');
       expect(result).toContain('<base href="/chat/">');
       expect(result).not.toContain('<base href="/">');
+    });
+
+    it('deve substituir uma tag auto-fechada <base href="/" /> por <base href="/chat/"> (Issue #114)', () => {
+      const html = '<!doctype html><html><head><base href="/" /><title>Test</title></head></html>';
+      const result = injectBaseHref(html, '/chat/');
+      expect(result).toContain('<base href="/chat/">');
+      expect(result).not.toContain('<base href="/" />');
+      expect(result).not.toContain('/>');
+    });
+
+    it('deve suportar variações com múltiplos espaços e maiúsculas (ex: <BASE   HREF="/"   />)', () => {
+      const html = '<!doctype html><html><head><BASE   HREF="/"   /><title>Test</title></head></html>';
+      const result = injectBaseHref(html, '/chat/');
+      expect(result).toContain('<base href="/chat/">');
+      expect(result).not.toContain('<BASE');
+      expect(result).not.toContain('/>');
+    });
+
+    it('deve manter caminhos relativos de ícones e manifest intactos na presença de <base href="/chat/">', () => {
+      const html = `<!doctype html><html><head>
+        <base href="/" />
+        <link rel="icon" type="image/svg+xml" href="./kraken-icon.svg" />
+        <link rel="manifest" href="./manifest.webmanifest" />
+      </head></html>`;
+      const result = injectBaseHref(html, '/chat/');
+      expect(result).toContain('<base href="/chat/">');
+      expect(result).toContain('href="./kraken-icon.svg"');
+      expect(result).toContain('href="./manifest.webmanifest"');
     });
   });
 
@@ -199,6 +230,9 @@ describe('SPA Routing Resilience & Asset Interception (Issue #93)', () => {
 
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/html; charset=UTF-8');
       expect(sentBody).toContain('<base href="/chat/">');
+      expect(sentBody).not.toContain('<base href="/" />');
+      expect(sentBody).toContain('href="./kraken-icon.svg"');
+      expect(sentBody).toContain('href="./manifest.webmanifest"');
     });
   });
 });
