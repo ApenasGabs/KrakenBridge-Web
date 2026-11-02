@@ -701,3 +701,193 @@ export function getActiveVerbsList(config: SpinnerVerbsConfig = getSpinnerVerbsC
 
   return Array.from(new Set(list));
 }
+
+// Mapeamento contextual de verbos por categoria de ferramenta (Estilo Claude Code)
+export const TOOL_CATEGORY_VERBS: Record<string, string[]> = {
+  read: [
+    "Reading",
+    "Perusing",
+    "Deciphering",
+    "Inspecting",
+    "Examining",
+    "Burrowing",
+    "Scanning",
+    "Dissecting",
+    "Browsing"
+  ],
+  write: [
+    "Editing",
+    "Writing",
+    "Refactoring",
+    "Sculpting",
+    "Crafting",
+    "Forging",
+    "Caramelizing",
+    "Polishing",
+    "Patching"
+  ],
+  command: [
+    "Running",
+    "Executing",
+    "Actioning",
+    "Building",
+    "Testing",
+    "Gitifying",
+    "Compiling",
+    "Bootstrapping"
+  ],
+  search: [
+    "Searching",
+    "Spelunking",
+    "Meandering",
+    "Hunting",
+    "Navigating",
+    "Exploring"
+  ],
+  mcp: [
+    "Connecting",
+    "Channeling",
+    "Synthesizing",
+    "Bridging",
+    "Integrating",
+    "Recalling"
+  ],
+  orchestrate: [
+    "Orchestrating",
+    "Choreographing",
+    "Delegating",
+    "Herding"
+  ],
+  thinking: [
+    "Cogitating",
+    "Pondering",
+    "Contemplating",
+    "Deliberating",
+    "Synthesizing",
+    "Architecting",
+    "Ideating",
+    "Clauding",
+    "Thinking"
+  ]
+};
+
+export function getCategoryForTool(tool?: { name?: string }): string {
+  if (!tool || !tool.name) return 'thinking';
+  const name = tool.name.toLowerCase();
+
+  if (
+    name.includes('read_file') ||
+    name.includes('read_resource') ||
+    name.includes('list_resources') ||
+    name.includes('list_tables') ||
+    name.includes('cat') ||
+    name.startsWith('get_') ||
+    name.startsWith('list_') ||
+    name.includes('query_logs')
+  ) {
+    return 'read';
+  }
+
+  if (
+    name.includes('edit_file') ||
+    name.includes('write_file') ||
+    name.includes('apply_migration') ||
+    name.includes('patch') ||
+    name.startsWith('create_') ||
+    name.startsWith('update_') ||
+    name.startsWith('delete_') ||
+    name.startsWith('add_') ||
+    name.startsWith('remove_') ||
+    name.includes('execute_sql')
+  ) {
+    return 'write';
+  }
+
+  if (
+    name.includes('run_command') ||
+    name.includes('bash') ||
+    name.includes('exec') ||
+    name.includes('terminal') ||
+    name.startsWith('deploy_')
+  ) {
+    return 'command';
+  }
+
+  if (
+    name.includes('search_web') ||
+    name.includes('grep') ||
+    name.includes('find') ||
+    name.includes('explore') ||
+    name.includes('search')
+  ) {
+    return 'search';
+  }
+
+  if (
+    name.includes('call_mcp_tool') ||
+    name.includes('memory_') ||
+    name.includes('mcp')
+  ) {
+    return 'mcp';
+  }
+
+  if (
+    name.includes('subagent') ||
+    name.includes('send_message') ||
+    name.includes('manage_task')
+  ) {
+    return 'orchestrate';
+  }
+
+  return 'thinking';
+}
+
+function formatTargetFilename(pathStr: string): string {
+  const clean = pathStr.trim().replace(/^["']|["']$/g, '');
+  const segments = clean.split(/[/\\]/);
+  if (segments.length <= 2) return segments.join('/');
+  return segments.slice(-2).join('/');
+}
+
+export function getTargetForTool(tool?: {
+  name?: string;
+  command?: string;
+  summary?: string;
+  args?: Record<string, unknown>;
+}): string | undefined {
+  if (!tool) return undefined;
+
+  const args = tool.args;
+  const path = (args?.Path as string) || (args?.file_path as string) || (args?.TargetFile as string) || (args?.Uri as string);
+  if (path) {
+    return formatTargetFilename(path);
+  }
+
+  if (tool.name === 'run_command' || tool.name === 'bash') {
+    const cmd = (args?.CommandLine as string) || tool.command || (args?.toolSummary as string) || tool.summary;
+    if (cmd) {
+      const trimmed = cmd.trim();
+      const firstLine = trimmed.split('\n')[0].trim();
+      return firstLine.length > 32 ? firstLine.slice(0, 30) + '…' : firstLine;
+    }
+  }
+
+  if (tool.name === 'search_web') {
+    const query = (args?.query as string);
+    if (query) {
+      return query.length > 25 ? `"${query.slice(0, 23)}…"` : `"${query}"`;
+    }
+  }
+
+  if (tool.name === 'call_mcp_tool') {
+    const toolName = (args?.ToolName as string) || (args?.ServerName as string);
+    if (toolName) return toolName;
+  }
+
+  if (tool.summary) {
+    return tool.summary.length > 28 ? tool.summary.slice(0, 26) + '…' : tool.summary;
+  }
+
+  return undefined;
+}
+

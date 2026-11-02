@@ -272,4 +272,27 @@ describe('ChatInput Component - Prompt Refiner Sob Demanda (Issue #103)', () => 
       'ajustar responsividade do modal de configuracoes em 375px'
     );
   });
+
+  it('deve manter botões MCPs e Refinar acessíveis com touch targets dedicados e rótulos legíveis', () => {
+    const onOpenMcp = vi.fn();
+    render(
+      <ChatInput
+        prompt="teste de layout mobile"
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onOpenMcpModal={onOpenMcp}
+      />
+    );
+
+    const mcpBtn = screen.getByTitle('Visualizar servidores MCP integrados');
+    expect(mcpBtn).toBeInTheDocument();
+    expect(mcpBtn.textContent).toContain('MCPs');
+
+    const refineBtn = screen.getByTestId('chat-refine-btn');
+    expect(refineBtn).toBeInTheDocument();
+    expect(refineBtn.textContent).toContain('Refinar');
+
+    fireEvent.click(mcpBtn);
+    expect(onOpenMcp).toHaveBeenCalledTimes(1);
+  });
 });
