@@ -1037,71 +1037,73 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           />
 
           {/* Barra de Ferramentas Inferior do Prompt (Modelo, MCPs, Refinar, Microfone, Envio) */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center justify-between px-2.5 sm:px-3 pb-2 sm:pb-2.5 pt-1 border-t border-base-300/40 gap-1">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-2.5 sm:px-3 pb-2 sm:pb-2.5 pt-1.5 border-t border-base-300/40 gap-1.5 sm:gap-1">
             
-            {/* Lado Esquerdo: Botão +, Dropdown do Modelo, Toggle Agente/Chat e Botão MCPs */}
-            <div className="flex items-center gap-1 sm:gap-1.5 model-dropdown-container relative flex-1 min-w-0">
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm sm:btn-xs btn-circle min-h-[36px] min-w-[36px] sm:min-h-0 sm:min-w-0 text-base-content/50 hover:text-base-content transition-colors shrink-0"
-                title="Opções adicionais / contexto"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-
-              {/* Botão Seletor de Modelo */}
-              <button
-                type="button"
-                onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                className="flex items-center gap-1 min-h-[36px] sm:min-h-[32px] px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg text-sky-400 hover:text-sky-300 hover:bg-base-300/50 text-xs font-medium transition-all group select-none shrink-0"
-                title="Clique para trocar o modelo diretamente aqui"
-              >
-                <span>
-                  <span className="hidden sm:inline">{formatModelName(currentModel)}</span>
-                  <span className="sm:hidden">{formatShortModelName(currentModel)}</span>
-                </span>
-                <ChevronUp className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180 text-sky-300' : 'text-sky-400/80 group-hover:text-sky-300'}`} />
-              </button>
-
-              {/* Seletor Rápido de Modo: Agente vs Chat */}
-              <div className="flex items-center bg-base-300/60 p-0.5 rounded-lg border border-base-300/80 shrink-0 select-none">
+            {/* Linha 1 no Mobile / Lado Esquerdo no Desktop: Botão +, Dropdown do Modelo, Toggle Agente/Chat e Botão MCPs */}
+            <div className="flex items-center justify-between sm:justify-start gap-1 sm:gap-1.5 model-dropdown-container relative min-w-0">
+              <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                 <button
                   type="button"
-                  onClick={() => onChatModeChange?.('agent')}
-                  className={`flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-0 px-2 sm:px-2 py-1.5 sm:py-0.5 rounded-md text-[11px] font-medium transition-all ${
-                    chatMode === 'agent'
-                      ? 'bg-primary text-primary-content shadow-sm'
-                      : 'text-base-content/60 hover:text-base-content'
-                  }`}
-                  title="Modo Agente: Autonomia total para criar/editar código e rodar testes"
+                  className="btn btn-ghost btn-sm sm:btn-xs btn-circle min-h-[32px] min-w-[32px] sm:min-h-0 sm:min-w-0 text-base-content/50 hover:text-base-content transition-colors shrink-0"
+                  title="Opções adicionais / contexto"
                 >
-                  <Zap className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
-                  <span className="hidden md:inline">Agente</span>
+                  <Plus className="w-4 h-4" />
                 </button>
+
+                {/* Botão Seletor de Modelo */}
                 <button
                   type="button"
-                  onClick={() => onChatModeChange?.('chat')}
-                  className={`flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-0 px-2 sm:px-2 py-1.5 sm:py-0.5 rounded-md text-[11px] font-medium transition-all ${
-                    chatMode === 'chat'
-                      ? 'bg-secondary text-secondary-content shadow-sm'
-                      : 'text-base-content/60 hover:text-base-content'
-                  }`}
-                  title="Modo Chat: Conversas e ferramentas MCP sem editar arquivos locais"
+                  onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+                  className="flex items-center gap-1 min-h-[32px] px-2 sm:px-2.5 py-1 rounded-lg text-sky-400 hover:text-sky-300 hover:bg-base-300/50 text-xs font-medium transition-all group select-none shrink-0"
+                  title="Clique para trocar o modelo diretamente aqui"
                 >
-                  <MessageSquare className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
-                  <span className="hidden md:inline">Chat</span>
+                  <span>
+                    <span className="hidden sm:inline">{formatModelName(currentModel)}</span>
+                    <span className="sm:hidden">{formatShortModelName(currentModel)}</span>
+                  </span>
+                  <ChevronUp className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${isModelMenuOpen ? 'rotate-180 text-sky-300' : 'text-sky-400/80 group-hover:text-sky-300'}`} />
                 </button>
+
+                {/* Seletor Rápido de Modo: Agente vs Chat */}
+                <div className="flex items-center bg-base-300/60 p-0.5 rounded-lg border border-base-300/80 shrink-0 select-none">
+                  <button
+                    type="button"
+                    onClick={() => onChatModeChange?.('agent')}
+                    className={`flex items-center justify-center gap-1 min-h-[30px] min-w-[30px] sm:min-h-[28px] sm:min-w-0 px-2 py-1 sm:py-0.5 rounded-md text-[11px] font-medium transition-all ${
+                      chatMode === 'agent'
+                        ? 'bg-primary text-primary-content shadow-sm'
+                        : 'text-base-content/60 hover:text-base-content'
+                    }`}
+                    title="Modo Agente: Autonomia total para criar/editar código e rodar testes"
+                  >
+                    <Zap className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
+                    <span className="hidden md:inline">Agente</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChatModeChange?.('chat')}
+                    className={`flex items-center justify-center gap-1 min-h-[30px] min-w-[30px] sm:min-h-[28px] sm:min-w-0 px-2 py-1 sm:py-0.5 rounded-md text-[11px] font-medium transition-all ${
+                      chatMode === 'chat'
+                        ? 'bg-secondary text-secondary-content shadow-sm'
+                        : 'text-base-content/60 hover:text-base-content'
+                    }`}
+                    title="Modo Chat: Conversas e ferramentas MCP sem editar arquivos locais"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 sm:w-3 sm:h-3" />
+                    <span className="hidden md:inline">Chat</span>
+                  </button>
+                </div>
               </div>
 
               {/* Botão MCPs de Acesso Rápido */}
               <button
                 type="button"
                 onClick={onOpenMcpModal}
-                className="flex items-center justify-center gap-1.5 min-h-[36px] min-w-[36px] sm:min-h-[32px] sm:min-w-0 px-2 py-1.5 sm:py-1 rounded-lg text-xs font-medium text-base-content/60 hover:text-primary hover:bg-base-300/50 transition-all shrink-0"
+                className="flex items-center justify-center gap-1.5 min-h-[32px] px-2 py-1 rounded-lg text-xs font-medium text-base-content/70 hover:text-primary hover:bg-base-300/50 transition-all shrink-0 border border-base-300/40 sm:border-transparent"
                 title="Visualizar servidores MCP integrados"
               >
                 <Boxes className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">MCPs</span>
+                <span className="text-[11px] font-medium">MCPs</span>
               </button>
 
               {/* Menu Popover Suspenso dos Modelos (abre para cima) */}
@@ -1217,8 +1219,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               )}
             </div>
 
-            {/* Lado Direito: Refinar Prompt, Microfone e Botão de Envio */}
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto">
+            {/* Linha 2 no Mobile / Lado Direito no Desktop: Refinar Prompt, Microfone e Botão de Envio */}
+            <div className="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 sm:ml-auto">
 
               {/* Botão Sob Demanda: ✨ Refinar Prompt */}
               <button
@@ -1236,7 +1238,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                         ? `Digite pelo menos ${MIN_REFINE_CHARS} caracteres para refinar (Ctrl+Shift+R)`
                         : 'Refinar prompt sob demanda (Ctrl+Shift+R)'
                 }
-                className={`flex items-center justify-center gap-1 min-h-[36px] min-w-[36px] sm:min-h-[32px] sm:min-w-0 px-2 sm:px-2.5 py-1.5 sm:py-1 rounded-lg text-xs font-medium transition-all shrink-0 ${
+                className={`flex items-center justify-center gap-1.5 min-h-[34px] px-2.5 sm:px-2.5 py-1 rounded-lg text-xs font-medium transition-all shrink-0 ${
                   isRefining
                     ? 'bg-primary/15 text-primary border border-primary/30'
                     : canRefine
@@ -1249,10 +1251,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 ) : (
                   <Sparkles className="w-3.5 h-3.5" />
                 )}
-                <span className="hidden md:inline">Refinar</span>
+                <span className="text-[11px] font-medium">Refinar</span>
               </button>
               
-              {/* Botão de Microfone */}
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                {/* Botão de Microfone */}
               <button
                 type="button"
                 onClick={toggleMic}
@@ -1373,6 +1376,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </button>
               )}
 
+              </div>
             </div>
           </div>
         </div>
