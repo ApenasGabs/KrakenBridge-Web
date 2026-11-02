@@ -2,8 +2,13 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { JwtPayload, AccountInfo, SavedAccount } from '../types/account.js';
 
-const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
-const ACCOUNTS_DIR = path.join(DATA_DIR, 'accounts');
+function getDataDir(): string {
+  return process.env.DATA_DIR || path.resolve('data');
+}
+
+function getAccountsDir(): string {
+  return path.join(getDataDir(), 'accounts');
+}
 const TOKEN_PATH = process.env.AGY_TOKEN_PATH || '/root/.gemini/antigravity-cli/antigravity-oauth-token';
 
 function sanitizeEmail(email?: string | null): string {
@@ -38,7 +43,7 @@ class AccountService {
   async init(): Promise<void> {
     if (this.initialized) return;
     try {
-      await fs.mkdir(ACCOUNTS_DIR, { recursive: true });
+      await fs.mkdir(getAccountsDir(), { recursive: true });
       await this.discoverAndImportTokens();
     } catch (e) {
       console.warn('[AccountService] Erro ao inicializar diretório de contas:', (e as Error).message);
@@ -130,12 +135,12 @@ class AccountService {
    * Salva os dados de uma conta no store de múltiplas contas
    */
   async saveTokenData(rawJson: unknown, setActive = false): Promise<StoredAccountRecord | null> {
-    await fs.mkdir(ACCOUNTS_DIR, { recursive: true });
+    await fs.mkdir(getAccountsDir(), { recursive: true });
     const info = this.extractAccountInfo(rawJson);
     if (!info || !info.email || !info.hasToken) return null;
 
     const fileName = `${sanitizeEmail(info.email)}.json`;
-    const filePath = path.join(ACCOUNTS_DIR, fileName);
+    const filePath = path.join(getAccountsDir(), fileName);
 
     const record: StoredAccountRecord = {
       email: info.email,
@@ -187,11 +192,11 @@ class AccountService {
     const accounts: SavedAccount[] = [];
 
     try {
-      const files = await fs.readdir(ACCOUNTS_DIR);
+      const files = await fs.readdir(getAccountsDir());
       for (const file of files) {
         if (!file.endsWith('.json')) continue;
         try {
-          const content = await fs.readFile(path.join(ACCOUNTS_DIR, file), 'utf8');
+          const content = await fs.readFile(path.join(getAccountsDir(), file), 'utf8');
           const parsed = JSON.parse(content) as StoredAccountRecord;
           accounts.push({
             email: parsed.email,
@@ -220,7 +225,7 @@ class AccountService {
     await this.init();
     if (!email) throw new Error('Email da conta não informado.');
 
-    const targetFile = path.join(ACCOUNTS_DIR, `${sanitizeEmail(email)}.json`);
+    const targetFile = path.join(getAccountsDir(), `${sanitizeEmail(email)}.json`);
     const exists = await fs.access(targetFile).then(() => true).catch(() => false);
     if (!exists) {
       throw new Error(`Conta ${email} não encontrada no armazenamento local.`);
@@ -246,7 +251,7 @@ class AccountService {
     await this.init();
     if (!email) throw new Error('Email da conta não informado.');
 
-    const targetFile = path.join(ACCOUNTS_DIR, `${sanitizeEmail(email)}.json`);
+    const targetFile = path.join(getAccountsDir(), `${sanitizeEmail(email)}.json`);
     try {
       await fs.unlink(targetFile);
     } catch (e) {}
@@ -267,7 +272,7 @@ class AccountService {
     if (!email) return process.env.HOME || '/root';
 
     await this.init();
-    const targetFile = path.join(ACCOUNTS_DIR, `${sanitizeEmail(email)}.json`);
+    const targetFile = path.join(getAccountsDir(), `${sanitizeEmail(email)}.json`);
     const exists = await fs.access(targetFile).then(() => true).catch(() => false);
     if (!exists) {
       console.warn(`[AccountService] Conta ${email} não encontrada para isolamento, usando HOME padrão.`);
@@ -278,7 +283,7 @@ class AccountService {
       const content = await fs.readFile(targetFile, 'utf8');
       const record = JSON.parse(content) as StoredAccountRecord;
       const safeDirName = sanitizeEmail(email);
-      const accountHome = path.join(DATA_DIR, 'account_homes', safeDirName);
+      const accountHome = path.join(getDataDir(), 'account_homes', safeDirName);
       const geminiDir = path.join(accountHome, '.gemini');
       const cliDir = path.join(geminiDir, 'antigravity-cli');
 
@@ -296,6 +301,20 @@ class AccountService {
       }
 
       // Escreve o token específico desta conta
+      // Garante que .config, .gitconfig e .ssh estejam acess?veis na conta isolada
+      for (const item of ['.config', '.gitconfig', '.ssh']) {
+        const src = path.join('/root', item);
+        const dest = path.join(accountHome, item);
+        try {
+          await fs.access(dest);
+        } catch {
+          try {
+            await fs.symlink(src, dest, 'junction').catch(async () => {});
+          } catch {}
+        }
+      }
+
+      // Escreve o token espec?fico desta conta
       const isolatedTokenPath = path.join(cliDir, 'antigravity-oauth-token');
       await fs.writeFile(isolatedTokenPath, record.raw, { encoding: 'utf8', mode: 0o600 });
 
