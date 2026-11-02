@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.25.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.24.0...v1.25.0) (2026-11-02)
+
+### ✨ Features
+
+* **ui:** spinner verbs contextuais no estilo claude code e correcao mobile refinar/mcp (Refs [#120](https://github.com/ApenasGabs/KrakenBridge-Web/issues/120)) ([#121](https://github.com/ApenasGabs/KrakenBridge-Web/issues/121)) ([c1449ef](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c1449efadb2b0545ec27b408d35164ae4ac824a3))
+
 ## [1.24.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.23.0...v1.24.0) (2026-10-31)
 
 ### ✨ Features
