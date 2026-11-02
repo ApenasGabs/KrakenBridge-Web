@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.25.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.0...v1.25.1) (2026-11-02)
+
+### 🐛 Bug Fixes
+
+* **routing:** suporte resiliente a subcaminho /chat no Cloudflare Tunnel e regex de base href (Refs [#114](https://github.com/ApenasGabs/KrakenBridge-Web/issues/114)) ([405ac76](https://github.com/ApenasGabs/KrakenBridge-Web/commit/405ac761044e215593a7bfc24d98d24d2f9fd320))
+
 ## [1.25.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.24.0...v1.25.0) (2026-11-02)
 
 ### ✨ Features
