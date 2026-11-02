@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.25.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.1...v1.25.2) (2026-11-02)
+
+### 🐛 Bug Fixes
+
+* **auth:** injetar token github no systemVersionService e propagar git credentials em accountHome (Refs [#122](https://github.com/ApenasGabs/KrakenBridge-Web/issues/122)) ([#123](https://github.com/ApenasGabs/KrakenBridge-Web/issues/123)) ([0bf0f58](https://github.com/ApenasGabs/KrakenBridge-Web/commit/0bf0f5852ce6baec73b49f86d6f1938438eba025))
+
 ## [1.25.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.0...v1.25.1) (2026-11-02)
 
 ### 🐛 Bug Fixes
