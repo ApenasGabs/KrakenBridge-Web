@@ -413,7 +413,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
         {/* Conteúdo Principal em Markdown */}
         <div className="text-sm prose prose-sm max-w-none text-base-content leading-relaxed">
           {message.isStreaming && !isUser && !message.text ? (
-            <SpinnerVerbs startTime={message.timestamp} />
+            <SpinnerVerbs
+              startTime={message.timestamp}
+              toolCalls={message.toolCalls}
+              thinking={message.thinking}
+            />
           ) : (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}

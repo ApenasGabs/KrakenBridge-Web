@@ -30,4 +30,6 @@ frontend/dist/
 dist-server/
 bin/
 .config/
+
+# Runtime Skill Scout
 .agents/
