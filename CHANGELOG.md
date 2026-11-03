@@ -5,6 +5,17 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.25.3](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.2...v1.25.3) (2026-11-03)
+
+### 🐛 Bug Fixes
+
+* **infra:** anonimizar dados de url hostname e credenciais para uso publico no homelab ([fc4c88a](https://github.com/ApenasGabs/KrakenBridge-Web/commit/fc4c88a1014670e8217aed6ab7732b7e6b2e7419))
+* **routing:** suporte a tag auto-fechada no base href para subcaminho /chat (Refs [#114](https://github.com/ApenasGabs/KrakenBridge-Web/issues/114)) ([0782dc6](https://github.com/ApenasGabs/KrakenBridge-Web/commit/0782dc6aa70563bc56d0a47308fa91b3c8d352ac))
+
+### 🔧 Chores
+
+* **merge:** sincronizar main e resolver conflitos no spaRoutingHelper e testes ([aa6498f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/aa6498ffa05ed6a905e5149386a5c4a07f019615))
+
 ## [1.25.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.1...v1.25.2) (2026-11-02)
 
 ### 🐛 Bug Fixes
