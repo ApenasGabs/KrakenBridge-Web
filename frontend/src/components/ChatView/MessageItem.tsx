@@ -378,7 +378,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
       </div>
 
       {/* Conteúdo da mensagem */}
-      <div className={`chat-bubble max-w-[92vw] sm:max-w-2xl text-left ${isUser ? 'chat-bubble-primary' : 'bg-base-200 text-base-content border border-base-300/80 shadow-sm'}`}>
+      <div className={`chat-bubble max-w-[calc(100%-0.5rem)] sm:max-w-2xl min-w-0 text-left ${isUser ? 'chat-bubble-primary' : 'bg-base-200 text-base-content border border-base-300/80 shadow-sm'}`}>
         
         {/* Acordeão de Raciocínio (Thinking) */}
         {message.thinking && (
@@ -411,7 +411,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
         )}
 
         {/* Conteúdo Principal em Markdown */}
-        <div className="text-sm prose prose-sm max-w-none text-base-content leading-relaxed">
+        <div className="text-sm prose prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] text-base-content leading-relaxed">
           {message.isStreaming && !isUser && !message.text ? (
             <SpinnerVerbs
               startTime={message.timestamp}

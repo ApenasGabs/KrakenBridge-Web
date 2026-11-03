@@ -123,10 +123,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
   ];
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-200/30 relative">
+    <div className="flex-1 flex flex-col h-full min-w-0 min-h-0 overflow-hidden bg-base-200/30 relative">
       {/* Barra Superior de Contexto do Projeto */}
-      <div className="px-3 py-1.5 border-b border-base-300/60 bg-base-100/60 backdrop-blur-sm flex items-center justify-between z-10">
-        <div className="flex items-center gap-2 relative">
+      <div className="px-3 py-1.5 border-b border-base-300/60 bg-base-100/60 backdrop-blur-sm flex items-center justify-between gap-2 min-w-0 z-10">
+        <div className="flex items-center gap-2 relative min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-xs text-base-content/60">
             <FolderGit2 className="w-3.5 h-3.5 text-primary" />
             <span className="hidden sm:inline">Projeto Ativo:</span>
@@ -193,7 +193,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
 
           {tags && tags.length > 0 && (
-            <div className="flex items-center gap-1 overflow-x-auto max-w-[200px] sm:max-w-xs scrollbar-none py-0.5 ml-1">
+            <div className="flex items-center gap-1 overflow-x-auto min-w-0 max-w-[200px] sm:max-w-xs scrollbar-none py-0.5 ml-1">
               {tags.map(tag => (
                 <span key={tag} className="badge badge-primary/15 text-primary border-primary/25 badge-xs text-[9.5px] font-mono shrink-0">
                   #{tag}
@@ -204,7 +204,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         </div>
 
         {/* Lado Direito: Fila de Mensagens & Botão Spinner Verbs */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {messageQueue.length > 0 && (
             <div className="flex items-center gap-1 text-[11px] font-medium text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/20">
               <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
@@ -229,9 +229,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-2.5 sm:px-4 py-3 sm:py-6"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 sm:px-4 py-3 sm:py-6"
       >
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto min-w-0">
           {messages.length === 0 ? (
             <div className="py-12 sm:py-20 text-center">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center mb-4 shadow-sm">

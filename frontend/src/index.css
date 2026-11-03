@@ -76,6 +76,13 @@
   --noise: 1;
 }
 
+/* Layout de app: a página nunca rola; só os containers internos (Issue #125) */
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -130,7 +137,9 @@ code, kbd, samp, pre {
 }
 
 .prose table {
-  width: 100%;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
   margin: 0.75rem 0;
   font-size: 0.825rem;
@@ -151,6 +160,10 @@ code, kbd, samp, pre {
   color: var(--color-primary);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+.prose pre, .prose img, .prose video {
+  max-width: 100%;
 }
 
 .prose hr {
