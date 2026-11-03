@@ -69,6 +69,21 @@ describe('SPA Routing Resilience & Asset Interception (Issue #93)', () => {
       expect(result).toContain('<base href="/chat/">');
       expect(result).not.toContain('<base href="/">');
     });
+
+    it('deve substituir tag auto-fechada <base href="/" /> com espaco e barra (Issue #114)', () => {
+      const html = '<!doctype html><html><head><base href="/" /><title>Test</title></head></html>';
+      const result = injectBaseHref(html, '/chat/');
+      expect(result).toContain('<base href="/chat/">');
+      expect(result).not.toContain('<base href="/" />');
+    });
+
+    it('deve substituir tag auto-fechada sem espaco <base href="/"/> e com aspas simples', () => {
+      const html1 = '<head><base href="/"/></head>';
+      expect(injectBaseHref(html1, '/chat/')).toContain('<base href="/chat/">');
+
+      const html2 = "<head><base href='/' /></head>";
+      expect(injectBaseHref(html2, '/chat/')).toContain('<base href="/chat/">');
+    });
   });
 
   describe('getBaseHrefForRequest', () => {
@@ -84,6 +99,11 @@ describe('SPA Routing Resilience & Asset Interception (Issue #93)', () => {
       expect(getBaseHrefForRequest({ originalUrl: '/chat/c/9a2bffae-ea21-47c6-855e-4bdb9c2b3adf' })).toBe('/chat/');
       expect(getBaseHrefForRequest({ baseUrl: '/chat' })).toBe('/chat/');
       expect(getBaseHrefForRequest({ path: '/chat/whatsnext' })).toBe('/chat/');
+    });
+
+    it('deve retornar "/chat/" quando cabeçalho x-forwarded-prefix ou x-forwarded-uri indicar /chat', () => {
+      expect(getBaseHrefForRequest({ originalUrl: '/', headers: { 'x-forwarded-prefix': '/chat' } })).toBe('/chat/');
+      expect(getBaseHrefForRequest({ originalUrl: '/', headers: { 'x-forwarded-uri': '/chat/overview' } })).toBe('/chat/');
     });
   });
 

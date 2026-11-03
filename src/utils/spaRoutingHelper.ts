@@ -4,20 +4,36 @@ import type { Request, Response, NextFunction } from 'express';
 
 /**
  * Injeta ou substitui a tag <base href="..."> no <head> do HTML.
+ * Suporta tags abertas (<base href="...">), auto-fechadas (<base href="..." />)
+ * com aspas simples ou duplas e espaços opcionais.
  */
 export function injectBaseHref(html: string, baseHref: string): string {
   if (!html.includes('<base ')) {
     return html.replace('<head>', `<head>\n    <base href="${baseHref}">`);
   }
-  return html.replace(/<base href="[^"]*">/, `<base href="${baseHref}">`);
+  return html.replace(/<base\s+href=["'][^"']*["']\s*\/?>/i, `<base href="${baseHref}">`);
 }
 
 /**
  * Determina a URL base canônica para a requisição atual (/ ou /chat/).
  */
-export function getBaseHrefForRequest(req: { originalUrl?: string; baseUrl?: string; path?: string }): string {
+export function getBaseHrefForRequest(req: {
+  originalUrl?: string;
+  baseUrl?: string;
+  path?: string;
+  headers?: Record<string, string | string[] | undefined>;
+}): string {
   const url = req.originalUrl || req.path || '';
-  const isSubpath = url.startsWith('/chat') || req.baseUrl === '/chat';
+  const forwardedPrefix = req.headers?.['x-forwarded-prefix'];
+  const forwardedUri = req.headers?.['x-forwarded-uri'];
+  const prefixStr = typeof forwardedPrefix === 'string' ? forwardedPrefix : '';
+  const uriStr = typeof forwardedUri === 'string' ? forwardedUri : '';
+
+  const isSubpath =
+    url.startsWith('/chat') ||
+    req.baseUrl === '/chat' ||
+    prefixStr.startsWith('/chat') ||
+    uriStr.startsWith('/chat');
   return isSubpath ? '/chat/' : '/';
 }
 
