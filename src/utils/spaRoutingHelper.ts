@@ -8,10 +8,11 @@ import type { Request, Response, NextFunction } from 'express';
  * com aspas simples ou duplas e espaços opcionais.
  */
 export function injectBaseHref(html: string, baseHref: string): string {
-  if (!html.includes('<base ')) {
+  const baseRegex = /<base\s+href=["'][^"']*["']\s*\/?>/i;
+  if (!baseRegex.test(html)) {
     return html.replace('<head>', `<head>\n    <base href="${baseHref}">`);
   }
-  return html.replace(/<base\s+href=["'][^"']*["']\s*\/?>/i, `<base href="${baseHref}">`);
+  return html.replace(baseRegex, `<base href="${baseHref}">`);
 }
 
 /**

@@ -7,11 +7,13 @@ import {
   Minimize2, 
   Maximize2, 
   RotateCw, 
-  SlidersHorizontal,
-  Check,
-  ChevronDown,
-  ChevronUp
+  SlidersHorizontal, 
+  Check, 
+  ChevronDown, 
+  ChevronUp,
+  Droplets
 } from 'lucide-react';
+import { formatWaterLiters, useWaterMetrics } from '../../utils/waterConsumption';
 
 interface QuotaBubbleProps {
   isVisible: boolean;
@@ -64,6 +66,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
   lastTurnTokens
 }) => {
   const [stats, setStats] = useState<QuotaStats | null>(null);
+  const [showWaterMetrics] = useWaterMetrics();
   // Em viewports < 1024px (mobile/tablet) inicia recolhido para não obstruir a área principal
   const [isExpanded, setIsExpanded] = useState<boolean>(
     () => typeof window === 'undefined' || window.innerWidth >= 1024
@@ -438,14 +441,21 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
         ))}
       </div>
 
-      {/* Detalhes de Tokens consumidos (Opcional colapsável) */}
+      {/* Detalhes de Tokens / Água consumidos (Opcional colapsável) */}
       {stats?.tokens && stats.tokens.recentTurns.length > 0 && (
         <div className="mt-3 pt-2.5 border-t border-neutral-800/60">
           <button 
             onClick={() => setShowTokensDetail(!showTokensDetail)}
             className="w-full flex items-center justify-between text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors py-0.5"
           >
-            <span>Ver consumo por turnos ({stats.tokens.recentTurns.length})</span>
+            <span className="flex items-center gap-1.5">
+              {showWaterMetrics && <Droplets className="w-3.5 h-3.5 text-info shrink-0" />}
+              <span>
+                {showWaterMetrics
+                  ? `Ver consumo de água por turnos (${stats.tokens.recentTurns.length})`
+                  : `Ver consumo por turnos (${stats.tokens.recentTurns.length})`}
+              </span>
+            </span>
             {showTokensDetail ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
 
@@ -454,7 +464,11 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
               {stats.tokens.recentTurns.slice(0, 5).map((turn) => (
                 <div key={turn.id} className="flex items-center justify-between text-[10px] bg-neutral-900/60 px-2 py-1 rounded border border-neutral-800/50">
                   <span className="truncate max-w-[170px] text-neutral-300 font-mono">{turn.model}</span>
-                  <span className="text-emerald-400 font-mono font-medium">+{turn.total_tokens.toLocaleString()} tok</span>
+                  <span className={`${showWaterMetrics ? 'text-info font-bold' : 'text-emerald-400 font-medium'} font-mono`}>
+                    {showWaterMetrics
+                      ? `+${formatWaterLiters(turn.total_tokens, true)}`
+                      : `+${turn.total_tokens.toLocaleString()} tok`}
+                  </span>
                 </div>
               ))}
             </div>

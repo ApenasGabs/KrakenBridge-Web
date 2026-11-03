@@ -126,11 +126,16 @@ class SystemVersionService {
 
     // Tentativa 1: Buscar do GitHub API
     try {
+      const ghToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+      const ghHeaders: Record<string, string> = {
+        'User-Agent': 'KrakenBridge-Web-System',
+        'Accept': 'application/vnd.github.v3+json'
+      };
+      if (ghToken) {
+        ghHeaders['Authorization'] = `Bearer ${ghToken}`;
+      }
       const res = await fetch('https://api.github.com/repos/ApenasGabs/KrakenBridge-Web/releases?per_page=15', {
-        headers: {
-          'User-Agent': 'KrakenBridge-Web-System',
-          'Accept': 'application/vnd.github.v3+json'
-        },
+        headers: ghHeaders,
         signal: AbortSignal.timeout(6000)
       });
 

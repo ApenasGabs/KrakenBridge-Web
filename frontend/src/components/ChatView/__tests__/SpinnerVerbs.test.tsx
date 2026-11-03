@@ -1,18 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { SpinnerVerbs } from '../SpinnerVerbs';
+import { SpinnerVerbs, CLAUDE_BRAILLE_FRAMES } from '../SpinnerVerbs';
 import { SpinnerVerbsModal } from '../SpinnerVerbsModal';
 import { MessageItem } from '../MessageItem';
 import {
   CLAUDE_CANONICAL_VERBS,
   SPINNER_VERB_PACKS,
   DEFAULT_SPINNER_CONFIG,
+  TOOL_CATEGORY_VERBS,
+  getCategoryForTool,
+  getTargetForTool,
   getSpinnerVerbsConfig,
   saveSpinnerVerbsConfig,
   getActiveVerbsList,
   type SpinnerVerbsConfig
 } from '../../../utils/spinnerVerbsData';
-import type { ChatMessage } from '../../../types';
+import type { ChatMessage, ToolCall } from '../../../types';
 
 describe('Spinner Verbs Data & Utils', () => {
   beforeEach(() => {
@@ -87,6 +90,31 @@ describe('Spinner Verbs Data & Utils', () => {
     expect(retrieved.selectedPacks).toEqual(['git_commits']);
     expect(retrieved.customVerbs).toEqual(['Test1']);
   });
+
+  it('deve categorizar ferramentas e extrair alvos corretamente', () => {
+    expect(getCategoryForTool({ name: 'read_file' })).toBe('read');
+    expect(getCategoryForTool({ name: 'edit_file' })).toBe('write');
+    expect(getCategoryForTool({ name: 'write_file' })).toBe('write');
+    expect(getCategoryForTool({ name: 'run_command' })).toBe('command');
+    expect(getCategoryForTool({ name: 'search_web' })).toBe('search');
+    expect(getCategoryForTool({ name: 'call_mcp_tool' })).toBe('mcp');
+    expect(getCategoryForTool(undefined)).toBe('thinking');
+
+    // Extração de alvos
+    expect(getTargetForTool({ name: 'read_file', args: { Path: '/workspace/src/App.tsx' } })).toBe('src/App.tsx');
+    expect(getTargetForTool({ name: 'run_command', args: { CommandLine: 'docker ps -a' } })).toBe('docker ps -a');
+    expect(getTargetForTool({ name: 'search_web', args: { query: 'vitest tutorial' } })).toBe('"vitest tutorial"');
+    expect(getTargetForTool({ name: 'call_mcp_tool', args: { ToolName: 'memory_query' } })).toBe('memory_query');
+  });
+
+  it('deve conter pools de verbos contextuais para cada categoria', () => {
+    expect(TOOL_CATEGORY_VERBS.read).toContain('Reading');
+    expect(TOOL_CATEGORY_VERBS.read).toContain('Perusing');
+    expect(TOOL_CATEGORY_VERBS.write).toContain('Editing');
+    expect(TOOL_CATEGORY_VERBS.write).toContain('Refactoring');
+    expect(TOOL_CATEGORY_VERBS.command).toContain('Running');
+    expect(TOOL_CATEGORY_VERBS.search).toContain('Searching');
+  });
 });
 
 describe('SpinnerVerbs Component', () => {
@@ -147,6 +175,66 @@ describe('SpinnerVerbs Component', () => {
     });
 
     expect(screen.getByTestId('spinner-verbs-disabled')).toBeInTheDocument();
+  });
+
+  it('deve renderizar o Braille spinner no estilo Claude Code e avançar frames a cada 80ms', () => {
+    render(<SpinnerVerbs />);
+    const brailleIcon = screen.getByTestId('spinner-braille-icon');
+    expect(brailleIcon).toBeInTheDocument();
+    expect(brailleIcon.textContent).toBe(CLAUDE_BRAILLE_FRAMES[0]);
+
+    act(() => {
+      vi.advanceTimersByTime(80);
+    });
+    expect(brailleIcon.textContent).toBe(CLAUDE_BRAILLE_FRAMES[1]);
+
+    act(() => {
+      vi.advanceTimersByTime(80 * 2);
+    });
+    expect(brailleIcon.textContent).toBe(CLAUDE_BRAILLE_FRAMES[3]);
+  });
+
+  it('deve renderizar verbo contextual de leitura e exibir o nome do arquivo', () => {
+    const tool: ToolCall = {
+      name: 'read_file',
+      state: 'RUNNING',
+      args: { Path: '/workspace/frontend/src/ChatInput.tsx' }
+    };
+
+    render(<SpinnerVerbs toolCalls={[tool]} />);
+    const textElem = screen.getByTestId('spinner-verb-text');
+    expect(textElem.textContent).toContain('src/ChatInput.tsx');
+    const containsReadVerb = TOOL_CATEGORY_VERBS.read.some(v => textElem.textContent?.includes(v));
+    expect(containsReadVerb).toBe(true);
+  });
+
+  it('deve alternar imediatamente para verbo de escrita ao trocar para ferramenta edit_file', () => {
+    const readTool: ToolCall = {
+      name: 'read_file',
+      state: 'DONE',
+      args: { Path: '/workspace/src/foo.ts' }
+    };
+
+    const { rerender } = render(<SpinnerVerbs toolCalls={[readTool]} />);
+    
+    // O agente troca de ferramenta para edição
+    const editTool: ToolCall = {
+      name: 'edit_file',
+      state: 'RUNNING',
+      args: { Path: '/workspace/src/bar.ts' }
+    };
+
+    rerender(<SpinnerVerbs toolCalls={[readTool, editTool]} />);
+
+    // Avança o timeout de transição imediata (140ms)
+    act(() => {
+      vi.advanceTimersByTime(150);
+    });
+
+    const textElem = screen.getByTestId('spinner-verb-text');
+    expect(textElem.textContent).toContain('src/bar.ts');
+    const containsWriteVerb = TOOL_CATEGORY_VERBS.write.some(v => textElem.textContent?.includes(v));
+    expect(containsWriteVerb).toBe(true);
   });
 });
 

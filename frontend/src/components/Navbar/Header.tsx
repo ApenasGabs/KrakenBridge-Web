@@ -17,8 +17,10 @@ import {
   Database,
   Bell,
   Sparkles,
-  GitBranch
+  GitBranch,
+  Droplets
 } from 'lucide-react';
+import { formatWaterLiters, useWaterMetrics } from '../../utils/waterConsumption';
 
 interface HeaderProps {
   activeTab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory';
@@ -57,6 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
   hasUpdate,
   systemVersion
 }) => {
+  const [showWaterMetrics] = useWaterMetrics();
   const isAuthOk = authStatus?.authenticated || authStatus?.isKeyValid;
 
   return (
@@ -161,16 +164,22 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Lado Direito Desktop: Tokens + MCPs + Opções + Auth + Temas */}
       <div className="hidden md:flex items-center gap-1.5 shrink-0">
-        {/* Painel de Tokens Desktop */}
+        {/* Painel de Tokens / Água Desktop */}
         <div 
           data-testid="header-quota-btn"
           onClick={onToggleQuota}
           className="hidden xl:flex items-center gap-2 px-2.5 py-1 rounded-md bg-base-200 hover:bg-base-300 border border-base-300 text-xs shrink-0 cursor-pointer transition-colors"
-          title="Consumo de tokens na sessão ativa (Clique para abrir balão de cotas)"
+          title={showWaterMetrics ? "Consumo de água estimado na sessão ativa (Clique para abrir balão de cotas)" : "Consumo de tokens na sessão ativa (Clique para abrir balão de cotas)"}
         >
-          <Coins className="w-3.5 h-3.5 text-warning" />
-          <span className="font-mono font-medium">
-            {sessionUsage.sessionTotalTokens.toLocaleString()} tokens
+          {showWaterMetrics ? (
+            <Droplets className="w-3.5 h-3.5 text-info" />
+          ) : (
+            <Coins className="w-3.5 h-3.5 text-warning" />
+          )}
+          <span className={`font-mono font-medium ${showWaterMetrics ? 'text-info font-bold' : ''}`}>
+            {showWaterMetrics
+              ? formatWaterLiters(sessionUsage.sessionTotalTokens, true)
+              : `${sessionUsage.sessionTotalTokens.toLocaleString()} tokens`}
           </span>
           <span className="text-base-content/40">|</span>
           <span className="text-[11px] text-base-content/60 truncate max-w-[80px] font-mono">
@@ -178,15 +187,21 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        {/* Painel de Tokens Compacto */}
+        {/* Painel de Tokens / Água Compacto */}
         <div 
           onClick={onToggleQuota}
           className="flex xl:hidden items-center gap-1 px-2 py-1 rounded-md bg-base-200 hover:bg-base-300 border border-base-300 text-xs shrink-0 cursor-pointer transition-colors"
-          title="Consumo de tokens na sessão ativa (Clique para abrir balão de cotas)"
+          title={showWaterMetrics ? "Consumo de água estimado na sessão ativa (Clique para abrir balão de cotas)" : "Consumo de tokens na sessão ativa (Clique para abrir balão de cotas)"}
         >
-          <Coins className="w-3.5 h-3.5 text-warning" />
-          <span className="font-mono font-medium text-[11px]">
-            {sessionUsage.sessionTotalTokens.toLocaleString()}
+          {showWaterMetrics ? (
+            <Droplets className="w-3.5 h-3.5 text-info" />
+          ) : (
+            <Coins className="w-3.5 h-3.5 text-warning" />
+          )}
+          <span className={`font-mono font-medium text-[11px] ${showWaterMetrics ? 'text-info font-bold' : ''}`}>
+            {showWaterMetrics
+              ? formatWaterLiters(sessionUsage.sessionTotalTokens, true)
+              : sessionUsage.sessionTotalTokens.toLocaleString()}
           </span>
         </div>
 
@@ -361,14 +376,22 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Lado Direito Mobile: Tokens + Tema + Auth + Menu Dropdown [...] */}
       <div className="flex md:hidden items-center gap-1 shrink-0">
-        {/* Tokens Compacto */}
+        {/* Tokens / Água Compacto no Mobile */}
         <button 
           onClick={onToggleQuota}
           className="btn btn-ghost btn-xs px-1.5 h-8 gap-1 font-mono text-[11px] rounded-lg"
-          title="Ver cotas e telemetria de tokens"
+          title={showWaterMetrics ? "Ver cotas e telemetria de consumo hídrico" : "Ver cotas e telemetria de tokens"}
         >
-          <Coins className="w-3.5 h-3.5 text-warning shrink-0" />
-          <span>{sessionUsage.sessionTotalTokens > 999 ? `${Math.round(sessionUsage.sessionTotalTokens / 1000)}k` : sessionUsage.sessionTotalTokens}</span>
+          {showWaterMetrics ? (
+            <Droplets className="w-3.5 h-3.5 text-info shrink-0" />
+          ) : (
+            <Coins className="w-3.5 h-3.5 text-warning shrink-0" />
+          )}
+          <span className={showWaterMetrics ? 'text-info font-bold' : ''}>
+            {showWaterMetrics
+              ? formatWaterLiters(sessionUsage.sessionTotalTokens, true)
+              : (sessionUsage.sessionTotalTokens > 999 ? `${Math.round(sessionUsage.sessionTotalTokens / 1000)}k` : sessionUsage.sessionTotalTokens)}
+          </span>
         </button>
 
         {/* Seletor de Tema compacto no Mobile */}

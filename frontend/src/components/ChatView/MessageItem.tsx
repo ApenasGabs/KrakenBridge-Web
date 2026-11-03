@@ -35,6 +35,7 @@ import {
   setSpeechRate,
   type SpeechState
 } from '../../utils/speechUtils';
+import { formatWaterLiters, useWaterMetrics } from '../../utils/waterConsumption';
 
 // Carregamento dinâmico do MermaidBlock para não onerar o bundle inicial do chat
 const MermaidBlock = lazy(() => 
@@ -237,6 +238,7 @@ const MarkdownCode: React.FC<any> = ({ className, children, ...props }) => {
 
 const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerPort, onOpenFilePreview }) => {
   const isUser = message.role === 'user';
+  const [showWaterMetrics] = useWaterMetrics();
   const [speechState, setSpeechState] = useState<SpeechState>({
     activeMessageId: null,
     activeSectionId: null,
@@ -411,7 +413,11 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
         {/* Conteúdo Principal em Markdown */}
         <div className="text-sm prose prose-sm max-w-none text-base-content leading-relaxed">
           {message.isStreaming && !isUser && !message.text ? (
-            <SpinnerVerbs startTime={message.timestamp} />
+            <SpinnerVerbs
+              startTime={message.timestamp}
+              toolCalls={message.toolCalls}
+              thinking={message.thinking}
+            />
           ) : (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
@@ -629,8 +635,10 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
             {message.tokens && (
               <div className="text-[10px] text-base-content/50 flex items-center gap-2 font-mono ml-auto">
                 {message.tokens.total_tokens !== undefined && (
-                  <span className="font-semibold text-primary">
-                    {message.tokens.total_tokens.toLocaleString()} tok
+                  <span className={`font-semibold ${showWaterMetrics ? 'text-info font-bold' : 'text-primary'}`}>
+                    {showWaterMetrics
+                      ? formatWaterLiters(message.tokens.total_tokens, true)
+                      : `${message.tokens.total_tokens.toLocaleString()} tok`}
                   </span>
                 )}
               </div>
@@ -642,17 +650,17 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
         {message.tokens && (!message.text || message.isStreaming || isUser) && (
           <div className="mt-2 pt-1 border-t border-base-300/40 text-[10px] text-base-content/50 flex items-center gap-3 font-mono">
             {message.tokens.input_tokens !== undefined && (
-              <span>In: {message.tokens.input_tokens.toLocaleString()}</span>
+              <span>In: {showWaterMetrics ? formatWaterLiters(message.tokens.input_tokens, true) : message.tokens.input_tokens.toLocaleString()}</span>
             )}
             {message.tokens.output_tokens !== undefined && (
-              <span>Out: {message.tokens.output_tokens.toLocaleString()}</span>
+              <span>Out: {showWaterMetrics ? formatWaterLiters(message.tokens.output_tokens, true) : message.tokens.output_tokens.toLocaleString()}</span>
             )}
             {message.tokens.thinking_tokens !== undefined && (
-              <span>Thinking: {message.tokens.thinking_tokens.toLocaleString()}</span>
+              <span>Thinking: {showWaterMetrics ? formatWaterLiters(message.tokens.thinking_tokens, true) : message.tokens.thinking_tokens.toLocaleString()}</span>
             )}
             {message.tokens.total_tokens !== undefined && (
-              <span className="font-semibold text-primary">
-                Total: {message.tokens.total_tokens.toLocaleString()} tok
+              <span className={`font-semibold ${showWaterMetrics ? 'text-info font-bold' : 'text-primary'}`}>
+                Total: {showWaterMetrics ? formatWaterLiters(message.tokens.total_tokens, true) : `${message.tokens.total_tokens.toLocaleString()} tok`}
               </span>
             )}
           </div>

@@ -64,4 +64,44 @@ describe('SystemVersionService - Version Lifecycle & Auto-Update (Issue #64)', (
     (systemVersionService as any).isUpdating = false;
     expect(systemVersionService.isUpdateInProgress()).toBe(false);
   });
+  it('deve incluir o cabe?alho Authorization com GITHUB_TOKEN ao buscar releases remotas (Issue #122)', async () => {
+    const originalToken = process.env.GITHUB_TOKEN;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => [
+        {
+          tag_name: 'v1.99.0',
+          name: 'v1.99.0',
+          body: 'Notas de teste',
+          published_at: new Date().toISOString()
+        }
+      ]
+    } as any);
+
+    try {
+      process.env.GITHUB_TOKEN = 'gho_mock_token_for_test';
+      (systemVersionService as any).cachedReleases = [];
+      (systemVersionService as any).lastFetchTime = 0;
+
+      const releases = await systemVersionService.getAvailableReleases();
+      expect(fetchSpy).toHaveBeenCalled();
+      const callArgs = fetchSpy.mock.calls[0];
+      const headers = (callArgs[1] as any)?.headers;
+
+      expect(headers).toBeDefined();
+      expect(headers['Authorization']).toBe('Bearer gho_mock_token_for_test');
+      expect(headers['User-Agent']).toBe('KrakenBridge-Web-System');
+      expect(releases.length).toBeGreaterThan(0);
+      expect(releases[0].tag).toBe('v1.99.0');
+    } finally {
+      fetchSpy.mockRestore();
+      if (originalToken !== undefined) {
+        process.env.GITHUB_TOKEN = originalToken;
+      } else {
+        delete process.env.GITHUB_TOKEN;
+      }
+      (systemVersionService as any).cachedReleases = [];
+      (systemVersionService as any).lastFetchTime = 0;
+    }
+  });
 });
