@@ -1,8 +1,11 @@
 {
+  "id": "/?source=pwa",
   "name": "Kraken Multi-Agent Studio",
   "short_name": "Kraken",
   "description": "Autonomous Multi-Agent AI Bridge & Integrated Studio for Homelab and Mobile",
-  "start_url": "/",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
@@ -10,15 +13,88 @@
   "theme_color": "#0d1117",
   "icons": [
     {
-      "src": "/kraken-icon.svg",
-      "sizes": "192x192 512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "src": "./icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/vite.svg",
+      "src": "./icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./kraken-icon.svg",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novo Chat",
+      "short_name": "Novo Chat",
+      "description": "Iniciar uma nova conversa com o agente autônomo Kraken",
+      "url": "/chat?source=pwa-shortcut",
+      "icons": [
+        {
+          "src": "./icon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Terminal",
+      "short_name": "Terminal",
+      "description": "Abrir o ambiente VS Code e Terminal integrado",
+      "url": "/ide?source=pwa-shortcut",
+      "icons": [
+        {
+          "src": "./icon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Docker",
+      "short_name": "Docker",
+      "description": "Monitorar containers Docker, recursos e telemetria",
+      "url": "/status?source=pwa-shortcut",
+      "icons": [
+        {
+          "src": "./icon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Memória",
+      "short_name": "Memória",
+      "description": "Explorar base de conhecimento persistente no AI Memory",
+      "url": "/memory?source=pwa-shortcut",
+      "icons": [
+        {
+          "src": "./icon-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ],
   "categories": ["utilities", "productivity", "developer tools"]

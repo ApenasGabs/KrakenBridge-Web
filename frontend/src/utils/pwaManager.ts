@@ -1,3 +1,4 @@
+import { Workbox } from 'workbox-window';
 import { api } from '../services/api';
 
 export function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -15,19 +16,25 @@ export function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
-let deferredPrompt: any = null;
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
+
+let deferredPrompt: BeforeInstallPromptEvent | null = null;
 let installPromptListeners: ((canInstall: boolean) => void)[] = [];
+let activeWorkbox: Workbox | null = null;
 
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
-    deferredPrompt = e;
-    installPromptListeners.forEach(fn => fn(true));
+    deferredPrompt = e as BeforeInstallPromptEvent;
+    installPromptListeners.forEach((fn) => fn(true));
   });
 
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
-    installPromptListeners.forEach(fn => fn(false));
+    installPromptListeners.forEach((fn) => fn(false));
     console.log('[PWA] Kraken App instalado com sucesso na tela inicial!');
   });
 }
@@ -36,7 +43,7 @@ export function onInstallPromptChange(callback: (canInstall: boolean) => void): 
   installPromptListeners.push(callback);
   callback(deferredPrompt !== null);
   return () => {
-    installPromptListeners = installPromptListeners.filter(fn => fn !== callback);
+    installPromptListeners = installPromptListeners.filter((fn) => fn !== callback);
   };
 }
 
@@ -44,10 +51,10 @@ export async function promptPwaInstall(): Promise<'accepted' | 'dismissed' | nul
   if (!deferredPrompt) {
     return null;
   }
-  deferredPrompt.prompt();
+  await deferredPrompt.prompt();
   const { outcome } = await deferredPrompt.userChoice;
   deferredPrompt = null;
-  installPromptListeners.forEach(fn => fn(false));
+  installPromptListeners.forEach((fn) => fn(false));
   return outcome;
 }
 
@@ -56,17 +63,37 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
     return null;
   }
 
+  // Em modo Vite dev puro (sem build SW), evita falso erro de MIME text/html
+  if (import.meta.env.DEV) {
+    return null;
+  }
+
   try {
     const isSubpath = window.location.pathname.startsWith('/chat');
     const swUrl = isSubpath ? '/chat/sw.js' : '/sw.js';
+    // Com o header Service-Worker-Allowed: /, registramos escopo amplo ou /chat/
     const scope = isSubpath ? '/chat/' : '/';
-    const reg = await navigator.serviceWorker.register(swUrl, { scope });
-    console.log('[PWA] Service Worker registrado com escopo:', reg.scope);
-    return reg;
+
+    const wb = new Workbox(swUrl, { scope });
+    activeWorkbox = wb;
+
+    wb.addEventListener('waiting', () => {
+      wb.messageSkipWaiting();
+    });
+
+    const reg = await wb.register();
+    if (reg) {
+      console.log('[PWA] Workbox Service Worker registrado com escopo:', reg.scope);
+    }
+    return reg ?? null;
   } catch (err) {
-    console.warn('[PWA] Falha ao registrar Service Worker:', err);
+    console.warn('[PWA] Falha ao registrar Service Worker via Workbox:', err);
     return null;
   }
+}
+
+export function getWorkboxInstance(): Workbox | null {
+  return activeWorkbox;
 }
 
 export function isPushSupported(): boolean {
@@ -118,9 +145,10 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
     await api.subscribePush(serialized);
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro ao registrar notificações push.';
     console.error('[PWA] Erro ao subscrever push:', err);
-    return { success: false, error: err?.message || 'Erro ao registrar notificações push.' };
+    return { success: false, error: message };
   }
 }
 
@@ -135,7 +163,8 @@ export async function unsubscribeFromPush(): Promise<{ success: boolean; error?:
       await api.unsubscribePush(endpoint);
     }
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err?.message || 'Erro ao cancelar notificações push.' };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erro ao cancelar notificações push.';
+    return { success: false, error: message };
   }
 }
