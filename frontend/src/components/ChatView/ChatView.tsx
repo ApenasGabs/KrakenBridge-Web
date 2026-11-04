@@ -77,28 +77,127 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [isSpinnerModalOpen, setIsSpinnerModalOpen] = useState(false);
   const [selectedArtifactPath, setSelectedArtifactPath] = useState<string | null>(null);
 
+  // Estados e referências para controle resiliente de auto-scroll
+  const isAtBottomRef = useRef(true);
+  const isProgrammaticScrollRef = useRef(false);
+  const programmaticScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const prevMessagesLengthRef = useRef(messages.length);
+  const prevFirstMessageIdRef = useRef<string | undefined>(messages[0]?.id);
+
   const handleOpenFilePreview = useCallback((filePath: string) => {
     setSelectedArtifactPath(filePath);
   }, []);
 
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
     if (scrollRef.current) {
+      isProgrammaticScrollRef.current = true;
+      if (programmaticScrollTimeoutRef.current) {
+        clearTimeout(programmaticScrollTimeoutRef.current);
+      }
+
       scrollRef.current.scrollTo({
         top: scrollRef.current.scrollHeight,
         behavior
       });
-    }
-  };
 
+      const timeout = behavior === 'smooth' ? 450 : 80;
+      programmaticScrollTimeoutRef.current = setTimeout(() => {
+        isProgrammaticScrollRef.current = false;
+      }, timeout);
+    }
+  }, []);
+
+  // Monitora alterações nas mensagens e estado de carregamento
   useEffect(() => {
-    scrollToBottom(isLoading ? 'auto' : 'smooth');
-  }, [messages, isLoading]);
+    const prevLen = prevMessagesLengthRef.current;
+    const currentLen = messages.length;
+    const prevFirstId = prevFirstMessageIdRef.current;
+    const currentFirstId = messages[0]?.id;
+
+    prevMessagesLengthRef.current = currentLen;
+    prevFirstMessageIdRef.current = currentFirstId;
+
+    // Se mudou de conversa ou limpou, rola para o final e reativa auto-scroll
+    if (currentFirstId !== prevFirstId) {
+      isAtBottomRef.current = true;
+      scrollToBottom('auto');
+      return;
+    }
+
+    // Se uma nova mensagem foi adicionada e partiu do usuário, sempre rola para o final
+    if (currentLen > prevLen) {
+      const lastMsg = messages[currentLen - 1];
+      if (lastMsg?.role === 'user') {
+        isAtBottomRef.current = true;
+        scrollToBottom('smooth');
+        return;
+      }
+    }
+
+    // Durante geração/streaming ou atualizações, só rola se o usuário estiver acompanhando o final
+    if (isAtBottomRef.current) {
+      scrollToBottom(isLoading ? 'auto' : 'smooth');
+    }
+  }, [messages, isLoading, scrollToBottom]);
+
+  // Limpeza de timers no desmonte
+  useEffect(() => {
+    return () => {
+      if (programmaticScrollTimeoutRef.current) {
+        clearTimeout(programmaticScrollTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleScroll = () => {
     if (!scrollRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
-    const isFar = scrollHeight - scrollTop - clientHeight > 150;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    const isFar = distanceFromBottom > 150;
     setShowScrollBottom(isFar);
+
+    // Se for uma rolagem programática disparada pelo scrollToBottom, não marca como scrolled up
+    if (isProgrammaticScrollRef.current) {
+      return;
+    }
+
+    // Se o usuário rolou para cima (distância perceptível do final)
+    if (distanceFromBottom > 80) {
+      isAtBottomRef.current = false;
+    } else if (distanceFromBottom <= 30) {
+      // Se o usuário rolou de volta até o rodapé
+      isAtBottomRef.current = true;
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY < 0) {
+      // Usuário girou a roda do mouse/trackpad para cima explicitamente
+      if (programmaticScrollTimeoutRef.current) {
+        clearTimeout(programmaticScrollTimeoutRef.current);
+      }
+      isProgrammaticScrollRef.current = false;
+      isAtBottomRef.current = false;
+    }
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    touchStartYRef.current = e.touches[0]?.clientY ?? null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (touchStartYRef.current !== null && e.touches[0]) {
+      const deltaY = e.touches[0].clientY - touchStartYRef.current;
+      // Arrastar o dedo para baixo na tela faz o conteúdo rolar para cima (em direção ao topo)
+      if (deltaY > 15) {
+        if (programmaticScrollTimeoutRef.current) {
+          clearTimeout(programmaticScrollTimeoutRef.current);
+        }
+        isProgrammaticScrollRef.current = false;
+        isAtBottomRef.current = false;
+      }
+    }
   };
 
   const suggestions = [
@@ -229,7 +328,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
       <div 
         ref={scrollRef}
         onScroll={handleScroll}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-2.5 sm:px-4 py-3 sm:py-6"
+        data-testid="chat-messages-container"
       >
         <div className="max-w-4xl mx-auto min-w-0">
           {messages.length === 0 ? (
@@ -281,9 +384,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
       {/* Botão flutuante para rolar para o final */}
       {showScrollBottom && (
         <button
-          onClick={() => scrollToBottom('smooth')}
-          className="absolute bottom-24 right-6 btn btn-circle btn-sm btn-primary shadow-lg z-10"
+          type="button"
+          onClick={() => {
+            isAtBottomRef.current = true;
+            setShowScrollBottom(false);
+            scrollToBottom('smooth');
+          }}
+          className="absolute bottom-24 right-6 btn btn-circle btn-sm btn-primary shadow-lg z-10 transition-transform active:scale-95"
           title="Rolar para a última mensagem"
+          data-testid="scroll-to-bottom-btn"
         >
           <ArrowDown className="w-4 h-4" />
         </button>
