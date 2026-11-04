@@ -63,22 +63,22 @@ export const Header: React.FC<HeaderProps> = ({
   const isAuthOk = authStatus?.authenticated || authStatus?.isKeyValid;
 
   return (
-    <header className="navbar bg-base-100 border-b border-base-300 px-2 sm:px-4 min-h-14 gap-1.5 sm:gap-2 z-20">
+    <header className="navbar bg-base-100 border-b border-base-300 px-1.5 sm:px-3 min-h-14 gap-1 sm:gap-2 z-20">
       {/* Lado Esquerdo: Toggle Sidebar + Marca */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0 min-w-0">
         <button
           onClick={onToggleSidebar}
-          className="btn btn-ghost btn-sm btn-square"
+          className="btn btn-ghost btn-sm btn-square shrink-0"
           title="Alternar histórico"
         >
           <Menu className="w-4 h-4" />
         </button>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <div className="w-7 h-7 rounded-lg bg-primary text-primary-content flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm">
             K
           </div>
-          <div className="hidden md:block">
+          <div className="hidden 2xl:block">
             <h1 className="text-sm font-bold tracking-tight text-base-content leading-none">
               KrakenBridge
             </h1>
@@ -93,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-status"
             onClick={() => onTabChange('status')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'status' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -107,7 +107,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-whatsnext"
             onClick={() => onTabChange('whatsnext')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'whatsnext' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -121,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-chat"
             onClick={() => onTabChange('chat')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'chat' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -134,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-ide"
             onClick={() => onTabChange('ide')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'ide' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -147,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             data-testid="tab-memory"
             onClick={() => onTabChange('memory')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'memory' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -160,15 +160,15 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      <div className="flex-1" />
+      <div className="flex-1 min-w-0" />
 
       {/* Lado Direito Desktop: Tokens + MCPs + Opções + Auth + Temas */}
-      <div className="hidden md:flex items-center gap-1.5 shrink-0">
+      <div className="hidden md:flex items-center gap-1 lg:gap-1.5 shrink-0">
         {/* Painel de Tokens / Água Desktop */}
         <div 
           data-testid="header-quota-btn"
           onClick={onToggleQuota}
-          className="hidden xl:flex items-center gap-2 px-2.5 py-1 rounded-md bg-base-200 hover:bg-base-300 border border-base-300 text-xs shrink-0 cursor-pointer transition-colors"
+          className="hidden xl:flex items-center gap-1.5 px-2 py-1 rounded-md bg-base-200 hover:bg-base-300 border border-base-300 text-xs shrink-0 cursor-pointer transition-colors"
           title={showWaterMetrics ? "Consumo de água estimado na sessão ativa (Clique para abrir balão de cotas)" : "Consumo de tokens na sessão ativa (Clique para abrir balão de cotas)"}
         >
           {showWaterMetrics ? (
@@ -181,8 +181,8 @@ export const Header: React.FC<HeaderProps> = ({
               ? formatWaterLiters(sessionUsage.sessionTotalTokens, true)
               : `${sessionUsage.sessionTotalTokens.toLocaleString()} tokens`}
           </span>
-          <span className="text-base-content/40">|</span>
-          <span className="text-[11px] text-base-content/60 truncate max-w-[80px] font-mono">
+          <span className="hidden 2xl:inline text-base-content/40">|</span>
+          <span className="hidden 2xl:inline text-[11px] text-base-content/60 truncate max-w-[80px] font-mono">
             {currentModel}
           </span>
         </div>
@@ -209,18 +209,18 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           data-testid="header-notifications-btn"
           onClick={onOpenNotifications}
-          className="hidden lg:inline-flex btn btn-sm btn-ghost w-auto px-2.5 gap-1.5 text-xs text-base-content/70 hover:text-primary transition-colors"
+          className="!hidden xl:!inline-flex btn btn-sm btn-ghost w-auto px-2 gap-1 text-xs text-base-content/70 hover:text-primary transition-colors"
           title="Configurar Notificações Móveis e PWA (Web Push)"
         >
           <Bell className="w-3.5 h-3.5 text-warning" />
-          <span className="hidden lg:inline">Push</span>
+          <span className="hidden 2xl:inline">Push</span>
         </button>
 
         {/* Botão de Versão & Atualizações */}
         <button
           data-testid="header-version-btn"
           onClick={onOpenUpdate}
-          className={`hidden xl:inline-flex btn btn-sm btn-ghost w-auto px-2.5 gap-1.5 text-xs font-mono transition-colors ${
+          className={`!hidden xl:!inline-flex btn btn-sm btn-ghost w-auto px-2 gap-1 text-xs font-mono transition-colors ${
             hasUpdate 
               ? 'text-primary bg-primary/10 border border-primary/30 animate-pulse' 
               : 'text-base-content/70 hover:text-primary'
@@ -230,12 +230,12 @@ export const Header: React.FC<HeaderProps> = ({
           {hasUpdate ? (
             <>
               <Sparkles className="w-3.5 h-3.5 text-primary" />
-              <span className="hidden lg:inline font-semibold">Update</span>
+              <span className="hidden 2xl:inline font-semibold">Update</span>
             </>
           ) : (
             <>
               <GitBranch className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">{systemVersion || 'v1.11.0'}</span>
+              <span className="hidden 2xl:inline">{systemVersion || 'v1.11.0'}</span>
             </>
           )}
         </button>
@@ -244,11 +244,11 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           data-testid="header-mcp-btn"
           onClick={onOpenMcp}
-          className="hidden lg:inline-flex btn btn-sm btn-ghost w-auto px-2.5 gap-1.5 text-xs text-base-content/70 hover:text-primary transition-colors"
+          className="!hidden lg:!inline-flex btn btn-sm btn-ghost w-auto px-2 gap-1 text-xs text-base-content/70 hover:text-primary transition-colors"
           title="Visualizar servidores MCP (Model Context Protocol)"
         >
           <Boxes className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="hidden lg:inline">MCPs</span>
+          <span className="hidden 2xl:inline">MCPs</span>
           {mcpCount !== undefined && mcpCount > 0 && (
             <span className="badge badge-xs badge-primary font-mono">{mcpCount}</span>
           )}
@@ -258,17 +258,17 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           data-testid="header-options-btn"
           onClick={onToggleOptions}
-          className={`hidden lg:inline-flex btn btn-sm btn-ghost w-auto px-2.5 gap-1 text-xs ${
+          className={`!hidden lg:!inline-flex btn btn-sm btn-ghost w-auto px-2 gap-1 text-xs ${
             isOptionsOpen ? 'bg-base-200 text-primary' : 'text-base-content/70'
           }`}
           title="Parâmetros avançados do CLI"
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
-          <span className="hidden lg:inline">Opções</span>
+          <span className="hidden 2xl:inline">Opções</span>
         </button>
 
         {/* Menu Suspenso de Ações Secundárias para Tablet (< 1024px) */}
-        <div className="dropdown dropdown-end lg:hidden">
+        <div className="dropdown dropdown-end lg:!hidden">
           <div 
             tabIndex={0} 
             role="button"
@@ -356,12 +356,12 @@ export const Header: React.FC<HeaderProps> = ({
             <KeyRound className="w-3.5 h-3.5 shrink-0" />
           )}
           {isAuthOk ? (
-            <span className="hidden xl:inline flex items-center gap-1 truncate font-mono text-[11px]">
+            <span className="hidden 2xl:inline-flex items-center gap-1 truncate font-mono text-[11px]">
               <CheckCircle2 className="w-3 h-3 inline text-success shrink-0" />
               <span className="truncate">{authStatus?.email ? authStatus.email.split('@')[0] : 'Conectado'}</span>
             </span>
           ) : (
-            <span className="hidden xl:inline flex items-center gap-1">
+            <span className="hidden 2xl:inline-flex items-center gap-1">
               <AlertCircle className="w-3 h-3 inline text-warning shrink-0" />
               Conectar
             </span>

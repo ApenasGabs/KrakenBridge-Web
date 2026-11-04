@@ -112,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
           <button 
             onClick={onClose}
-            className="btn btn-ghost btn-sm btn-square lg:hidden ml-2"
+            className="btn btn-ghost btn-sm btn-square lg:!hidden ml-2"
           >
             <X className="w-4 h-4" />
           </button>

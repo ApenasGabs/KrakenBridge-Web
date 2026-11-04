@@ -992,7 +992,7 @@ export const App: React.FC = () => {
   }, [loadConversations, selectConversation, executeTurn]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-base-100 text-base-content font-sans">
+    <div className="flex h-dvh w-full overflow-hidden bg-base-100 text-base-content font-sans">
       {/* Sidebar de Histórico e Workspaces */}
       <Sidebar
         conversations={conversations}
@@ -1010,7 +1010,7 @@ export const App: React.FC = () => {
       />
 
       {/* Conteúdo Principal */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-full min-w-0 min-h-0 overflow-hidden">
         {/* Barra Superior */}
         <Header
           activeTab={activeTab}
