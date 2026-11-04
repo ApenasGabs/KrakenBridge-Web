@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.25.4](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.3...v1.25.4) (2026-11-04)
+
+### 🐛 Bug Fixes
+
+* **chat:** permitir scroll manual para cima sem forcar auto-scroll durante execucao (Refs [#127](https://github.com/ApenasGabs/KrakenBridge-Web/issues/127)) ([c3a22d1](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c3a22d1b569784b0d74213b0226d0b235920b252))
+
 ## [1.25.3](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.2...v1.25.3) (2026-11-03)
 
 ### 🐛 Bug Fixes
