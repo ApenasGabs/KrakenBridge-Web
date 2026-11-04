@@ -5,6 +5,13 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.26.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.26.0...v1.26.1) (2026-11-04)
+
+### 🐛 Bug Fixes
+
+* **pwa:** suporte dinâmico ao subcaminho /chat no manifest e escopo do PWA (Refs [#131](https://github.com/ApenasGabs/KrakenBridge-Web/issues/131)) ([f1a5cf8](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f1a5cf8734a390e9baab4118fad8e02f9500dd79))
+* **pwa:** tornar adaptacao de baseHref totalmente generica e agnostica (Refs [#131](https://github.com/ApenasGabs/KrakenBridge-Web/issues/131)) ([67ff361](https://github.com/ApenasGabs/KrakenBridge-Web/commit/67ff361a34ab5902424e798e59b273ca9120c82c))
+
 ## [1.26.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.5...v1.26.0) (2026-11-04)
 
 ### ✨ Features
