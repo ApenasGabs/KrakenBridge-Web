@@ -69,11 +69,12 @@ registerRoute(
     const isSubpath = options.url.pathname.startsWith('/chat');
     if (isSubpath) {
       const cachedSubpath =
-        (await navCache.match('/chat')) || (await navCache.match('/chat/'));
+        (await navCache.match('/chat', { ignoreSearch: true })) ||
+        (await navCache.match('/chat/', { ignoreSearch: true }));
       if (cachedSubpath) return cachedSubpath;
     }
 
-    const cachedRoot = await navCache.match('/');
+    const cachedRoot = await navCache.match('/', { ignoreSearch: true });
     if (cachedRoot) return cachedRoot;
 
     const precachedIndex =
@@ -191,8 +192,9 @@ self.addEventListener('push', (event: PushEvent) => {
 // Ao clicar na notificação no smartphone ou desktop, foca ou abre o Kraken
 self.addEventListener('notificationclick', (event: NotificationEvent) => {
   event.notification.close();
+  const defaultUrl = self.location.pathname.startsWith('/chat') ? '/chat/' : '/';
   const targetUrl =
-    (event.notification.data as { url?: string } | undefined)?.url || '/';
+    (event.notification.data as { url?: string } | undefined)?.url || defaultUrl;
 
   event.waitUntil(
     self.clients

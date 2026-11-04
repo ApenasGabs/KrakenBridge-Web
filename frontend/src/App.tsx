@@ -66,6 +66,11 @@ const getInitialRoute = (): { tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'me
   if (pathname.includes('/chat')) return { tab: 'chat', convId: null };
   if (pathname.includes('/status')) return { tab: 'status', convId: null };
 
+  // Ao abrir o app instalado via PWA sem tab explícita, abre diretamente o Chat
+  if (searchParams.get('source')?.startsWith('pwa')) {
+    return { tab: 'chat', convId: null };
+  }
+
   return { tab: 'status', convId: null };
 };
 

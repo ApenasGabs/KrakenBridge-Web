@@ -1,12 +1,12 @@
 {
-  "id": "/?source=pwa",
+  "id": "./?source=pwa",
   "name": "Kraken Multi-Agent Studio",
   "short_name": "Kraken",
   "description": "Autonomous Multi-Agent AI Bridge & Integrated Studio for Homelab and Mobile",
   "lang": "pt-BR",
   "dir": "ltr",
-  "start_url": "/?source=pwa",
-  "scope": "/",
+  "start_url": "./?source=pwa",
+  "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#121417",
@@ -48,7 +48,7 @@
       "name": "Novo Chat",
       "short_name": "Novo Chat",
       "description": "Iniciar uma nova conversa com o agente autônomo Kraken",
-      "url": "/chat?source=pwa-shortcut",
+      "url": "./?source=pwa-shortcut",
       "icons": [
         {
           "src": "./icon-192x192.png",
@@ -61,7 +61,7 @@
       "name": "Terminal",
       "short_name": "Terminal",
       "description": "Abrir o ambiente VS Code e Terminal integrado",
-      "url": "/ide?source=pwa-shortcut",
+      "url": "./ide?source=pwa-shortcut",
       "icons": [
         {
           "src": "./icon-192x192.png",
@@ -74,7 +74,7 @@
       "name": "Docker",
       "short_name": "Docker",
       "description": "Monitorar containers Docker, recursos e telemetria",
-      "url": "/status?source=pwa-shortcut",
+      "url": "./status?source=pwa-shortcut",
       "icons": [
         {
           "src": "./icon-192x192.png",
@@ -87,7 +87,7 @@
       "name": "Memória",
       "short_name": "Memória",
       "description": "Explorar base de conhecimento persistente no AI Memory",
-      "url": "/memory?source=pwa-shortcut",
+      "url": "./memory?source=pwa-shortcut",
       "icons": [
         {
           "src": "./icon-192x192.png",

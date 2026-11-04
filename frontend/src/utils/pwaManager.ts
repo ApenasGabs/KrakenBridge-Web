@@ -69,9 +69,11 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 
   try {
-    const isSubpath = window.location.pathname.startsWith('/chat');
+    const baseEl = typeof document !== 'undefined' ? document.querySelector('base') : null;
+    const baseHref = baseEl?.getAttribute('href') || '/';
+    const isSubpath = baseHref.startsWith('/chat') || window.location.pathname.startsWith('/chat');
     const swUrl = isSubpath ? '/chat/sw.js' : '/sw.js';
-    // Com o header Service-Worker-Allowed: /, registramos escopo amplo ou /chat/
+    // Com o header Service-Worker-Allowed: /, registramos escopo /chat/ ou /
     const scope = isSubpath ? '/chat/' : '/';
 
     const wb = new Workbox(swUrl, { scope });

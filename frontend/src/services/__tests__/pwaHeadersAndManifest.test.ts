@@ -6,7 +6,8 @@ import type { Request, Response } from 'express';
 import {
   applyPwaResponseHeaders,
   createSpaAssetMiddleware,
-  createIndexHtmlSender
+  createIndexHtmlSender,
+  adaptManifestForBaseHref
 } from '../../../../src/utils/spaRoutingHelper';
 
 const PUBLIC_DIR = path.resolve(__dirname, '../../../public');
@@ -118,15 +119,16 @@ describe('PWA Headers, Manifest & Standard Icons (Issue #129)', () => {
   });
 
   describe('Manifest & PNG Icons Validation', () => {
-    it('deve possuir manifest.webmanifest válido sem vite.svg e com id, lang, shortcuts e ícones PNG', () => {
+    it('deve possuir manifest.webmanifest válido sem vite.svg e com caminhos relativos universais', () => {
       const manifestPath = path.join(PUBLIC_DIR, 'manifest.webmanifest');
       const raw = fs.readFileSync(manifestPath, 'utf8');
       expect(raw).not.toContain('vite.svg');
 
       const manifest = JSON.parse(raw);
-      expect(manifest.id).toBe('/?source=pwa');
+      expect(manifest.id).toBe('./?source=pwa');
       expect(manifest.lang).toBe('pt-BR');
-      expect(manifest.start_url).toBe('/?source=pwa');
+      expect(manifest.start_url).toBe('./?source=pwa');
+      expect(manifest.scope).toBe('./');
       expect(manifest.display).toBe('standalone');
 
       const iconSrcs = manifest.icons.map((i: { src: string }) => i.src);
@@ -138,6 +140,63 @@ describe('PWA Headers, Manifest & Standard Icons (Issue #129)', () => {
 
       expect(Array.isArray(manifest.shortcuts)).toBe(true);
       expect(manifest.shortcuts.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('deve adaptar dinamicamente o manifest para o subcaminho /chat/ (ZimaOS Gateway)', () => {
+      const baseManifest = {
+        name: 'Kraken',
+        id: './?source=pwa',
+        start_url: './?source=pwa',
+        scope: './',
+        shortcuts: [
+          { name: 'Chat', url: './?source=pwa-shortcut' },
+          { name: 'Ide', url: './ide?source=pwa-shortcut' }
+        ]
+      };
+
+      const adaptedChat = adaptManifestForBaseHref(baseManifest, '/chat/');
+      expect(adaptedChat.id).toBe('/chat/?source=pwa');
+      expect(adaptedChat.start_url).toBe('/chat/?source=pwa');
+      expect(adaptedChat.scope).toBe('/chat/');
+      expect(adaptedChat.shortcuts[0].url).toBe('/chat/?source=pwa-shortcut');
+      expect(adaptedChat.shortcuts[1].url).toBe('/chat/ide?source=pwa-shortcut');
+
+      const adaptedRoot = adaptManifestForBaseHref(baseManifest, '/');
+      expect(adaptedRoot.id).toBe('/?source=pwa');
+      expect(adaptedRoot.start_url).toBe('/?source=pwa');
+      expect(adaptedRoot.scope).toBe('/');
+      expect(adaptedRoot.shortcuts[0].url).toBe('/?source=pwa-shortcut');
+      expect(adaptedRoot.shortcuts[1].url).toBe('/ide?source=pwa-shortcut');
+    });
+
+    it('deve servir o manifest dinamicamente no createSpaAssetMiddleware com os cabeçalhos e escopo corretos', () => {
+      const middleware = createSpaAssetMiddleware(distDir);
+      const req = {
+        path: '/chat/manifest.webmanifest',
+        originalUrl: '/chat/manifest.webmanifest'
+      } as unknown as Request;
+
+      let sentBody = '';
+      const res = {
+        setHeader: vi.fn(),
+        type: vi.fn(() => res),
+        send: vi.fn((body: string) => {
+          sentBody = body;
+          return res;
+        })
+      } as unknown as Response;
+      const next = vi.fn();
+
+      middleware(req, res, next);
+
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/manifest+json; charset=UTF-8');
+      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache');
+      expect(next).not.toHaveBeenCalled();
+
+      const parsed = JSON.parse(sentBody);
+      expect(parsed.scope).toBe('/chat/');
+      expect(parsed.start_url).toBe('/chat/?source=pwa');
+      expect(parsed.id).toBe('/chat/?source=pwa');
     });
 
     it('deve conter todos os ícones PNG padronizados com dimensões exatas em frontend/public', () => {

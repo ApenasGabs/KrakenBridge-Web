@@ -27,15 +27,58 @@ export function getBaseHrefForRequest(req: {
   const url = req.originalUrl || req.path || '';
   const forwardedPrefix = req.headers?.['x-forwarded-prefix'];
   const forwardedUri = req.headers?.['x-forwarded-uri'];
+  const referer = req.headers?.['referer'];
   const prefixStr = typeof forwardedPrefix === 'string' ? forwardedPrefix : '';
   const uriStr = typeof forwardedUri === 'string' ? forwardedUri : '';
+  const refererStr = typeof referer === 'string' ? referer : '';
 
   const isSubpath =
     url.startsWith('/chat') ||
     req.baseUrl === '/chat' ||
     prefixStr.startsWith('/chat') ||
-    uriStr.startsWith('/chat');
+    uriStr.startsWith('/chat') ||
+    refererStr.includes('/chat');
   return isSubpath ? '/chat/' : '/';
+}
+
+/**
+ * Adapta os campos do Web App Manifest (id, start_url, scope e shortcuts)
+ * para respeitar dinamicamente o subcaminho ativo (/chat/ no ZimaOS ou / na raiz).
+ */
+export function adaptManifestForBaseHref(
+  rawManifest: Record<string, any>,
+  baseHref: string
+): Record<string, any> {
+  const isSubpath = baseHref.startsWith('/chat');
+  const scope = isSubpath ? '/chat/' : '/';
+  const startUrl = isSubpath ? '/chat/?source=pwa' : '/?source=pwa';
+  const id = isSubpath ? '/chat/?source=pwa' : '/?source=pwa';
+
+  const adaptedShortcuts = Array.isArray(rawManifest.shortcuts)
+    ? rawManifest.shortcuts.map((shortcut: any) => {
+        let url = shortcut.url || '';
+        if (url.startsWith('/')) {
+          url = isSubpath
+            ? (url.startsWith('/chat') ? url : `/chat${url}`)
+            : url;
+        } else if (url.startsWith('./')) {
+          const suffix = url.slice(2);
+          url = isSubpath ? `/chat/${suffix}` : `/${suffix}`;
+        }
+        return {
+          ...shortcut,
+          url
+        };
+      })
+    : [];
+
+  return {
+    ...rawManifest,
+    id,
+    start_url: startUrl,
+    scope,
+    shortcuts: adaptedShortcuts.length > 0 ? adaptedShortcuts : rawManifest.shortcuts
+  };
 }
 
 /**
@@ -76,8 +119,28 @@ export function createSpaAssetMiddleware(distDir: string) {
       }
     }
 
-    // Se for um arquivo estático conhecido na raiz de distDir (ex: kraken-icon.svg, manifest.webmanifest, icon-*.png, sw.js)
+    // Se for o manifesto PWA, adapta dinamicamente para o subcaminho (/chat/ ou /)
     const baseName = path.basename(req.path);
+    if (baseName === 'manifest.webmanifest') {
+      const directFile = path.join(distDir, baseName);
+      if (fs.existsSync(directFile) && fs.statSync(directFile).isFile()) {
+        try {
+          const raw = fs.readFileSync(directFile, 'utf8');
+          const parsed = JSON.parse(raw);
+          const baseHref = getBaseHrefForRequest(req);
+          const adapted = adaptManifestForBaseHref(parsed, baseHref);
+          applyPwaResponseHeaders(res, baseName);
+          return res
+            .type('application/manifest+json; charset=UTF-8')
+            .send(JSON.stringify(adapted, null, 2));
+        } catch {
+          applyPwaResponseHeaders(res, baseName);
+          return res.sendFile(directFile);
+        }
+      }
+    }
+
+    // Se for um arquivo estático conhecido na raiz de distDir (ex: kraken-icon.svg, icon-*.png, sw.js)
     if (baseName && baseName.includes('.')) {
       const directFile = path.join(distDir, baseName);
       if (fs.existsSync(directFile) && fs.statSync(directFile).isFile()) {
