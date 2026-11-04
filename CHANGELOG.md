@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.26.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.26.1...v1.26.2) (2026-11-04)
+
+### 🐛 Bug Fixes
+
+* **routing:** preservar barra em /chat/ e adaptar baseHref no Service Worker (Refs [#133](https://github.com/ApenasGabs/KrakenBridge-Web/issues/133)) ([a738aba](https://github.com/ApenasGabs/KrakenBridge-Web/commit/a738aba88f923609b2a582263285c829dc04a39c))
+
 ## [1.26.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.26.0...v1.26.1) (2026-11-04)
 
 ### 🐛 Bug Fixes
