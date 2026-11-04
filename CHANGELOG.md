@@ -5,6 +5,17 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.25.5](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.4...v1.25.5) (2026-11-04)
+
+### 🐛 Bug Fixes
+
+* **ui:** eliminar bleed horizontal no Header e corrigir contraste no balao de usuario (Refs [#125](https://github.com/ApenasGabs/KrakenBridge-Web/issues/125)) ([511dd3d](https://github.com/ApenasGabs/KrakenBridge-Web/commit/511dd3d9aaf78eb072159f028d84f24f8c6f26e4))
+* **ui:** eliminar scroll lateral e header inacessivel no chat mobile ([06d7401](https://github.com/ApenasGabs/KrakenBridge-Web/commit/06d7401e23c11f819e55fd0d6045b97fc7216ee9)), closes [#125](https://github.com/ApenasGabs/KrakenBridge-Web/issues/125)
+
+### 🔧 Chores
+
+* **merge:** resolver conflito em ChatView.tsx com main (Refs [#125](https://github.com/ApenasGabs/KrakenBridge-Web/issues/125), [#127](https://github.com/ApenasGabs/KrakenBridge-Web/issues/127)) ([39a9427](https://github.com/ApenasGabs/KrakenBridge-Web/commit/39a9427df494e28113e73f77d7f2f39c4c8e3d7c))
+
 ## [1.25.4](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.3...v1.25.4) (2026-11-04)
 
 ### 🐛 Bug Fixes
