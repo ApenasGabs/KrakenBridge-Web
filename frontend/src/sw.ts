@@ -74,14 +74,29 @@ registerRoute(
       if (cachedSubpath) return cachedSubpath;
     }
 
-    const cachedRoot = await navCache.match('/', { ignoreSearch: true });
+    const cachedRoot = !isSubpath ? await navCache.match('/', { ignoreSearch: true }) : undefined;
     if (cachedRoot) return cachedRoot;
 
     const precachedIndex =
       (await matchPrecache('index.html')) ||
       (await matchPrecache('./index.html')) ||
       (await matchPrecache('/index.html'));
-    if (precachedIndex) return precachedIndex;
+    if (precachedIndex) {
+      if (isSubpath) {
+        const text = await precachedIndex.text();
+        const adaptedText = text.replace(
+          /<base\s+href=["'][^"']*["']\s*\/?>/i,
+          '<base href="/chat/">'
+        );
+        return new Response(adaptedText, {
+          headers: {
+            'Content-Type': 'text/html; charset=UTF-8',
+            'Cache-Control': 'no-cache'
+          }
+        });
+      }
+      return precachedIndex;
+    }
 
     return Response.error();
   }

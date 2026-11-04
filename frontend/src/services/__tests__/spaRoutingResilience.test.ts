@@ -247,5 +247,13 @@ describe('SPA Routing Resilience & Asset Interception (Issue #93)', () => {
       expect(sentBody).toContain('href="./kraken-icon.svg"');
       expect(sentBody).toContain('href="./manifest.webmanifest"');
     });
+
+    it('deve garantir que o HTML de precache receba <base href="/chat/"> ao ser adaptado para subcaminhos (Issue #133)', () => {
+      const precachedHtml = `<!doctype html><html><head><base href="/" /><script src="./assets/app.js"></script></head><body></body></html>`;
+      const adapted = injectBaseHref(precachedHtml, '/chat/');
+      expect(adapted).toContain('<base href="/chat/">');
+      expect(adapted).not.toContain('<base href="/" />');
+      expect(adapted).toContain('src="./assets/app.js"');
+    });
   });
 });
