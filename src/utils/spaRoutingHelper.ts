@@ -27,15 +27,70 @@ export function getBaseHrefForRequest(req: {
   const url = req.originalUrl || req.path || '';
   const forwardedPrefix = req.headers?.['x-forwarded-prefix'];
   const forwardedUri = req.headers?.['x-forwarded-uri'];
+  const referer = req.headers?.['referer'];
   const prefixStr = typeof forwardedPrefix === 'string' ? forwardedPrefix : '';
   const uriStr = typeof forwardedUri === 'string' ? forwardedUri : '';
+  const refererStr = typeof referer === 'string' ? referer : '';
+
+  // Se houver x-forwarded-prefix explícito do reverse proxy, utiliza-o dinamicamente
+  if (prefixStr && prefixStr !== '/') {
+    const clean = prefixStr.endsWith('/') ? prefixStr : `${prefixStr}/`;
+    return clean.startsWith('/') ? clean : `/${clean}`;
+  }
+
+  // Se houver baseUrl do Express
+  if (req.baseUrl && req.baseUrl !== '/') {
+    return req.baseUrl.endsWith('/') ? req.baseUrl : `${req.baseUrl}/`;
+  }
 
   const isSubpath =
     url.startsWith('/chat') ||
-    req.baseUrl === '/chat' ||
-    prefixStr.startsWith('/chat') ||
-    uriStr.startsWith('/chat');
+    uriStr.startsWith('/chat') ||
+    refererStr.includes('/chat');
   return isSubpath ? '/chat/' : '/';
+}
+
+/**
+ * Adapta os campos do Web App Manifest (id, start_url, scope e shortcuts)
+ * dinamicamente para qualquer baseHref (/chat/, subcaminhos ou raiz /).
+ */
+export function adaptManifestForBaseHref(
+  rawManifest: Record<string, any>,
+  baseHref: string
+): Record<string, any> {
+  const normalizedBase = baseHref.endsWith('/') ? baseHref : `${baseHref}/`;
+  const prefix = normalizedBase.startsWith('/') ? normalizedBase : `/${normalizedBase}`;
+  const isRoot = prefix === '/';
+
+  const scope = prefix;
+  const startUrl = `${prefix}?source=pwa`;
+  const id = `${prefix}?source=pwa`;
+
+  const adaptedShortcuts = Array.isArray(rawManifest.shortcuts)
+    ? rawManifest.shortcuts.map((shortcut: any) => {
+        let url = shortcut.url || '';
+        if (url.startsWith('/')) {
+          url = isRoot
+            ? url
+            : (url.startsWith(prefix) ? url : `${prefix.replace(/\/$/, '')}${url}`);
+        } else if (url.startsWith('./')) {
+          const suffix = url.slice(2);
+          url = `${prefix}${suffix}`;
+        }
+        return {
+          ...shortcut,
+          url
+        };
+      })
+    : [];
+
+  return {
+    ...rawManifest,
+    id,
+    start_url: startUrl,
+    scope,
+    shortcuts: adaptedShortcuts.length > 0 ? adaptedShortcuts : rawManifest.shortcuts
+  };
 }
 
 /**
@@ -76,8 +131,28 @@ export function createSpaAssetMiddleware(distDir: string) {
       }
     }
 
-    // Se for um arquivo estático conhecido na raiz de distDir (ex: kraken-icon.svg, manifest.webmanifest, icon-*.png, sw.js)
+    // Se for o manifesto PWA, adapta dinamicamente para o subcaminho (/chat/ ou /)
     const baseName = path.basename(req.path);
+    if (baseName === 'manifest.webmanifest') {
+      const directFile = path.join(distDir, baseName);
+      if (fs.existsSync(directFile) && fs.statSync(directFile).isFile()) {
+        try {
+          const raw = fs.readFileSync(directFile, 'utf8');
+          const parsed = JSON.parse(raw);
+          const baseHref = getBaseHrefForRequest(req);
+          const adapted = adaptManifestForBaseHref(parsed, baseHref);
+          applyPwaResponseHeaders(res, baseName);
+          return res
+            .type('application/manifest+json; charset=UTF-8')
+            .send(JSON.stringify(adapted, null, 2));
+        } catch {
+          applyPwaResponseHeaders(res, baseName);
+          return res.sendFile(directFile);
+        }
+      }
+    }
+
+    // Se for um arquivo estático conhecido na raiz de distDir (ex: kraken-icon.svg, icon-*.png, sw.js)
     if (baseName && baseName.includes('.')) {
       const directFile = path.join(distDir, baseName);
       if (fs.existsSync(directFile) && fs.statSync(directFile).isFile()) {
