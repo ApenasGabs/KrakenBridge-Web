@@ -162,6 +162,15 @@ code, kbd, samp, pre {
   text-underline-offset: 2px;
 }
 
+.prose-user,
+.prose-user h1,
+.prose-user h2,
+.prose-user h3,
+.prose-user h4,
+.prose-user a {
+  color: var(--color-primary-content);
+}
+
 .prose pre, .prose img, .prose video {
   max-width: 100%;
 }

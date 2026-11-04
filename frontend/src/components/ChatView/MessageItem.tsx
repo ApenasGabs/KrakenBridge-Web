@@ -411,7 +411,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
         )}
 
         {/* Conteúdo Principal em Markdown */}
-        <div className="text-sm prose prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] text-base-content leading-relaxed">
+        <div className={`text-sm prose prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] leading-relaxed ${isUser ? 'prose-user text-primary-content' : 'text-base-content'}`}>
           {message.isStreaming && !isUser && !message.text ? (
             <SpinnerVerbs
               startTime={message.timestamp}
