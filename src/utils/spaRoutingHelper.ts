@@ -39,6 +39,27 @@ export function getBaseHrefForRequest(req: {
 }
 
 /**
+ * Aplica cabeçalhos HTTP obrigatórios para artefatos críticos de PWA
+ * (Service Worker e Web App Manifest).
+ */
+export function applyPwaResponseHeaders(
+  res: Partial<Pick<Response, 'setHeader'>>,
+  filePathOrName: string
+): void {
+  if (typeof res.setHeader !== 'function') return;
+
+  const baseName = path.basename(filePathOrName);
+  if (baseName === 'sw.js' || baseName === 'registerSW.js') {
+    res.setHeader('Service-Worker-Allowed', '/');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+  } else if (baseName === 'manifest.webmanifest') {
+    res.setHeader('Content-Type', 'application/manifest+json; charset=UTF-8');
+    res.setHeader('Cache-Control', 'no-cache');
+  }
+}
+
+/**
  * Middleware para interceptar requisições de assets (/assets/*, /c/assets/*, etc.)
  * e arquivos estáticos da raiz mesmo quando requisitados com caminhos aninhados.
  */
@@ -55,11 +76,12 @@ export function createSpaAssetMiddleware(distDir: string) {
       }
     }
 
-    // Se for um arquivo estático conhecido na raiz de distDir (ex: kraken-icon.svg, manifest.webmanifest, vite.svg, sw.js)
+    // Se for um arquivo estático conhecido na raiz de distDir (ex: kraken-icon.svg, manifest.webmanifest, icon-*.png, sw.js)
     const baseName = path.basename(req.path);
     if (baseName && baseName.includes('.')) {
       const directFile = path.join(distDir, baseName);
       if (fs.existsSync(directFile) && fs.statSync(directFile).isFile()) {
+        applyPwaResponseHeaders(res, baseName);
         return res.sendFile(directFile);
       }
     }
@@ -85,6 +107,7 @@ export function createIndexHtmlSender(distDir: string) {
 
       const finalHtml = injectBaseHref(html, baseHref);
       res.setHeader('Content-Type', 'text/html; charset=UTF-8');
+      res.setHeader('Cache-Control', 'no-cache');
       res.send(finalHtml);
     });
   };

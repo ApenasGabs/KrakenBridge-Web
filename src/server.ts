@@ -23,7 +23,11 @@ import { workspaceManager } from './services/workspaceManager.js';
 import { mcpService } from './services/mcpService.js';
 import { skillScoutService } from './services/skillScoutService.js';
 import { coucouPhoneLinkService } from './services/coucouPhoneLinkService.js';
-import { createSpaAssetMiddleware, createIndexHtmlSender } from './utils/spaRoutingHelper.js';
+import {
+  createSpaAssetMiddleware,
+  createIndexHtmlSender,
+  applyPwaResponseHeaders
+} from './utils/spaRoutingHelper.js';
 import { loadDotEnvFiles } from './utils/envLoader.js';
 import { buildLivenessPayload, buildReadinessPayload } from './utils/healthCheck.js';
 
@@ -96,8 +100,14 @@ const distDir = [
 app.use(createSpaAssetMiddleware(distDir));
 
 // Servir arquivos estáticos na raiz e em /chat (desativa index automático para permitir injeção dinâmica de <base>)
-app.use(express.static(distDir, { index: false }));
-app.use('/chat', express.static(distDir, { index: false }));
+const staticOptions = {
+  index: false as const,
+  setHeaders: (res: Response, filePath: string) => {
+    applyPwaResponseHeaders(res, filePath);
+  }
+};
+app.use(express.static(distDir, staticOptions));
+app.use('/chat', express.static(distDir, staticOptions));
 
 // Servir bundle pré-minificado do Monaco Editor localmente (100% offline no Homelab)
 const monacoMinDir = path.resolve('frontend/node_modules/monaco-editor/min/vs');

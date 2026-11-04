@@ -36,7 +36,8 @@ import {
   Undo2,
   Pencil,
   X,
-  ShieldAlert
+  ShieldAlert,
+  WifiOff
 } from 'lucide-react';
 
 const MIN_REFINE_CHARS = 10;
@@ -68,6 +69,7 @@ interface ChatInputProps {
   onStop: () => void;
   isLoading: boolean;
   disabled?: boolean;
+  isOnline?: boolean;
   isDraining?: boolean;
   evolutionStatus?: EvolutionStatus | null;
   currentModel?: string;
@@ -238,6 +240,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   onStop,
   isLoading,
   disabled,
+  isOnline = true,
   isDraining = false,
   evolutionStatus = null,
   currentModel = 'gemini-3.8-flash-high',
@@ -363,7 +366,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const refineCardRef = useRef<HTMLDivElement | null>(null);
 
   const isPureSlashCommand = prompt.trimStart().startsWith('/') && !prompt.trimStart().includes(' ');
-  const canRefine = !effectiveDisabled && !isRefining && !isPureSlashCommand && prompt.trim().length >= MIN_REFINE_CHARS;
+  const canRefine = isOnline && !effectiveDisabled && !isRefining && !isPureSlashCommand && prompt.trim().length >= MIN_REFINE_CHARS;
 
   const clearFallbackTimer = useCallback(() => {
     if (fallbackHintTimerRef.current) {
@@ -627,7 +630,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      if (prompt.trim() && !effectiveDisabled) {
+      if (prompt.trim() && !effectiveDisabled && isOnline) {
         if (isListening) stopListening();
         setUndoDraft(null);
         setRefineSuggestion(null);
@@ -642,7 +645,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (prompt.trim() && !effectiveDisabled) {
+      if (prompt.trim() && !effectiveDisabled && isOnline) {
         if (isListening) stopListening();
         setUndoDraft(null);
         setRefineSuggestion(null);
@@ -1021,17 +1024,19 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             onKeyDown={handleKeyDown}
             disabled={effectiveDisabled}
             placeholder={
-              isReloading
-                ? "🔄 Reiniciando serviço para aplicar atualizações... Envio pausado temporariamente."
-                : isPodDraining
-                  ? `⏳ Pod Drain ativo: finalizando ${evolutionStatus?.activeTasksCount ?? 1} tarefa(s) antes do reinício. Envio pausado...`
-                  : isListening 
-                    ? "Ouvindo sua voz em português... Fale seu comando..." 
-                    : isLoading 
-                      ? "Agente em execução... Digite para enfileirar mensagem (Enter)" 
-                      : chatMode === 'chat'
-                        ? "💬 Modo Chat & MCPs ativos (somente conversa e ferramentas, sem alterar arquivos)..."
-                        : "⚡ Modo Agente autônomo (digite mensagem ou comando: /plan, /goal, /mcp...)"
+              !isOnline
+                ? "📴 Sem conexão de rede: modo leitura offline ativo. Seu rascunho permanece salvo aqui até reconectar..."
+                : isReloading
+                  ? "🔄 Reiniciando serviço para aplicar atualizações... Envio pausado temporariamente."
+                  : isPodDraining
+                    ? `⏳ Pod Drain ativo: finalizando ${evolutionStatus?.activeTasksCount ?? 1} tarefa(s) antes do reinício. Envio pausado...`
+                    : isListening 
+                      ? "Ouvindo sua voz em português... Fale seu comando..." 
+                      : isLoading 
+                        ? "Agente em execução... Digite para enfileirar mensagem (Enter)" 
+                        : chatMode === 'chat'
+                          ? "💬 Modo Chat & MCPs ativos (somente conversa e ferramentas, sem alterar arquivos)..."
+                          : "⚡ Modo Agente autônomo (digite mensagem ou comando: /plan, /goal, /mcp...)"
             }
             className="w-full bg-transparent border-0 outline-none resize-none px-4 pt-3 pb-1 text-sm leading-relaxed text-base-content placeholder:text-base-content/40 max-h-48 overflow-y-auto"
           />
@@ -1259,12 +1264,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               <button
                 type="button"
                 onClick={toggleMic}
-                className={`w-9 h-9 sm:w-8 sm:h-8 rounded-full transition-all flex items-center justify-center shrink-0 ${
+                disabled={!isOnline}
+                className={`w-9 h-9 sm:w-8 sm:h-8 rounded-full transition-all flex items-center justify-center shrink-0 disabled:opacity-30 disabled:pointer-events-none ${
                   isListening 
                     ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/30' 
                     : 'text-base-content/50 hover:text-base-content hover:bg-base-300/50'
                 }`}
-                title={isListening ? "Ouvindo... Clique para pausar gravação" : "Falar prompt via microfone (Speech-to-Text)"}
+                title={!isOnline ? "Reconhecimento de voz indisponível offline" : isListening ? "Ouvindo... Clique para pausar gravação" : "Falar prompt via microfone (Speech-to-Text)"}
               >
                 {isListening ? (
                   <MicOff className="w-4 h-4" />
@@ -1274,7 +1280,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               </button>
 
               {/* Botão de Envio / Enfileirar / Forçar Envio / Parar */}
-              {isSystemBusyWithEvolution ? (
+              {!isOnline ? (
+                <button
+                  data-testid="chat-send-btn"
+                  type="button"
+                  disabled={true}
+                  aria-label="Envio indisponível offline"
+                  className="w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-amber-500/15 border border-amber-500/35 text-amber-400 flex items-center justify-center shadow-sm cursor-not-allowed transition-all opacity-80 shrink-0"
+                  title="Sem conexão de rede: envio indisponível no modo offline."
+                >
+                  <WifiOff className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+                </button>
+              ) : isSystemBusyWithEvolution ? (
                 <div className="flex items-center gap-1.5">
                   {isLoading && (
                     <button

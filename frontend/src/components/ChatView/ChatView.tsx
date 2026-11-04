@@ -16,6 +16,7 @@ interface ChatViewProps {
   onForceSubmit?: () => void;
   onStop: () => void;
   isLoading: boolean;
+  isOnline?: boolean;
   isDraining?: boolean;
   evolutionStatus?: EvolutionStatus | null;
   onSelectSuggestion?: (prompt: string) => void;
@@ -50,6 +51,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   onForceSubmit,
   onStop,
   isLoading,
+  isOnline = true,
   isDraining = false,
   evolutionStatus = null,
   onSelectSuggestion,
@@ -428,6 +430,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onForceSubmit={onForceSubmit}
         onStop={onStop}
         isLoading={isLoading}
+        isOnline={isOnline}
         isDraining={isDraining}
         evolutionStatus={evolutionStatus}
         currentModel={currentModel}

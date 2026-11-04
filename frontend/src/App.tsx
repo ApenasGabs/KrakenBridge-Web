@@ -27,6 +27,15 @@ import { PinModal } from './components/PinModal/PinModal';
 import { NotificationsModal } from './components/NotificationsModal';
 import { SystemUpdateModal } from './components/SystemUpdateModal';
 import { PodDrainBanner, PodDrainReloadBubble } from './components/PodDrain';
+import { OfflineBanner } from './components/OfflineBanner';
+import { useOnlineStatus } from './hooks/useOnlineStatus';
+import {
+  saveConversationsListOffline,
+  getConversationsListOffline,
+  saveConversationSessionOffline,
+  getConversationSessionOffline,
+  deleteConversationOffline
+} from './utils/offlineStorage';
 
 // Helper para recuperar a rota e conversa inicial a partir da URL do navegador
 const getInitialRoute = (): { tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory'; convId: string | null } => {
@@ -46,6 +55,11 @@ const getInitialRoute = (): { tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'me
     return { tab: 'chat', convId: queryConvId };
   }
 
+  const queryTab = searchParams.get('tab');
+  if (queryTab === 'status' || queryTab === 'whatsnext' || queryTab === 'chat' || queryTab === 'ide' || queryTab === 'memory') {
+    return { tab: queryTab, convId: null };
+  }
+
   if (pathname.includes('/whatsnext')) return { tab: 'whatsnext', convId: null };
   if (pathname.includes('/ide')) return { tab: 'ide', convId: null };
   if (pathname.includes('/memory')) return { tab: 'memory', convId: null };
@@ -57,6 +71,11 @@ const getInitialRoute = (): { tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'me
 
 export const App: React.FC = () => {
   const initialRoute = useMemo(() => getInitialRoute(), []);
+  const { isOnline, wasOffline, dismissReconnectedNotice } = useOnlineStatus();
+  const isOnlineRef = useRef(isOnline);
+  useEffect(() => {
+    isOnlineRef.current = isOnline;
+  }, [isOnline]);
 
   // Estado das Conversas (inicializado pela rota da URL se presente)
   const [conversations, setConversations] = useState<ConversationSession[]>([]);
@@ -155,8 +174,13 @@ export const App: React.FC = () => {
     try {
       const list = await api.getConversations();
       setConversations(list);
+      saveConversationsListOffline(list).catch(() => {});
     } catch (e) {
-      console.warn('Erro ao carregar conversas:', e);
+      console.warn('Erro ao carregar conversas, consultando cache offline (IndexedDB):', e);
+      const cached = await getConversationsListOffline();
+      if (cached.length > 0) {
+        setConversations(prev => (prev.length > 0 && isOnlineRef.current ? prev : cached));
+      }
     }
   }, []);
 
@@ -438,8 +462,9 @@ export const App: React.FC = () => {
     }
     setIsLoading(true);
     try {
-      const session = await api.getConversation(id);
+      const session = isOnlineRef.current ? await api.getConversation(id) : null;
       if (session && session.messages) {
+        saveConversationSessionOffline(session).catch(() => {});
         setMessages(session.messages.map((m, idx, arr) => {
           if (session.isRunning && idx === arr.length - 1 && m.role === 'assistant') {
             return { ...m, isStreaming: true };
@@ -459,13 +484,39 @@ export const App: React.FC = () => {
           attemptReconnect(id);
         }
       } else {
+        const cachedSession = await getConversationSessionOffline(id);
+        if (cachedSession && cachedSession.messages) {
+          setMessages(cachedSession.messages.map(m => ({ ...m, isStreaming: false })));
+          setIsLoading(false);
+          setOptions(prev => ({
+            ...prev,
+            model: cachedSession.model || prev.model,
+            subproject: cachedSession.subproject || '',
+            chatMode: cachedSession.chatMode || prev.chatMode || 'agent',
+            accountEmail: cachedSession.accountEmail || undefined
+          }));
+        } else {
+          setMessages([]);
+          setIsLoading(false);
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar conversa na API, tentando cache offline (IndexedDB):', err);
+      const cachedSession = await getConversationSessionOffline(id);
+      if (cachedSession && cachedSession.messages) {
+        setMessages(cachedSession.messages.map(m => ({ ...m, isStreaming: false })));
+        setIsLoading(false);
+        setOptions(prev => ({
+          ...prev,
+          model: cachedSession.model || prev.model,
+          subproject: cachedSession.subproject || '',
+          chatMode: cachedSession.chatMode || prev.chatMode || 'agent',
+          accountEmail: cachedSession.accountEmail || undefined
+        }));
+      } else {
         setMessages([]);
         setIsLoading(false);
       }
-    } catch (err) {
-      console.error('Erro ao buscar conversa:', err);
-      setMessages([]);
-      setIsLoading(false);
     }
   }, [updateUrl, attemptReconnect]);
 
@@ -524,6 +575,7 @@ export const App: React.FC = () => {
   const handleDeleteConversation = useCallback(async (id: string) => {
     try {
       await api.deleteConversation(id);
+      deleteConversationOffline(id).catch(() => {});
       setConversations(prev => prev.filter(c => c.id !== id));
       if (activeConvId === id) {
         handleNewChat();
@@ -777,10 +829,35 @@ export const App: React.FC = () => {
     executeTurnRef.current = executeTurn;
   }, [executeTurn]);
 
+  // Persiste automaticamente no IndexedDB o snapshot atualizado da conversa ativa após cada turno
+  useEffect(() => {
+    if (!activeConvId || messages.length === 0 || isLoading) return;
+    const nowIso = new Date().toISOString();
+    const meta = conversations.find(c => c.id === activeConvId);
+    const firstUserMsg = messages.find(m => m.role === 'user')?.text;
+    saveConversationSessionOffline({
+      id: activeConvId,
+      title: meta?.title || (firstUserMsg ? firstUserMsg.slice(0, 60) : 'Conversa Recente'),
+      createdAt: meta?.createdAt || messages[0]?.timestamp || nowIso,
+      updatedAt: meta?.updatedAt || messages[messages.length - 1]?.timestamp || nowIso,
+      messageCount: messages.length,
+      agent: meta?.agent || options.agent,
+      model: meta?.model || options.model,
+      subproject: meta?.subproject ?? options.subproject,
+      tags: meta?.tags,
+      chatMode: meta?.chatMode || options.chatMode,
+      accountEmail: meta?.accountEmail || options.accountEmail,
+      messages
+    }).catch(() => {});
+  }, [activeConvId, messages, isLoading, conversations, options.agent, options.model, options.subproject, options.chatMode, options.accountEmail]);
+
   // Sincronização automática ao retornar para a aba (visibilitychange) ou restabelecer conexão (online)
   useEffect(() => {
     const handleSyncOnVisibleOrOnline = async () => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (!isOnlineRef.current) return;
+
+      loadConversations();
 
       const currentConvId = activeConvIdRef.current;
       if (!currentConvId) return;
@@ -815,7 +892,7 @@ export const App: React.FC = () => {
       document.removeEventListener('visibilitychange', handleSyncOnVisibleOrOnline);
       window.removeEventListener('online', handleSyncOnVisibleOrOnline);
     };
-  }, [attemptReconnect]);
+  }, [attemptReconnect, loadConversations]);
 
   // Polling para sincronizar mensagens se a conversa ativa estiver rodando em segundo plano
   useEffect(() => {
@@ -862,6 +939,7 @@ export const App: React.FC = () => {
 
   // Enviar Mensagem (ou Enfileirar se o agente estiver ativo)
   const handleSubmitMessage = useCallback(() => {
+    if (!isOnlineRef.current) return;
     const userText = prompt.trim();
     if (!userText) return;
 
@@ -887,6 +965,7 @@ export const App: React.FC = () => {
 
   // Forçar Envio Imediato de Mensagem do Campo de Texto (Interrompe qualquer tarefa ativa e roda imediatamente)
   const handleForceSubmitMessage = useCallback(async () => {
+    if (!isOnlineRef.current) return;
     const userText = prompt.trim();
     if (!userText) return;
 
@@ -1040,6 +1119,14 @@ export const App: React.FC = () => {
           isOpen={isOptionsOpen}
         />
 
+        {/* Banner de Conectividade PWA (Offline / Reconectado) */}
+        <OfflineBanner
+          isOnline={isOnline}
+          wasOffline={wasOffline}
+          cachedConversationsCount={conversations.length}
+          onDismissReconnected={dismissReconnectedNotice}
+        />
+
         {/* Banner de Pod Drain visível em abas que não sejam o chat */}
         {activeTab !== 'chat' && (evolutionStatus?.isDraining || evolutionStatus?.status === 'draining') && (
           <div className="px-4 pt-3">
@@ -1073,6 +1160,7 @@ export const App: React.FC = () => {
             onForceSubmit={handleForceSubmitMessage}
             onStop={handleStop}
             isLoading={isLoading}
+            isOnline={isOnline}
             isDraining={evolutionStatus?.isDraining || evolutionStatus?.status === 'draining'}
             evolutionStatus={evolutionStatus}
             onSelectSuggestion={(sug) => setPrompt(sug)}
