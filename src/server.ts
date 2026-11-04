@@ -129,7 +129,14 @@ const sendIndexHtml = createIndexHtmlSender(distDir);
 
 // Rotas principais entregam o index.html com <base> configurado
 app.get('/', sendIndexHtml);
-app.get('/chat', sendIndexHtml);
+app.get('/chat', (req: Request, res: Response) => {
+  if (req.path === '/chat') {
+    const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    return res.redirect(301, `/chat/${query}`);
+  }
+  sendIndexHtml(req, res);
+});
+app.get('/chat/', sendIndexHtml);
 
 // Endpoints padronizados de Liveness e Readiness (Status Hub Health Contract)
 const handleHealthz = (_req: Request, res: Response) => {

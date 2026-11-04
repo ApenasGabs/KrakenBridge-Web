@@ -255,7 +255,7 @@ export const App: React.FC = () => {
     checkPinAndInit();
   }, [checkPinAndInit]);
 
-  // Sincronização da URL do navegador
+  // Sincronização da URL do navegador (preserva a barra final canônica /chat/ para suportar gateways e recargas sem 404)
   const updateUrl = useCallback((tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory', convId: string | null) => {
     if (typeof window === 'undefined') return;
     const isSubpath = window.location.pathname.startsWith('/chat');
@@ -263,7 +263,7 @@ export const App: React.FC = () => {
 
     let newPath = basePrefix || '/';
     if (tab === 'chat') {
-      newPath = convId ? `${basePrefix}/c/${convId}` : (basePrefix ? `${basePrefix}` : '/chat');
+      newPath = convId ? `${basePrefix}/c/${convId}` : (basePrefix ? `${basePrefix}/` : '/chat');
     } else if (tab === 'status') {
       newPath = basePrefix ? `${basePrefix}/status` : '/';
     } else {
@@ -271,7 +271,11 @@ export const App: React.FC = () => {
     }
 
     if (window.location.pathname !== newPath) {
-      window.history.pushState({ tab, convId }, '', newPath);
+      if (window.location.pathname === '/chat' && newPath === '/chat/') {
+        window.history.replaceState({ tab, convId }, '', newPath);
+      } else {
+        window.history.pushState({ tab, convId }, '', newPath);
+      }
     }
   }, []);
 
