@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.26.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.5...v1.26.0) (2026-11-04)
+
+### ✨ Features
+
+* **pwa:** implementar PWA completo com Workbox precache, IndexedDB offline e icones nativos (Closes [#129](https://github.com/ApenasGabs/KrakenBridge-Web/issues/129)) ([4e1f5b9](https://github.com/ApenasGabs/KrakenBridge-Web/commit/4e1f5b95bde205c07a2719d3f8dcc202c3df4f58))
+
 ## [1.25.5](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.25.4...v1.25.5) (2026-11-04)
 
 ### 🐛 Bug Fixes
