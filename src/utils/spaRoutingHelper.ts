@@ -32,10 +32,19 @@ export function getBaseHrefForRequest(req: {
   const uriStr = typeof forwardedUri === 'string' ? forwardedUri : '';
   const refererStr = typeof referer === 'string' ? referer : '';
 
+  // Se houver x-forwarded-prefix explícito do reverse proxy, utiliza-o dinamicamente
+  if (prefixStr && prefixStr !== '/') {
+    const clean = prefixStr.endsWith('/') ? prefixStr : `${prefixStr}/`;
+    return clean.startsWith('/') ? clean : `/${clean}`;
+  }
+
+  // Se houver baseUrl do Express
+  if (req.baseUrl && req.baseUrl !== '/') {
+    return req.baseUrl.endsWith('/') ? req.baseUrl : `${req.baseUrl}/`;
+  }
+
   const isSubpath =
     url.startsWith('/chat') ||
-    req.baseUrl === '/chat' ||
-    prefixStr.startsWith('/chat') ||
     uriStr.startsWith('/chat') ||
     refererStr.includes('/chat');
   return isSubpath ? '/chat/' : '/';
@@ -43,27 +52,30 @@ export function getBaseHrefForRequest(req: {
 
 /**
  * Adapta os campos do Web App Manifest (id, start_url, scope e shortcuts)
- * para respeitar dinamicamente o subcaminho ativo (/chat/ no ZimaOS ou / na raiz).
+ * dinamicamente para qualquer baseHref (/chat/, subcaminhos ou raiz /).
  */
 export function adaptManifestForBaseHref(
   rawManifest: Record<string, any>,
   baseHref: string
 ): Record<string, any> {
-  const isSubpath = baseHref.startsWith('/chat');
-  const scope = isSubpath ? '/chat/' : '/';
-  const startUrl = isSubpath ? '/chat/?source=pwa' : '/?source=pwa';
-  const id = isSubpath ? '/chat/?source=pwa' : '/?source=pwa';
+  const normalizedBase = baseHref.endsWith('/') ? baseHref : `${baseHref}/`;
+  const prefix = normalizedBase.startsWith('/') ? normalizedBase : `/${normalizedBase}`;
+  const isRoot = prefix === '/';
+
+  const scope = prefix;
+  const startUrl = `${prefix}?source=pwa`;
+  const id = `${prefix}?source=pwa`;
 
   const adaptedShortcuts = Array.isArray(rawManifest.shortcuts)
     ? rawManifest.shortcuts.map((shortcut: any) => {
         let url = shortcut.url || '';
         if (url.startsWith('/')) {
-          url = isSubpath
-            ? (url.startsWith('/chat') ? url : `/chat${url}`)
-            : url;
+          url = isRoot
+            ? url
+            : (url.startsWith(prefix) ? url : `${prefix.replace(/\/$/, '')}${url}`);
         } else if (url.startsWith('./')) {
           const suffix = url.slice(2);
-          url = isSubpath ? `/chat/${suffix}` : `/${suffix}`;
+          url = `${prefix}${suffix}`;
         }
         return {
           ...shortcut,
