@@ -14,6 +14,27 @@ export interface AndroidStatusBarProps {
 }
 
 /**
+ * Lê o background-color efetivo do tema ativo e o converte para hex (#rrggbb)
+ * via canvas, que normaliza oklch/color() para sRGB. Retorna null se indisponível.
+ */
+function readThemeBackground(): string | null {
+  if (typeof document === "undefined") return null;
+  try {
+    const raw = getComputedStyle(document.body).backgroundColor;
+    if (!raw || raw === "transparent" || raw === "rgba(0, 0, 0, 0)") return null;
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return null;
+    ctx.fillStyle = "#000000";
+    ctx.fillStyle = raw;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Componente AndroidStatusBar para KrakenBridge Web.
  *
  * Utiliza o React Helmet (react-helmet-async) para controlar dinamicamente
@@ -86,8 +107,19 @@ export const AndroidStatusBar: React.FC<AndroidStatusBarProps> = ({
     };
   }, [explicitTheme]);
 
-  const activeColor = color ?? resolveThemeColor(activeTheme);
   const dark = isDarkTheme(activeTheme);
+
+  // Cor real do fundo do tema (DaisyUI usa oklch, então a tabela fixa pode divergir).
+  const [computedColor, setComputedColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (color) return;
+    // Aguarda o navegador aplicar o CSS do novo data-theme antes de ler a cor.
+    const frame = requestAnimationFrame(() => setComputedColor(readThemeBackground()));
+    return () => cancelAnimationFrame(frame);
+  }, [activeTheme, color]);
+
+  const activeColor = color ?? computedColor ?? resolveThemeColor(activeTheme);
 
   // Sincroniza qualquer meta tag estática preexistente no HTML inicial
   useEffect(() => {
