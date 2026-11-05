@@ -27,6 +27,9 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     document.body.setAttribute("data-theme", theme);
     document.body.className = theme;
     localStorage.setItem("theme", theme);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("theme-change", { detail: { theme } }));
+    }
   };
 
   const toggleDrawer = useCallback((): void => {

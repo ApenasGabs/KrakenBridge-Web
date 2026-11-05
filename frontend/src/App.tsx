@@ -28,6 +28,7 @@ import { NotificationsModal } from './components/NotificationsModal';
 import { SystemUpdateModal } from './components/SystemUpdateModal';
 import { PodDrainBanner, PodDrainReloadBubble } from './components/PodDrain';
 import { OfflineBanner } from './components/OfflineBanner';
+import { AndroidStatusBar } from './components/AndroidStatusBar';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
 import {
   saveConversationsListOffline,
@@ -1081,6 +1082,7 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-base-100 text-base-content font-sans">
+      <AndroidStatusBar />
       {/* Sidebar de Histórico e Workspaces */}
       <Sidebar
         conversations={conversations}
