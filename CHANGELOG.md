@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.27.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.26.2...v1.27.0) (2026-11-05)
+
+### ✨ Features
+
+* **ui:** alterar cor da barra de status do Android dinamicamente com React Helmet (Refs [#135](https://github.com/ApenasGabs/KrakenBridge-Web/issues/135)) ([9a6a979](https://github.com/ApenasGabs/KrakenBridge-Web/commit/9a6a97915d26c3700872eacd7d16fe2246615c7a))
+
 ## [1.26.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.26.1...v1.26.2) (2026-11-04)
 
 ### 🐛 Bug Fixes
