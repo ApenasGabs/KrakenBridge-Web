@@ -296,6 +296,23 @@ class SystemVersionService {
         await execAsync("sed -i 's/\r$//' scripts/*.sh 2>/dev/null || true");
       } catch {}
 
+      // 2.5. Instalação de dependências (backend e frontend) caso a nova tag introduza pacotes novos
+      console.log('[SystemVersionService] Sincronizando dependências de backend e frontend...');
+      await evolutionService.setProgress({
+        stage: 'checking_out',
+        message: 'Sincronizando dependências (npm install)...',
+        stepNumber: 2,
+        totalSteps: 5,
+        percent: 50,
+        targetTag: selectedTag
+      });
+      await execAsync('npm install --include=dev --no-audit --no-fund', {
+        env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1536' }
+      });
+      await execAsync('npm install --prefix frontend --include=dev --no-audit --no-fund', {
+        env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=1536' }
+      });
+
       // 3. Compilação do backend TypeScript com limites controlados de heap
       console.log('[SystemVersionService] Compilando backend TypeScript...');
       await evolutionService.setProgress({
