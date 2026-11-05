@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.27.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.27.0...v1.27.1) (2026-11-05)
+
+### 🐛 Bug Fixes
+
+* **ui:** barra de status passa a seguir a cor real do tema e remove meta estática (Refs [#137](https://github.com/ApenasGabs/KrakenBridge-Web/issues/137)) ([#138](https://github.com/ApenasGabs/KrakenBridge-Web/issues/138)) ([490fea6](https://github.com/ApenasGabs/KrakenBridge-Web/commit/490fea6580be10df3b6ce999d7ca074efae7993d))
+
 ## [1.27.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.26.2...v1.27.0) (2026-11-05)
 
 ### ✨ Features
