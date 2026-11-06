@@ -342,6 +342,101 @@ export async function setupMockApi(page: Page, options: MockOptions = {}) {
     });
   });
 
+  // Rotas do Paperclip (Issue #141)
+  await page.route('**/api/paperclip/status', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        connected: true,
+        lastPollAt: new Date().toISOString(),
+        companyId: '4034eb89-a640-48d2-8b4d-f2bb0f10a119',
+        paperclipUrl: 'http://192.168.31.5:3101',
+        agents: [
+          {
+            id: 'ag-forge',
+            name: 'Kraken Forge',
+            role: 'engineer',
+            title: 'Principal Systems Engineer',
+            status: 'error',
+            lastError: 'RESOURCE_EXHAUSTED 429'
+          },
+          {
+            id: 'ag-sentinel',
+            name: 'Kraken Sentinel',
+            role: 'qa',
+            title: 'Lead QA Engineer',
+            status: 'idle'
+          }
+        ],
+        issues: [
+          {
+            id: 'iss-47',
+            identifier: 'APE-47',
+            title: '[F0-05] CLI esqueleto: init, validate, doctor',
+            status: 'in_progress',
+            priority: 'high',
+            projectId: 'proj-1',
+            projectName: 'kraken-cleanroom',
+            assigneeAgentName: 'Kraken Forge',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ],
+        activeRuns: [],
+        recentRuns: [],
+        projectsProgress: [
+          {
+            projectId: 'proj-1',
+            projectName: 'kraken-cleanroom',
+            totalIssues: 23,
+            completedIssues: 6,
+            inProgressIssues: 1,
+            blockedIssues: 0,
+            todoIssues: 17,
+            percentage: 26
+          }
+        ],
+        openPrs: [
+          {
+            number: 6,
+            title: 'feat(cli): init, validate, doctor',
+            url: 'https://github.com/ApenasGabs/kraken-cleanroom/pull/6',
+            repo: 'ApenasGabs/kraken-cleanroom',
+            ciStatus: 'FAILURE'
+          }
+        ],
+        stalls: [
+          {
+            id: 'stall-47',
+            issueId: 'iss-47',
+            issueIdentifier: 'APE-47',
+            issueTitle: '[F0-05] CLI esqueleto',
+            agentId: 'ag-forge',
+            agentName: 'Kraken Forge',
+            issueStatus: 'in_progress',
+            lastActivityAt: new Date().toISOString(),
+            inactiveMinutes: 35,
+            reason: 'Issue sem run há 35 min'
+          }
+        ],
+        timeline: []
+      }),
+    });
+  });
+
+  await page.route('**/api/paperclip/stream*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+      body: ': ping\n\n',
+    });
+  });
+
   // Rota de Chat com SSE Streaming
   await page.route('**/api/chat', async (route) => {
     const postData = route.request().postDataJSON();

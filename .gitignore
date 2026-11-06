@@ -33,3 +33,6 @@ bin/
 
 # Runtime Skill Scout
 .agents/
+
+# Anytype Backups
+.anytype-backups/
