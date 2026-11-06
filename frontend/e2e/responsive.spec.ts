@@ -73,6 +73,18 @@ test.describe('Validação Responsiva & Regressão de Layout (Issue #49)', () =>
         return document.documentElement.scrollWidth > window.innerWidth + 2;
       });
       expect(isOverflowingChat).toBe(false);
+
+      // 8. Visão Status > Paperclip Live: sem overflow horizontal
+      await page.getByTestId('tab-status').click();
+      const paperclipBtn = page.getByRole('button', { name: /paperclip|clip/i });
+      if (await paperclipBtn.isVisible()) {
+        await paperclipBtn.click();
+        await expect(page.getByText('Paperclip Orchestrator')).toBeVisible();
+        const isOverflowingPaperclip = await page.evaluate(() => {
+          return document.documentElement.scrollWidth > window.innerWidth + 2;
+        });
+        expect(isOverflowingPaperclip).toBe(false);
+      }
     });
   }
 });
