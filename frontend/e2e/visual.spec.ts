@@ -103,6 +103,7 @@ test.describe('Visual Regression: Snapshots Visuais do KrakenBridge-Web', () => 
     }
 
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    await page.waitForTimeout(300);
     await expect(page).toHaveScreenshot('theme-dark-desktop.png');
   });
 });
