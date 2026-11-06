@@ -2,6 +2,7 @@ import type {
   AccountInfo, 
   AuthStatus, 
   ChatOptions, 
+  CloudflareAuthStatus, 
   ConversationSession, 
   McpServer, 
   ModelsConfig, 
@@ -380,6 +381,28 @@ export const api = {
 
   async logoutVercel(): Promise<{ success: boolean; message?: string }> {
     const res = await fetch(`${getApiBase()}/auth/vercel/logout`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+    return res.json();
+  },
+
+  async getCloudflareStatus(): Promise<CloudflareAuthStatus> {
+    const res = await fetch(`${getApiBase()}/auth/cloudflare/status`, { headers: authHeaders() });
+    return res.json();
+  },
+
+  async saveCloudflareToken(token: string, accountId?: string): Promise<{ success: boolean; accountId?: string; accountName?: string; email?: string; username?: string; error?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/cloudflare/token`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ token, accountId })
+    });
+    return res.json();
+  },
+
+  async logoutCloudflare(): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/cloudflare/logout`, {
       method: 'POST',
       headers: authHeaders()
     });

@@ -7,11 +7,18 @@ git config --global --add safe.directory "*" || true
 # Configurar diretório de trabalho padrão caso não exista
 mkdir -p "$WORKSPACE_DIR"
 
-# Vincular diretórios de configuração persistente e binários do Vercel e GitHub CLI
-mkdir -p /root/.config/com.vercel.cli /root/.local/share /app/bin
+# Vincular diretórios de configuração persistente e binários do Cloudflare Wrangler, Vercel e GitHub CLI
+mkdir -p /root/.config/com.vercel.cli /root/.config/.wrangler /root/.wrangler /root/.local/share /app/bin
 ln -sf /root/.config/com.vercel.cli /root/.local/share/com.vercel.cli 2>/dev/null || true
 ln -sf /app/bin/vercel /usr/local/bin/vercel 2>/dev/null || true
 ln -sf /app/bin/vc /usr/local/bin/vc 2>/dev/null || true
+
+# Garantir que o binário wrangler esteja acessível no PATH
+if [ -f /app/node_modules/.bin/wrangler ]; then
+  ln -sf /app/node_modules/.bin/wrangler /usr/local/bin/wrangler 2>/dev/null || true
+elif [ -f /usr/local/bin/wrangler ]; then
+  ln -sf /usr/local/bin/wrangler /app/bin/wrangler 2>/dev/null || true
+fi
 
 # Garantir que o binário gh esteja acessível tanto em /usr/local/bin quanto em /app/bin
 if [ -x /usr/bin/gh ]; then

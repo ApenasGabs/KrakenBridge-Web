@@ -7,6 +7,7 @@ import { accountService } from '../services/accountService.js';
 import { quotaService } from '../services/quotaService.js';
 import { githubAuthService } from '../services/githubAuthService.js';
 import { vercelAuthService } from '../services/vercelAuthService.js';
+import { cloudflareAuthService } from '../services/cloudflareAuthService.js';
 
 export const authRouter = Router();
 
@@ -98,6 +99,7 @@ authRouter.get('/status', async (_req: Request, res: Response) => {
   const isAuth = agyInfo.authenticated || !!process.env.GEMINI_API_KEY;
   const githubInfo = await githubAuthService.getStatus();
   const vercelInfo = await vercelAuthService.getStatus();
+  const cloudflareInfo = await cloudflareAuthService.getStatus();
 
   res.json({
     authenticated: isAuth,
@@ -109,6 +111,7 @@ authRouter.get('/status', async (_req: Request, res: Response) => {
     antigravity: agyInfo,
     github: githubInfo,
     vercel: vercelInfo,
+    cloudflare: cloudflareInfo,
     claude: { hasKey: !!process.env.ANTHROPIC_API_KEY },
     aider: { hasKey: !!process.env.OPENAI_API_KEY }
   });
@@ -584,6 +587,42 @@ authRouter.post('/vercel/logout', async (_req: Request, res: Response) => {
   try {
     await vercelAuthService.logout();
     res.json({ success: true, message: 'Vercel desconectada com sucesso.' });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// ==============================================
+// ENDPOINTS CLOUDFLARE AUTH & WRANGLER CONFIG
+// ==============================================
+
+// Obter status do Cloudflare / Wrangler
+authRouter.get('/cloudflare/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await cloudflareAuthService.getStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Salvar API Token da Cloudflare (com accountId opcional)
+authRouter.post('/cloudflare/token', async (req: Request, res: Response) => {
+  try {
+    const { token, accountId } = req.body || {};
+    if (!token) return res.status(400).json({ error: 'Token não informado.' });
+    const result = await cloudflareAuthService.saveToken(token, accountId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: (err as Error).message });
+  }
+});
+
+// Desconectar Cloudflare / Wrangler
+authRouter.post('/cloudflare/logout', async (_req: Request, res: Response) => {
+  try {
+    await cloudflareAuthService.logout();
+    res.json({ success: true, message: 'Cloudflare desconectada com sucesso.' });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
