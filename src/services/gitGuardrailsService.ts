@@ -98,7 +98,6 @@ export class GitGuardrailsService {
       } catch {}
 
       this.initialized = true;
-      console.log('[GitGuardrailsService] 🛡️ Git Guardrails (PreToolUse + Git Pre-Push Hook) provisionados com sucesso!');
       return true;
     } catch (err) {
       console.error('[GitGuardrailsService] Falha ao provisionar Git Guardrails:', (err as Error).message);
