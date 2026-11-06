@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.28.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.27.1...v1.28.0) (2026-11-06)
+
+### ✨ Features
+
+* **cloudflare:** suporte oficial à CLI Wrangler e autenticação Cloudflare (Refs [#143](https://github.com/ApenasGabs/KrakenBridge-Web/issues/143)) ([1e27075](https://github.com/ApenasGabs/KrakenBridge-Web/commit/1e270751b8072e22448fa11870898352e23b52aa))
+
 ## [1.27.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.27.0...v1.27.1) (2026-11-05)
 
 ### 🐛 Bug Fixes
