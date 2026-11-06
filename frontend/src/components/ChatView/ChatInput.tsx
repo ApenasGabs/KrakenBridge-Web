@@ -87,6 +87,12 @@ interface ChatInputProps {
 // Catálogo oficial de comandos de barra do Antigravity
 const SLASH_COMMANDS: SlashCommand[] = [
   {
+    command: '/paperclip status',
+    title: 'Paperclip Status em Tempo Real',
+    description: 'Consulta agentes, issues em andamento, stalls e PRs no Paperclip AI.',
+    category: 'workflow'
+  },
+  {
     command: '/plan',
     title: 'Planejamento Estruturado',
     description: 'Planeja passo a passo a execução técnica antes de modificar código.',

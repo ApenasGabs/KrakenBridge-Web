@@ -14,6 +14,7 @@ import {
 } from '@xyflow/react';
 import { RootNode, ProjectNode, AgentNode } from '../HubView/HubNodes';
 import { StatsDashboard } from './StatsDashboard';
+import { PaperclipDashboard } from './PaperclipDashboard';
 import type { ConversationSession, ProjectWorkspace } from '../../types';
 import { calculateRelevance } from '../../utils/searchUtils';
 import { 
@@ -23,7 +24,8 @@ import {
   Filter,
   Columns2,
   Activity,
-  BarChart2
+  BarChart2,
+  Bot
 } from 'lucide-react';
 
 interface StatusViewProps {
@@ -42,7 +44,7 @@ const nodeTypes = {
   agentNode: AgentNode,
 };
 
-type ViewLayoutMode = 'split' | 'mesh' | 'stats';
+type ViewLayoutMode = 'split' | 'mesh' | 'stats' | 'paperclip';
 
 const StatusContent: React.FC<StatusViewProps> = ({
   conversations,
@@ -58,7 +60,7 @@ const StatusContent: React.FC<StatusViewProps> = ({
   const [onlyRunning, setOnlyRunning] = useState(false);
   const [layoutMode, setLayoutMode] = useState<ViewLayoutMode>(() => {
     const saved = localStorage.getItem('kraken_status_layout_mode');
-    return (saved === 'mesh' || saved === 'stats') ? saved : 'split';
+    return (saved === 'mesh' || saved === 'stats' || saved === 'paperclip') ? saved : 'split';
   });
 
   const handleSetLayoutMode = (mode: ViewLayoutMode) => {
@@ -292,12 +294,26 @@ const StatusContent: React.FC<StatusViewProps> = ({
               <BarChart2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Só Métricas</span>
             </button>
+
+            <button
+              onClick={() => handleSetLayoutMode('paperclip')}
+              className={`px-2 py-1 text-xs rounded-md flex items-center gap-1 font-medium transition-all ${
+                layoutMode === 'paperclip'
+                  ? 'bg-primary text-primary-content shadow-xs'
+                  : 'text-base-content/70 hover:text-base-content'
+              }`}
+              title="Status e Agentes do Paperclip em Tempo Real"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Paperclip</span>
+              <span className="sm:hidden">Clip</span>
+            </button>
           </div>
         </div>
 
         {/* Direita: Busca na Malha, Filtros e Novo Chat */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {layoutMode !== 'stats' && (
+          {layoutMode !== 'stats' && layoutMode !== 'paperclip' && (
             <>
               <div className="relative w-24 sm:w-44">
                 <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-base-content/40" />
@@ -335,70 +351,78 @@ const StatusContent: React.FC<StatusViewProps> = ({
         </div>
       </div>
 
-      {/* ÁREA PRINCIPAL DIVIDIDA */}
+      {/* ÁREA PRINCIPAL DIVIDIDA OU PAPERCLIP */}
       <div className="flex-1 w-full h-full overflow-hidden flex flex-col lg:flex-row relative">
         
-        {/* Painel da Malha (ReactFlow) */}
-        {layoutMode !== 'stats' && (
-          <div 
-            className={`h-full relative transition-all duration-300 border-b lg:border-b-0 lg:border-r border-base-300/80 ${
-              layoutMode === 'split' ? 'w-full lg:w-[48%] xl:w-[45%] h-1/2 lg:h-full' : 'w-full h-full'
-            }`}
-          >
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              nodeTypes={nodeTypes}
-              fitView
-              fitViewOptions={{ padding: 0.15 }}
-              minZoom={0.1}
-              maxZoom={1.8}
-              proOptions={{ hideAttribution: true }}
-              className="bg-base-200/30"
-            >
-              <Background 
-                variant={BackgroundVariant.Dots} 
-                gap={20} 
-                size={1.2} 
-                color="currentColor" 
-                className="text-base-content/10"
-              />
-              <Controls 
-                position="bottom-right" 
-                className="!bg-base-100 !border !border-base-300 !rounded-xl !shadow-lg !overflow-hidden"
-              />
-              <MiniMap 
-                nodeColor={getNodeColor}
-                position="bottom-left"
-                zoomable
-                pannable
-                className="!hidden sm:!block !bg-base-100/90 !border !border-base-300 !rounded-xl !shadow-lg !overflow-hidden"
-                maskColor="rgba(0, 0, 0, 0.3)"
-              />
-            </ReactFlow>
-
-            <div className="absolute top-2 left-2 pointer-events-none z-10 bg-base-100/80 backdrop-blur-xs px-2 py-1 rounded-md border border-base-300/60 text-[10px] text-base-content/60 font-mono">
-              Topologia de Workspaces & Agentes
-            </div>
+        {layoutMode === 'paperclip' ? (
+          <div className="w-full h-full overflow-y-auto">
+            <PaperclipDashboard />
           </div>
-        )}
+        ) : (
+          <>
+            {/* Painel da Malha (ReactFlow) */}
+            {layoutMode !== 'stats' && (
+              <div 
+                className={`h-full relative transition-all duration-300 border-b lg:border-b-0 lg:border-r border-base-300/80 ${
+                  layoutMode === 'split' ? 'w-full lg:w-[48%] xl:w-[45%] h-1/2 lg:h-full' : 'w-full h-full'
+                }`}
+              >
+                <ReactFlow
+                  nodes={nodes}
+                  edges={edges}
+                  onNodesChange={onNodesChange}
+                  onEdgesChange={onEdgesChange}
+                  nodeTypes={nodeTypes}
+                  fitView
+                  fitViewOptions={{ padding: 0.15 }}
+                  minZoom={0.1}
+                  maxZoom={1.8}
+                  proOptions={{ hideAttribution: true }}
+                  className="bg-base-200/30"
+                >
+                  <Background 
+                    variant={BackgroundVariant.Dots} 
+                    gap={20} 
+                    size={1.2} 
+                    color="currentColor" 
+                    className="text-base-content/10"
+                  />
+                  <Controls 
+                    position="bottom-right" 
+                    className="!bg-base-100 !border !border-base-300 !rounded-xl !shadow-lg !overflow-hidden"
+                  />
+                  <MiniMap 
+                    nodeColor={getNodeColor}
+                    position="bottom-left"
+                    zoomable
+                    pannable
+                    className="!hidden sm:!block !bg-base-100/90 !border !border-base-300 !rounded-xl !shadow-lg !overflow-hidden"
+                    maskColor="rgba(0, 0, 0, 0.3)"
+                  />
+                </ReactFlow>
 
-        {/* Painel de Métricas e Telemetria (Stats Dashboard) */}
-        {layoutMode !== 'mesh' && (
-          <div 
-            className={`h-full overflow-hidden transition-all duration-300 flex flex-col ${
-              layoutMode === 'split' ? 'w-full lg:w-[52%] xl:w-[55%] h-1/2 lg:h-full' : 'w-full h-full'
-            }`}
-          >
-            <StatsDashboard 
-              runningCount={runningCount}
-              totalConversations={conversations.length}
-              totalWorkspaces={projects.length}
-              onStartSetupChat={onStartSetupChat}
-            />
-          </div>
+                <div className="absolute top-2 left-2 pointer-events-none z-10 bg-base-100/80 backdrop-blur-xs px-2 py-1 rounded-md border border-base-300/60 text-[10px] text-base-content/60 font-mono">
+                  Topologia de Workspaces & Agentes
+                </div>
+              </div>
+            )}
+
+            {/* Painel de Métricas e Telemetria (Stats Dashboard) */}
+            {layoutMode !== 'mesh' && (
+              <div 
+                className={`h-full overflow-hidden transition-all duration-300 flex flex-col ${
+                  layoutMode === 'split' ? 'w-full lg:w-[52%] xl:w-[55%] h-1/2 lg:h-full' : 'w-full h-full'
+                }`}
+              >
+                <StatsDashboard 
+                  runningCount={runningCount}
+                  totalConversations={conversations.length}
+                  totalWorkspaces={projects.length}
+                  onStartSetupChat={onStartSetupChat}
+                />
+              </div>
+            )}
+          </>
         )}
 
       </div>

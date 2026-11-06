@@ -13,6 +13,7 @@ import { evolutionService } from '../services/evolutionService.js';
 import { workspaceManager } from '../services/workspaceManager.js';
 import { pushNotificationService } from '../services/pushNotificationService.js';
 import { coucouPhoneLinkService } from '../services/coucouPhoneLinkService.js';
+import { paperclipService } from '../services/paperclipService.js';
 import {
   promptRefinerService,
   RefineValidationError,
@@ -296,6 +297,49 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   }
 
   const activeTags = existingSession?.tags || [];
+
+  const normalizedPrompt = prompt.trim().toLowerCase();
+  const isPaperclipStatusCommand =
+    normalizedPrompt === '/paperclip status' ||
+    normalizedPrompt === '/paperclip' ||
+    normalizedPrompt.startsWith('/paperclip status') ||
+    normalizedPrompt === 'o que o paperclip está fazendo?' ||
+    normalizedPrompt === 'o que o paper clip está fazendo?' ||
+    normalizedPrompt === 'o que o paperclip esta fazendo?' ||
+    normalizedPrompt === 'o que o paper clip esta fazendo?' ||
+    normalizedPrompt === 'status do paperclip' ||
+    normalizedPrompt === 'status do paper clip';
+
+  if (isPaperclipStatusCommand) {
+    const summary = paperclipService.getPaperclipSummary();
+    res.write(`data: ${JSON.stringify({ 
+      event: 'session_start', 
+      conversation_id: conversationId, 
+      reqId, 
+      subproject: activeSubproject, 
+      chatMode: activeChatMode, 
+      tags: activeTags,
+      isEphemeral: false,
+      workDir: effectiveWorkDir
+    })}\n\n`);
+
+    res.write(`data: ${JSON.stringify({ text: summary })}\n\n`);
+
+    await historyService.updateLastAssistantMessage(conversationId, {
+      id: assistantMsgId,
+      role: 'assistant',
+      text: summary,
+      content: summary,
+      agent: 'kraken',
+      model: 'paperclip-realtime',
+      toolCalls: [],
+      timestamp: new Date().toISOString()
+    });
+
+    res.write(`data: ${JSON.stringify({ event: 'done', code: 0, conversation_id: conversationId })}\n\n`);
+    res.end();
+    return;
+  }
 
   // Diretiva de Identidade (Kraken) e Modo Operacional
   const systemDirective = await identityService.buildSystemDirective({
