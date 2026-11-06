@@ -12,6 +12,7 @@ import type {
 } from '../types/telemetry.js';
 import { githubAuthService } from './githubAuthService.js';
 import { vercelAuthService } from './vercelAuthService.js';
+import { cloudflareAuthService } from './cloudflareAuthService.js';
 import { loadDotEnvFiles } from '../utils/envLoader.js';
 import { DEFAULT_GROQ_MODEL } from './promptRefinerService.js';
 
@@ -80,6 +81,7 @@ export class TelemetryService {
 
     const ghStatus = await githubAuthService.getStatus().catch(() => ({ authenticated: false, hasToken: false }));
     const vcStatus = await vercelAuthService.getStatus().catch(() => ({ authenticated: false, hasToken: false }));
+    const cfStatus = await cloudflareAuthService.getStatus().catch(() => ({ authenticated: false, hasToken: false }));
 
     loadDotEnvFiles();
 
@@ -108,6 +110,7 @@ export class TelemetryService {
       },
       hasGithubToken: !!(ghStatus.authenticated || ghStatus.hasToken),
       hasVercelToken: !!(vcStatus.authenticated || vcStatus.hasToken),
+      hasCloudflareToken: !!(cfStatus.authenticated || cfStatus.hasToken),
       autoProvisionTelemetry: saved.autoProvisionTelemetry ?? (process.env.AUTO_PROVISION_TELEMETRY !== 'false'),
       telemetryDir: saved.telemetryDir || this.getTelemetryDir(),
       grafanaPort: saved.grafanaPort || Number(process.env.GRAFANA_PORT || 3003),
@@ -154,6 +157,9 @@ export class TelemetryService {
     }
     if (payload.vercelToken !== undefined && payload.vercelToken.trim()) {
       await vercelAuthService.saveToken(payload.vercelToken.trim()).catch(() => {});
+    }
+    if (payload.cloudflareToken !== undefined && payload.cloudflareToken.trim()) {
+      await cloudflareAuthService.saveToken(payload.cloudflareToken.trim(), payload.cloudflareAccountId?.trim()).catch(() => {});
     }
 
     const updated: OutOfBoxSetupConfig = {
@@ -217,6 +223,8 @@ export class TelemetryService {
     if (payload.aistudioApiKey?.trim()) updates.AISTUDIO_API_KEY = payload.aistudioApiKey.trim();
     if (payload.groqModel?.trim()) updates.GROQ_MODEL = payload.groqModel.trim();
     if (payload.krakenPin !== undefined) updates.KRAKEN_PIN = payload.krakenPin.trim();
+    if (payload.cloudflareToken?.trim()) updates.CLOUDFLARE_API_TOKEN = payload.cloudflareToken.trim();
+    if (payload.cloudflareAccountId?.trim()) updates.CLOUDFLARE_ACCOUNT_ID = payload.cloudflareAccountId.trim();
 
     let lines = content.split('\n');
     for (const [key, val] of Object.entries(updates)) {

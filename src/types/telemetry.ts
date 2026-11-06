@@ -76,6 +76,7 @@ export interface OutOfBoxSetupConfig {
   };
   hasGithubToken: boolean;
   hasVercelToken: boolean;
+  hasCloudflareToken?: boolean;
   autoProvisionTelemetry: boolean;
   telemetryDir: string;
   grafanaPort: number;
@@ -100,6 +101,8 @@ export interface ApplySetupPayload {
   groqModel?: string;
   githubToken?: string;
   vercelToken?: string;
+  cloudflareToken?: string;
+  cloudflareAccountId?: string;
   autoProvisionTelemetry?: boolean;
   grafanaPort?: number;
   uptimeKumaPort?: number;

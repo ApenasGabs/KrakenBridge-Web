@@ -88,6 +88,17 @@ export interface VercelAuthStatus {
   error?: string;
 }
 
+export interface CloudflareAuthStatus {
+  authenticated: boolean;
+  accountId?: string;
+  accountName?: string;
+  email?: string;
+  username?: string;
+  tokenStatus?: string;
+  hasToken?: boolean;
+  error?: string;
+}
+
 export interface AuthStatus {
   authenticated: boolean;
   email?: string;
@@ -98,6 +109,7 @@ export interface AuthStatus {
   type?: string;
   github?: GithubAuthStatus;
   vercel?: VercelAuthStatus;
+  cloudflare?: CloudflareAuthStatus;
 }
 
 export type UpdateStage =
@@ -497,6 +509,7 @@ export interface OutOfBoxSetupConfig {
   };
   hasGithubToken: boolean;
   hasVercelToken: boolean;
+  hasCloudflareToken?: boolean;
   autoProvisionTelemetry: boolean;
   telemetryDir: string;
   grafanaPort: number;
@@ -521,6 +534,8 @@ export interface ApplySetupPayload {
   groqModel?: string;
   githubToken?: string;
   vercelToken?: string;
+  cloudflareToken?: string;
+  cloudflareAccountId?: string;
   autoProvisionTelemetry?: boolean;
   grafanaPort?: number;
   uptimeKumaPort?: number;

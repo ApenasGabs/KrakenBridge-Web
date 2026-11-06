@@ -36,8 +36,8 @@ WORKDIR /app
 # Copiar manifestos de dependências do backend
 COPY package*.json tsconfig.json ./
 
-# Instalar dependências completas e CLI oficial skills (skills.sh da Vercel Labs)
-RUN npm install && npm install -g skills
+# Instalar dependências completas e CLIs oficiais (skills.sh da Vercel Labs e Wrangler da Cloudflare)
+RUN npm install && npm install -g skills wrangler
 
 # Copiar código-fonte TypeScript e scripts
 COPY src ./src

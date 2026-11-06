@@ -35,6 +35,7 @@ export const TelemetryAndSetupPanel: React.FC<TelemetryAndSetupPanelProps> = ({
   const [groqApiKey, setGroqApiKey] = useState('');
   const [githubToken, setGithubToken] = useState('');
   const [vercelToken, setVercelToken] = useState('');
+  const [cloudflareToken, setCloudflareToken] = useState('');
   const [krakenPin, setKrakenPin] = useState('');
   const [defaultMemLimit, setDefaultMemLimit] = useState('512M');
   const [grafanaPort, setGrafanaPort] = useState(3003);
@@ -97,6 +98,7 @@ export const TelemetryAndSetupPanel: React.FC<TelemetryAndSetupPanelProps> = ({
         groqApiKey: groqApiKey.trim() || undefined,
         githubToken: githubToken.trim() || undefined,
         vercelToken: vercelToken.trim() || undefined,
+        cloudflareToken: cloudflareToken.trim() || undefined,
         krakenPin: krakenPin.trim() || undefined,
         defaultContainerMemLimit: defaultMemLimit,
         grafanaPort: Number(grafanaPort),
@@ -108,6 +110,7 @@ export const TelemetryAndSetupPanel: React.FC<TelemetryAndSetupPanelProps> = ({
       setGroqApiKey('');
       setGithubToken('');
       setVercelToken('');
+      setCloudflareToken('');
       setKrakenPin('');
       setFeedbackMsg({
         type: 'success',
@@ -488,6 +491,19 @@ export const TelemetryAndSetupPanel: React.FC<TelemetryAndSetupPanelProps> = ({
                     value={vercelToken}
                     onChange={(e) => setVercelToken(e.target.value)}
                     placeholder={setupConfig?.hasVercelToken ? '•••••••• (manter atual)' : 'Token da Vercel'}
+                    className="input input-sm input-bordered w-full font-mono text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="label py-1 font-medium">
+                    Cloudflare API Token {setupConfig?.hasCloudflareToken && <span className="text-success">(Conectado)</span>}
+                  </label>
+                  <input
+                    type="password"
+                    value={cloudflareToken}
+                    onChange={(e) => setCloudflareToken(e.target.value)}
+                    placeholder={setupConfig?.hasCloudflareToken ? '•••••••• (manter atual)' : 'Token da Cloudflare'}
                     className="input input-sm input-bordered w-full font-mono text-xs"
                   />
                 </div>

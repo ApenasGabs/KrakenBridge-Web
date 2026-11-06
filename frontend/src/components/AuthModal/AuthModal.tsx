@@ -32,7 +32,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   status,
   onRefreshStatus
 }) => {
-  const [activeTab, setActiveTab] = useState<'accounts' | 'google' | 'github' | 'vercel' | 'apikey' | 'ide'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'google' | 'github' | 'vercel' | 'cloudflare' | 'apikey' | 'ide'>('accounts');
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [switchingEmail, setSwitchingEmail] = useState<string | null>(null);
@@ -59,6 +59,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [vcPolling, setVcPolling] = useState(false);
   const [vcPatInput, setVcPatInput] = useState('');
   const [vcCopiedCode, setVcCopiedCode] = useState(false);
+
+  // Estados da Cloudflare / Wrangler
+  const [cfTokenInput, setCfTokenInput] = useState('');
+  const [cfAccountIdInput, setCfAccountIdInput] = useState('');
 
   const loadAccountsList = async () => {
     setLoadingAccounts(true);
@@ -434,6 +438,49 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  // Salvar API Token da Cloudflare
+  const handleSaveCloudflareToken = async () => {
+    if (!cfTokenInput.trim()) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await api.saveCloudflareToken(cfTokenInput.trim(), cfAccountIdInput.trim() || undefined);
+      if (res.success) {
+        setMessage({
+          text: `Cloudflare autenticada com sucesso! Conta: ${res.accountName || res.accountId || res.username || 'Padrão'}`,
+          type: 'success'
+        });
+        setCfTokenInput('');
+        setCfAccountIdInput('');
+        onRefreshStatus();
+      } else {
+        setMessage({ text: res.error || 'Erro ao validar token da Cloudflare.', type: 'error' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar token da Cloudflare.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Desconectar Cloudflare
+  const handleLogoutCloudflare = async () => {
+    if (!window.confirm('Deseja realmente desconectar a conta da Cloudflare / Wrangler CLI?')) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      await api.logoutCloudflare();
+      setMessage({ text: 'Cloudflare / Wrangler CLI desconectada.', type: 'info' });
+      onRefreshStatus();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao desconectar Cloudflare.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const copyVercelCode = () => {
     if (!vcUserCode) return;
     if (navigator.clipboard && window.isSecureContext) {
@@ -545,6 +592,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </svg>
             <span>Vercel</span>
             {status?.vercel?.authenticated && (
+              <span className="badge badge-xs badge-success">OK</span>
+            )}
+          </button>
+          <button
+            data-testid="auth-tab-cloudflare"
+            onClick={() => setActiveTab('cloudflare')}
+            className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'cloudflare' ? 'tab-active font-medium' : ''}`}
+          >
+            <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+              <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+            </svg>
+            <span>Cloudflare</span>
+            {status?.cloudflare?.authenticated && (
               <span className="badge badge-xs badge-success">OK</span>
             )}
           </button>
@@ -1014,6 +1074,113 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 >
                   {loading ? <span className="loading loading-spinner loading-xs" /> : 'Salvar Token'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Aba Cloudflare & Wrangler CLI */}
+        {activeTab === 'cloudflare' && (
+          <div className="space-y-4 text-xs">
+            {/* Status atual da Cloudflare */}
+            <div className="p-3 rounded-xl bg-base-200/50 border border-base-300 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-base-300/60 text-base-content">
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-semibold text-base-content flex items-center gap-1.5">
+                    <span>
+                      Cloudflare / Wrangler CLI (
+                      {status?.cloudflare?.authenticated
+                        ? `${status.cloudflare.accountName || status.cloudflare.username || 'Ativo'}`
+                        : 'Não conectado'}
+                      )
+                    </span>
+                    {status?.cloudflare?.authenticated ? (
+                      <span className="badge badge-xs badge-success">Conectado</span>
+                    ) : (
+                      <span className="badge badge-xs badge-ghost">Pendente</span>
+                    )}
+                  </div>
+                  <p className="text-base-content/60 text-[11px] mt-0.5">
+                    Permite ao Kraken e ao Antigravity gerenciar deploys no Cloudflare Workers, Pages, D1, KV, R2, DNS e túneis via Wrangler CLI.
+                  </p>
+                  {status?.cloudflare?.authenticated && status.cloudflare.accountId && (
+                    <div className="mt-1 font-mono text-[10px] text-base-content/70">
+                      Account ID: <span className="text-primary font-semibold">{status.cloudflare.accountId}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {status?.cloudflare?.authenticated && (
+                <button
+                  onClick={handleLogoutCloudflare}
+                  disabled={loading}
+                  className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                >
+                  Desconectar
+                </button>
+              )}
+            </div>
+
+            {/* Configuração do API Token */}
+            <div className="p-4 rounded-xl bg-base-200/30 border border-base-300 space-y-3">
+              <h4 className="font-semibold text-base-content flex items-center gap-1.5">
+                <span>Configurar Cloudflare API Token</span>
+                <span className="badge badge-xs badge-primary">Wrangler</span>
+              </h4>
+              <p className="text-base-content/60 text-[11px]">
+                Gere um token de API com permissões para Workers, Pages ou DNS em{' '}
+                <a
+                  href="https://dash.cloudflare.com/profile/api-tokens"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link link-primary inline-flex items-center gap-0.5"
+                >
+                  dash.cloudflare.com/profile/api-tokens <ExternalLink className="w-3 h-3 inline" />
+                </a>{' '}
+                (recomendado template <em>Edit Cloudflare Workers</em>) e cole abaixo:
+              </p>
+
+              <div className="space-y-2">
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text text-[11px] font-medium text-base-content/70">API Token Cloudflare *</span>
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="Cole seu Cloudflare API Token aqui..."
+                    value={cfTokenInput}
+                    onChange={(e) => setCfTokenInput(e.target.value)}
+                    className="input input-sm input-bordered w-full bg-base-100 font-mono text-xs"
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text text-[11px] font-medium text-base-content/70">Account ID (Opcional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ID da Conta Cloudflare (deixe em branco para auto-detectar)..."
+                    value={cfAccountIdInput}
+                    onChange={(e) => setCfAccountIdInput(e.target.value)}
+                    className="input input-sm input-bordered w-full bg-base-100 font-mono text-xs"
+                  />
+                </div>
+
+                <div className="pt-1 flex justify-end">
+                  <button
+                    onClick={handleSaveCloudflareToken}
+                    disabled={loading || !cfTokenInput.trim()}
+                    className="btn btn-primary btn-sm gap-1.5"
+                  >
+                    {loading ? <span className="loading loading-spinner loading-xs" /> : 'Salvar e Conectar Wrangler'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
