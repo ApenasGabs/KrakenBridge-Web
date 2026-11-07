@@ -5,6 +5,20 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.30.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.29.0...v1.30.0) (2026-11-07)
+
+### ✨ Features
+
+* **guardrails:** 🛡️ implementar travas de execução para impedir commits e pushes na main (Refs [#140](https://github.com/ApenasGabs/KrakenBridge-Web/issues/140)) ([ad31edc](https://github.com/ApenasGabs/KrakenBridge-Web/commit/ad31edc2dbe37af0352e76f359d969a54aad1d5d))
+
+### 🐛 Bug Fixes
+
+* **guardrails:** remover console.log residual em produção ([da9743e](https://github.com/ApenasGabs/KrakenBridge-Web/commit/da9743e82fb0cdb7cc3e7a733146b3613ce2e8e4))
+
+### 🧪 Tests
+
+* **e2e:** ajustar estabilização e tolerância de renderização visual no CI ([7438da1](https://github.com/ApenasGabs/KrakenBridge-Web/commit/7438da128bd7b89a5bee8dea25cc125234410043))
+
 ## [1.29.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.28.0...v1.29.0) (2026-11-07)
 
 ### ✨ Features
