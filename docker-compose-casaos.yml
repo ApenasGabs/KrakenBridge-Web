@@ -33,6 +33,9 @@ services:
       - target: 8088
         published: "8088"
         protocol: tcp
+      - target: 8976
+        published: "8976"
+        protocol: tcp
       - target: 47821
         published: "47821"
         protocol: tcp

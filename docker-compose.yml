@@ -14,6 +14,9 @@ services:
       - target: 8088
         published: "${WEB_PORT:-8088}"
         protocol: tcp
+      - target: 8976
+        published: "${WRANGLER_PORT:-8976}"
+        protocol: tcp
     environment:
       - PORT=8088
       - WORKSPACE_DIR=/workspace
@@ -101,6 +104,10 @@ services:
           description:
             en_US: KrakenBridge Web UI Port
             pt_BR: Porta da Interface Web do KrakenBridge
+        - container: "8976"
+          description:
+            en_US: Cloudflare Wrangler OAuth Callback Port
+            pt_BR: Porta de Callback OAuth do Cloudflare Wrangler
 
   # ========================================================
   # 2. VS Code Web (code-server Integrado no mesmo Workspace)

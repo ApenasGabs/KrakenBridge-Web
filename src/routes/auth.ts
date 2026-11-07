@@ -618,6 +618,59 @@ authRouter.post('/cloudflare/token', async (req: Request, res: Response) => {
   }
 });
 
+// Iniciar fluxo OAuth Device Code do Cloudflare Wrangler (`wrangler login --device`)
+authRouter.post('/cloudflare/device/start', async (req: Request, res: Response) => {
+  try {
+    const { useKeyring } = req.body || {};
+    const data = await cloudflareAuthService.startDeviceFlow(!!useKeyring);
+    res.json({
+      success: true,
+      userCode: data.userCode,
+      verificationUri: data.verificationUri,
+      verificationUriComplete: data.verificationUriComplete,
+      expiresIn: data.expiresIn,
+      interval: data.interval
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: (err as Error).message });
+  }
+});
+
+// Polling do código de dispositivo do Cloudflare Wrangler
+authRouter.get('/cloudflare/device/poll', async (_req: Request, res: Response) => {
+  try {
+    const result = await cloudflareAuthService.pollDeviceFlow();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: (err as Error).message });
+  }
+});
+
+// Alternar modo para OAuth (limpando tokens manuais)
+authRouter.post('/cloudflare/mode', async (req: Request, res: Response) => {
+  try {
+    const { mode } = req.body || {};
+    if (mode === 'oauth') {
+      const result = await cloudflareAuthService.switchToOAuth();
+      return res.json(result);
+    }
+    res.json({ success: true, message: `Modo ${mode || 'padrão'} selecionado.` });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Configurar preferência de Keyring no Wrangler
+authRouter.post('/cloudflare/keyring', async (req: Request, res: Response) => {
+  try {
+    const { enabled } = req.body || {};
+    await cloudflareAuthService.setKeyringPreference(!!enabled);
+    res.json({ success: true, keyringEnabled: !!enabled });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // Desconectar Cloudflare / Wrangler
 authRouter.post('/cloudflare/logout', async (_req: Request, res: Response) => {
   try {

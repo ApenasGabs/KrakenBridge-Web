@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import os from 'os';
 
-describe('CloudflareAuthService & Wrangler Integration (Issue #143)', () => {
+describe('CloudflareAuthService & Wrangler Integration (Issues #143 & #146)', () => {
   let tmpConfigDir: string;
   let originalConfigDir: string | undefined;
   let originalToken: string | undefined;
@@ -46,14 +46,16 @@ describe('CloudflareAuthService & Wrangler Integration (Issue #143)', () => {
     } catch {}
   });
 
-  it('deve retornar authenticated=false quando não houver token configurado', async () => {
+  it('deve retornar authenticated=false e authMethod=none quando não houver credenciais', async () => {
     const { cloudflareAuthService } = await import('../../../../src/services/cloudflareAuthService');
     const status = await cloudflareAuthService.getStatus();
     expect(status.authenticated).toBe(false);
+    expect(status.authMethod).toBe('none');
     expect(status.hasToken).toBe(false);
+    expect(status.isOAuth).toBe(false);
   });
 
-  it('deve validar token com sucesso contra a API da Cloudflare e retornar dados da conta', async () => {
+  it('deve validar API Token com sucesso e indicar authMethod=token', async () => {
     const mockFetch = vi.fn(async (url: string) => {
       if (url.includes('/user/tokens/verify')) {
         return {
@@ -98,32 +100,163 @@ describe('CloudflareAuthService & Wrangler Integration (Issue #143)', () => {
 
     const status = await cloudflareAuthService.getStatus();
     expect(status.authenticated).toBe(true);
+    expect(status.authMethod).toBe('token');
+    expect(status.isOAuth).toBe(false);
     expect(status.hasToken).toBe(true);
     expect(status.accountName).toBe('Kraken Org');
   });
 
-  it('deve rejeitar e lançar erro se o token for inválido na API da Cloudflare', async () => {
-    const mockFetch = vi.fn(async () => ({
-      ok: false,
-      status: 401,
-      json: async () => ({ success: false, errors: [{ code: 1000, message: 'Invalid token' }] })
-    }));
+  it('deve detectar e autenticar credenciais OAuth nativas do Wrangler em default.toml', async () => {
+    const mockFetch = vi.fn(async (url: string) => {
+      if (url.includes('/user/tokens/verify')) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            result: { id: 'oauth-token-id', status: 'active' }
+          })
+        };
+      }
+      if (url.includes('/accounts')) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            result: [{ id: 'cf-acc-oauth', name: 'OAuth Cloudflare Account' }]
+          })
+        };
+      }
+      if (url.includes('/user')) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            result: { id: 'usr-oauth', email: 'oauth@kraken.test', username: 'oauthuser' }
+          })
+        };
+      }
+      return { ok: false, status: 404 };
+    });
 
     vi.stubGlobal('fetch', mockFetch);
 
     const { cloudflareAuthService } = await import('../../../../src/services/cloudflareAuthService');
-    await expect(cloudflareAuthService.saveToken('invalid-token')).rejects.toThrow('Token da Cloudflare inválido ou não autorizado.');
+    await cloudflareAuthService.saveOAuthData({
+      oauth_token: 'valid-oauth-access-token-123',
+      refresh_token: 'valid-refresh-token-456',
+      expiration_time: new Date(Date.now() + 3600 * 1000).toISOString()
+    });
+
+    const status = await cloudflareAuthService.getStatus();
+    expect(status.authenticated).toBe(true);
+    expect(status.authMethod).toBe('oauth');
+    expect(status.isOAuth).toBe(true);
+    expect(status.email).toBe('oauth@kraken.test');
+    expect(status.accountName).toBe('OAuth Cloudflare Account');
+    expect(status.accountId).toBe('cf-acc-oauth');
   });
 
-  it('deve realizar logout e remover variáveis de ambiente e arquivos de configuração', async () => {
+  it('deve renovar token OAuth se expirado e atualizar default.toml', async () => {
+    const mockFetch = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.includes('/oauth2/token')) {
+        return {
+          ok: true,
+          json: async () => ({
+            access_token: 'new-refreshed-oauth-token',
+            refresh_token: 'new-refresh-token-789',
+            expires_in: 7200
+          })
+        };
+      }
+      if (url.includes('/user/tokens/verify')) {
+        const authHeader = (init?.headers as Record<string, string>)?.['Authorization'] || '';
+        if (authHeader.includes('new-refreshed-oauth-token')) {
+          return {
+            ok: true,
+            json: async () => ({
+              success: true,
+              result: { id: 'token-refreshed', status: 'active' }
+            })
+          };
+        }
+        return { ok: false, status: 401 };
+      }
+      if (url.includes('/accounts')) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            result: [{ id: 'acc-refreshed', name: 'Refreshed Account' }]
+          })
+        };
+      }
+      if (url.includes('/user')) {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            result: { id: 'usr-refreshed', email: 'refreshed@kraken.test' }
+          })
+        };
+      }
+      return { ok: false, status: 404 };
+    });
+
+    vi.stubGlobal('fetch', mockFetch);
+
+    const { cloudflareAuthService } = await import('../../../../src/services/cloudflareAuthService');
+    await cloudflareAuthService.saveOAuthData({
+      oauth_token: 'expired-token',
+      refresh_token: 'my-refresh-token',
+      expiration_time: new Date(Date.now() - 1000).toISOString()
+    });
+
+    const status = await cloudflareAuthService.getStatus();
+    expect(status.authenticated).toBe(true);
+    expect(status.authMethod).toBe('oauth');
+    expect(status.email).toBe('refreshed@kraken.test');
+
+    const updated = await cloudflareAuthService.getStoredOAuthData();
+    expect(updated?.oauth_token).toBe('new-refreshed-oauth-token');
+  });
+
+  it('deve gerenciar preferência de keyring no Wrangler', async () => {
+    const { cloudflareAuthService } = await import('../../../../src/services/cloudflareAuthService');
+
+    expect(await cloudflareAuthService.isKeyringEnabled()).toBe(false);
+    await cloudflareAuthService.setKeyringPreference(true);
+    expect(await cloudflareAuthService.isKeyringEnabled()).toBe(true);
+    await cloudflareAuthService.setKeyringPreference(false);
+    expect(await cloudflareAuthService.isKeyringEnabled()).toBe(false);
+  });
+
+  it('deve alternar para modo OAuth através de switchToOAuth removendo tokens manuais', async () => {
+    process.env.CLOUDFLARE_API_TOKEN = 'manual-token';
+    process.env.CLOUDFLARE_ACCOUNT_ID = 'manual-acc';
+
+    const { cloudflareAuthService } = await import('../../../../src/services/cloudflareAuthService');
+    const result = await cloudflareAuthService.switchToOAuth();
+
+    expect(result.success).toBe(true);
+    expect(process.env.CLOUDFLARE_API_TOKEN).toBeUndefined();
+    expect(process.env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
+  });
+
+  it('deve realizar logout completo removendo tokens, default.toml e variáveis', async () => {
     process.env.CLOUDFLARE_API_TOKEN = 'token-to-delete';
     process.env.CLOUDFLARE_ACCOUNT_ID = 'acc-to-delete';
 
     const { cloudflareAuthService } = await import('../../../../src/services/cloudflareAuthService');
+    await cloudflareAuthService.saveOAuthData({
+      oauth_token: 'oauth-to-delete',
+      refresh_token: 'ref-to-delete'
+    });
+
     const res = await cloudflareAuthService.logout();
 
     expect(res.success).toBe(true);
     expect(process.env.CLOUDFLARE_API_TOKEN).toBeUndefined();
     expect(process.env.CLOUDFLARE_ACCOUNT_ID).toBeUndefined();
+    expect(await cloudflareAuthService.getStoredOAuthData()).toBeNull();
   });
 });

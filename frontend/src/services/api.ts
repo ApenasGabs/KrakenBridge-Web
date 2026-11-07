@@ -409,6 +409,54 @@ export const api = {
     return res.json();
   },
 
+  async startCloudflareDeviceFlow(useKeyring = false): Promise<{
+    success: boolean;
+    userCode?: string;
+    verificationUri?: string;
+    verificationUriComplete?: string;
+    expiresIn?: number;
+    interval?: number;
+    error?: string;
+  }> {
+    const res = await fetch(`${getApiBase()}/auth/cloudflare/device/start`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ useKeyring })
+    });
+    return res.json();
+  },
+
+  async pollCloudflareDeviceFlow(): Promise<{
+    status: 'pending' | 'success' | 'expired' | 'denied' | 'error' | 'no_session';
+    email?: string;
+    accountName?: string;
+    accountId?: string;
+    error?: string;
+  }> {
+    const res = await fetch(`${getApiBase()}/auth/cloudflare/device/poll`, {
+      headers: authHeaders()
+    });
+    return res.json();
+  },
+
+  async switchCloudflareMode(mode: 'oauth' | 'token'): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/cloudflare/mode`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ mode })
+    });
+    return res.json();
+  },
+
+  async setCloudflareKeyring(enabled: boolean): Promise<{ success: boolean; keyringEnabled?: boolean }> {
+    const res = await fetch(`${getApiBase()}/auth/cloudflare/keyring`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ enabled })
+    });
+    return res.json();
+  },
+
   async getConversations(): Promise<ConversationSession[]> {
     const res = await fetchWithAuth(`${getApiBase()}/conversations`);
     const data = await res.json();
