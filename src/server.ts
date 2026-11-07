@@ -22,6 +22,7 @@ import { telemetryService } from './services/telemetryService.js';
 import { workspaceManager } from './services/workspaceManager.js';
 import { mcpService } from './services/mcpService.js';
 import { skillScoutService } from './services/skillScoutService.js';
+import { gitGuardrailsService } from './services/gitGuardrailsService.js';
 import { coucouPhoneLinkService } from './services/coucouPhoneLinkService.js';
 import {
   createSpaAssetMiddleware,
@@ -263,6 +264,11 @@ app.listen(PORT, '0.0.0.0', () => {
   // Auto-provisionar o subsistema nativo Skill Scout e hooks do skills.sh
   skillScoutService.ensureSkillScoutProvisioned().catch((err) => {
     console.warn('[KrakenBridge] Aviso ao provisionar Skill Scout nativo:', err?.message || err);
+  });
+
+  // Auto-provisionar os Git Guardrails (PreToolUse e Git Pre-Push Hook) para impedir pushes na main
+  gitGuardrailsService.ensureGuardrailsProvisioned().catch((err) => {
+    console.warn('[KrakenBridge] Aviso ao provisionar Git Guardrails:', err?.message || err);
   });
 
   // Inicializar servidor Coucou Phone Link TLS/WebSocket para smartphone

@@ -31,6 +31,8 @@ dist-server/
 bin/
 .config/
 
-# Runtime Skill Scout
+# Runtime Skill Scout & Code Review
 .agents/
 .anytype-backups/
+REVIEW_REPORT.md
+review-fixes.patch
