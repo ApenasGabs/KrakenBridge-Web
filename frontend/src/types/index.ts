@@ -90,12 +90,16 @@ export interface VercelAuthStatus {
 
 export interface CloudflareAuthStatus {
   authenticated: boolean;
+  authMethod?: 'oauth' | 'token' | 'none';
   accountId?: string;
   accountName?: string;
   email?: string;
   username?: string;
   tokenStatus?: string;
   hasToken?: boolean;
+  isOAuth?: boolean;
+  keyringEnabled?: boolean;
+  configPath?: string;
   error?: string;
 }
 

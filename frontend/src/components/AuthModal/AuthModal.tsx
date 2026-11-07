@@ -61,8 +61,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [vcCopiedCode, setVcCopiedCode] = useState(false);
 
   // Estados da Cloudflare / Wrangler
+  const [cfUserCode, setCfUserCode] = useState('');
+  const [cfVerifyUri, setCfVerifyUri] = useState('https://dash.cloudflare.com/oauth2/device');
+  const [cfVerifyUriComplete, setCfVerifyUriComplete] = useState('');
+  const [cfPolling, setCfPolling] = useState(false);
+  const [cfUseKeyring, setCfUseKeyring] = useState(false);
+  const [cfCopiedCode, setCfCopiedCode] = useState(false);
   const [cfTokenInput, setCfTokenInput] = useState('');
   const [cfAccountIdInput, setCfAccountIdInput] = useState('');
+  const [cfShowTokenForm, setCfShowTokenForm] = useState(false);
 
   const loadAccountsList = async () => {
     setLoadingAccounts(true);
@@ -131,6 +138,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     return () => clearInterval(interval);
   }, [vcPolling, onRefreshStatus]);
+
+  // Polling automático enquanto cfPolling estiver ativo
+  useEffect(() => {
+    if (!cfPolling) return;
+    const interval = setInterval(async () => {
+      try {
+        const poll = await api.pollCloudflareDeviceFlow();
+        if (poll.status === 'success') {
+          setCfPolling(false);
+          setMessage({
+            text: `Cloudflare Wrangler CLI autenticado via OAuth com sucesso para ${poll.email || poll.accountName || 'sua conta'}!`,
+            type: 'success'
+          });
+          onRefreshStatus();
+        } else if (poll.status === 'expired' || poll.status === 'denied' || poll.status === 'error') {
+          setCfPolling(false);
+          setMessage({ text: poll.error || 'Autenticação OAuth expirada ou recusada na Cloudflare.', type: 'error' });
+        }
+      } catch {
+        // Ignora erros temporários no polling
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [cfPolling, onRefreshStatus]);
 
   const handleSwitchAccount = async (email: string) => {
     setSwitchingEmail(email);
@@ -432,6 +464,65 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onRefreshStatus();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erro ao desconectar Vercel.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Iniciar Device Code Flow da Cloudflare / Wrangler
+  const handleStartCloudflareDevice = async () => {
+    setLoading(true);
+    setMessage(null);
+    setCfUserCode('');
+    try {
+      const res = await api.startCloudflareDeviceFlow(cfUseKeyring);
+      if (res.success && res.userCode) {
+        setCfUserCode(res.userCode);
+        setCfVerifyUri(res.verificationUri || 'https://dash.cloudflare.com/oauth2/device');
+        setCfVerifyUriComplete(
+          res.verificationUriComplete ||
+            `https://dash.cloudflare.com/oauth2/device?user_code=${encodeURIComponent(res.userCode)}`
+        );
+        setCfPolling(true);
+        setMessage({
+          text: `Código gerado! Acesse a Cloudflare e aprove a conexão do Wrangler.`,
+          type: 'info'
+        });
+      } else {
+        setMessage({ text: res.error || 'Falha ao iniciar autenticação OAuth da Cloudflare.', type: 'error' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao conectar à Cloudflare via OAuth.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyCloudflareCode = () => {
+    if (!cfUserCode) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(cfUserCode).catch(() => fallbackCopy(cfUserCode));
+    } else {
+      fallbackCopy(cfUserCode);
+    }
+    setCfCopiedCode(true);
+    setTimeout(() => setCfCopiedCode(false), 2000);
+  };
+
+  // Alternar para modo OAuth limpando tokens de ambiente
+  const handleSwitchToOAuth = async () => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await api.switchCloudflareMode('oauth');
+      if (res.success) {
+        setMessage({ text: res.message || 'Modo OAuth ativado no Wrangler!', type: 'success' });
+        onRefreshStatus();
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao alternar para modo OAuth.';
       setMessage({ text: msg, type: 'error' });
     } finally {
       setLoading(false);
@@ -1091,7 +1182,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </svg>
                 </div>
                 <div>
-                  <div className="font-semibold text-base-content flex items-center gap-1.5">
+                  <div className="font-semibold text-base-content flex items-center gap-1.5 flex-wrap">
                     <span>
                       Cloudflare / Wrangler CLI (
                       {status?.cloudflare?.authenticated
@@ -1100,7 +1191,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       )
                     </span>
                     {status?.cloudflare?.authenticated ? (
-                      <span className="badge badge-xs badge-success">Conectado</span>
+                      <>
+                        <span className="badge badge-xs badge-success">Conectado</span>
+                        <span className="badge badge-xs badge-primary">
+                          {status.cloudflare.isOAuth || status.cloudflare.authMethod === 'oauth'
+                            ? 'OAuth 2.0'
+                            : 'API Token'}
+                        </span>
+                        {status.cloudflare.keyringEnabled && (
+                          <span className="badge badge-xs badge-info">Keyring</span>
+                        )}
+                      </>
                     ) : (
                       <span className="badge badge-xs badge-ghost">Pendente</span>
                     )}
@@ -1108,80 +1209,229 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   <p className="text-base-content/60 text-[11px] mt-0.5">
                     Permite ao Kraken e ao Antigravity gerenciar deploys no Cloudflare Workers, Pages, D1, KV, R2, DNS e túneis via Wrangler CLI.
                   </p>
-                  {status?.cloudflare?.authenticated && status.cloudflare.accountId && (
-                    <div className="mt-1 font-mono text-[10px] text-base-content/70">
-                      Account ID: <span className="text-primary font-semibold">{status.cloudflare.accountId}</span>
+                  {status?.cloudflare?.authenticated && (
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-base-content/70">
+                      {status.cloudflare.email && (
+                        <div>
+                          Email: <span className="text-base-content font-medium">{status.cloudflare.email}</span>
+                        </div>
+                      )}
+                      {status.cloudflare.accountId && (
+                        <div>
+                          Account ID: <span className="text-primary font-semibold">{status.cloudflare.accountId}</span>
+                        </div>
+                      )}
+                      {status.cloudflare.configPath && (
+                        <div>
+                          Storage: <span className="text-base-content/60">{status.cloudflare.configPath}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
-              {status?.cloudflare?.authenticated && (
-                <button
-                  onClick={handleLogoutCloudflare}
-                  disabled={loading}
-                  className="btn btn-ghost btn-xs text-error hover:bg-error/10"
-                >
-                  Desconectar
-                </button>
-              )}
+              <div className="flex items-center gap-1.5">
+                {status?.cloudflare?.authenticated && !status.cloudflare.isOAuth && status.cloudflare.authMethod !== 'oauth' && (
+                  <button
+                    onClick={handleSwitchToOAuth}
+                    disabled={loading}
+                    className="btn btn-outline btn-xs gap-1"
+                    title="Remover API Token e alternar para autenticação OAuth nativa do Wrangler"
+                  >
+                    Usar OAuth
+                  </button>
+                )}
+                {status?.cloudflare?.authenticated && (
+                  <button
+                    onClick={handleLogoutCloudflare}
+                    disabled={loading}
+                    className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                  >
+                    Desconectar
+                  </button>
+                )}
+              </div>
             </div>
 
-            {/* Configuração do API Token */}
+            {/* Opção 1: Autenticação OAuth (Recomendado) via Device Flow */}
             <div className="p-4 rounded-xl bg-base-200/30 border border-base-300 space-y-3">
-              <h4 className="font-semibold text-base-content flex items-center gap-1.5">
-                <span>Configurar Cloudflare API Token</span>
-                <span className="badge badge-xs badge-primary">Wrangler</span>
-              </h4>
-              <p className="text-base-content/60 text-[11px]">
-                Gere um token de API com permissões para Workers, Pages ou DNS em{' '}
-                <a
-                  href="https://dash.cloudflare.com/profile/api-tokens"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="link link-primary inline-flex items-center gap-0.5"
-                >
-                  dash.cloudflare.com/profile/api-tokens <ExternalLink className="w-3 h-3 inline" />
-                </a>{' '}
-                (recomendado template <em>Edit Cloudflare Workers</em>) e cole abaixo:
-              </p>
-
-              <div className="space-y-2">
-                <div className="form-control">
-                  <label className="label py-1">
-                    <span className="label-text text-[11px] font-medium text-base-content/70">API Token Cloudflare *</span>
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="Cole seu Cloudflare API Token aqui..."
-                    value={cfTokenInput}
-                    onChange={(e) => setCfTokenInput(e.target.value)}
-                    className="input input-sm input-bordered w-full bg-base-100 font-mono text-xs"
-                  />
-                </div>
-
-                <div className="form-control">
-                  <label className="label py-1">
-                    <span className="label-text text-[11px] font-medium text-base-content/70">Account ID (Opcional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="ID da Conta Cloudflare (deixe em branco para auto-detectar)..."
-                    value={cfAccountIdInput}
-                    onChange={(e) => setCfAccountIdInput(e.target.value)}
-                    className="input input-sm input-bordered w-full bg-base-100 font-mono text-xs"
-                  />
-                </div>
-
-                <div className="pt-1 flex justify-end">
-                  <button
-                    onClick={handleSaveCloudflareToken}
-                    disabled={loading || !cfTokenInput.trim()}
-                    className="btn btn-primary btn-sm gap-1.5"
-                  >
-                    {loading ? <span className="loading loading-spinner loading-xs" /> : 'Salvar e Conectar Wrangler'}
-                  </button>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-base-content flex items-center gap-1.5">
+                    <span>Opção 1: Autenticação OAuth Oficial (Wrangler CLI)</span>
+                    <span className="badge badge-xs badge-primary">Recomendado</span>
+                  </h4>
+                  <p className="text-base-content/60 text-[11px] mt-0.5">
+                    Conecte sua conta via OAuth (Device Flow RFC 8628). Ideal para máquinas remotas, containers Docker e servidores headless sem servidor de callback local.
+                  </p>
                 </div>
               </div>
+
+              {!cfPolling ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer label p-0 gap-2">
+                      <input
+                        type="checkbox"
+                        checked={cfUseKeyring}
+                        onChange={(e) => setCfUseKeyring(e.target.checked)}
+                        className="checkbox checkbox-xs checkbox-primary"
+                      />
+                      <span className="label-text text-[11px] text-base-content/70">
+                        Armazenar credenciais no Keyring seguro do SO (<code className="font-mono text-[10px]">--use-keyring</code>)
+                      </span>
+                    </label>
+                  </div>
+                  <div>
+                    <button
+                      onClick={handleStartCloudflareDevice}
+                      disabled={loading}
+                      className="btn btn-primary btn-sm gap-1.5"
+                    >
+                      {loading ? <span className="loading loading-spinner loading-xs" /> : 'Conectar Cloudflare via OAuth'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-lg bg-base-100 border border-primary/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-primary text-xs flex items-center gap-1.5">
+                      <span className="loading loading-spinner loading-xs" />
+                      Aguardando autorização da Cloudflare...
+                    </span>
+                    <button
+                      onClick={() => setCfPolling(false)}
+                      className="btn btn-ghost btn-xs text-base-content/60"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-base-content/70">
+                      1. Copie o seu código de dispositivo:
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="px-3 py-1.5 rounded-lg bg-base-200 font-mono text-sm font-bold tracking-wider text-base-content select-all">
+                        {cfUserCode || '...'}
+                      </div>
+                      <button
+                        onClick={copyCloudflareCode}
+                        className="btn btn-sm btn-ghost gap-1"
+                      >
+                        {cfCopiedCode ? 'Copiado!' : 'Copiar'}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-base-content/70">
+                      2. Acesse a página de aprovação da Cloudflare:
+                    </div>
+                    <a
+                      href={cfVerifyUriComplete || cfVerifyUri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-primary btn-sm gap-1 inline-flex"
+                    >
+                      <span>Abrir dash.cloudflare.com/oauth2/device</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Guia de Comandos no Terminal (Ambientes Remotos & Docker) */}
+              <div className="p-2.5 rounded-lg bg-base-100/60 border border-base-300/80 space-y-1.5 font-mono text-[10px]">
+                <div className="font-sans font-semibold text-[11px] text-base-content/80 flex items-center justify-between">
+                  <span>💡 Comandos para Uso no Terminal / Docker:</span>
+                </div>
+                <div className="space-y-1 text-base-content/70">
+                  <div>
+                    <span className="text-primary font-bold">Ambientes Remotos / SSH:</span>{' '}
+                    <code className="bg-base-200 px-1 py-0.5 rounded">wrangler login --device</code>
+                  </div>
+                  <div>
+                    <span className="text-primary font-bold">Container com Callback:</span>{' '}
+                    <code className="bg-base-200 px-1 py-0.5 rounded">wrangler login</code> (porta <code className="text-secondary font-bold">8976</code> mapeada)
+                  </div>
+                  <div>
+                    <span className="text-primary font-bold">Keyring Seguro do SO:</span>{' '}
+                    <code className="bg-base-200 px-1 py-0.5 rounded">wrangler login --use-keyring</code>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Opção 2: Personal API Token (Alternativo) */}
+            <div className="p-4 rounded-xl bg-base-200/30 border border-base-300 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-base-content">
+                    Opção 2: Cloudflare API Token (Alternativo)
+                  </h4>
+                  <p className="text-base-content/60 text-[11px]">
+                    Caso prefira um token com permissões personalizadas em vez do login OAuth.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setCfShowTokenForm(!cfShowTokenForm)}
+                  className="btn btn-ghost btn-xs text-primary"
+                >
+                  {cfShowTokenForm ? 'Ocultar' : 'Configurar Token'}
+                </button>
+              </div>
+
+              {cfShowTokenForm && (
+                <div className="space-y-2 pt-2 border-t border-base-300/50">
+                  <p className="text-base-content/60 text-[11px]">
+                    Gere um token de API em{' '}
+                    <a
+                      href="https://dash.cloudflare.com/profile/api-tokens"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="link link-primary inline-flex items-center gap-0.5"
+                    >
+                      dash.cloudflare.com/profile/api-tokens <ExternalLink className="w-3 h-3 inline" />
+                    </a>{' '}
+                    (recomendado template <em>Edit Cloudflare Workers</em>):
+                  </p>
+
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text text-[11px] font-medium text-base-content/70">API Token Cloudflare *</span>
+                    </label>
+                    <input
+                      type="password"
+                      placeholder="Cole seu Cloudflare API Token aqui..."
+                      value={cfTokenInput}
+                      onChange={(e) => setCfTokenInput(e.target.value)}
+                      className="input input-sm input-bordered w-full bg-base-100 font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text text-[11px] font-medium text-base-content/70">Account ID (Opcional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="ID da Conta Cloudflare (deixe em branco para auto-detectar)..."
+                      value={cfAccountIdInput}
+                      onChange={(e) => setCfAccountIdInput(e.target.value)}
+                      className="input input-sm input-bordered w-full bg-base-100 font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      onClick={handleSaveCloudflareToken}
+                      disabled={loading || !cfTokenInput.trim()}
+                      className="btn btn-secondary btn-sm gap-1.5"
+                    >
+                      {loading ? <span className="loading loading-spinner loading-xs" /> : 'Salvar Token Manual'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

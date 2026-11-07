@@ -61,7 +61,7 @@ ENV PORT=8088
 ENV WORKSPACE_DIR=/workspace
 ENV CODE_SERVER_PORT=8089
 
-EXPOSE 8088
+EXPOSE 8088 8976
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["node", "dist-server/server.js"]
