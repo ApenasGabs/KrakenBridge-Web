@@ -17,7 +17,9 @@ import {
   RefreshCw,
   Pencil,
   Save,
-  Braces
+  Braces,
+  Brain,
+  History as HistoryIcon
 } from 'lucide-react';
 import { api } from '../../services/api';
 
@@ -33,6 +35,8 @@ export type ArtifactViewMode = 'preview' | 'raw' | 'edit' | 'monaco';
 
 export interface ArtifactDrawerProps {
   filePath: string | null;
+  subproject?: string;
+  conversationId?: string;
   codeServerPort?: number;
   onClose: () => void;
 }
@@ -135,6 +139,7 @@ interface FileData {
   size: number;
   isMarkdown: boolean;
   content: string;
+  source?: 'disk' | 'ai-memory' | 'history' | 'ai-memory-history';
 }
 
 function formatFileSize(bytes: number): string {
@@ -205,6 +210,8 @@ const artifactMarkdownComponents = {
 
 export const ArtifactDrawer: React.FC<ArtifactDrawerProps> = ({
   filePath,
+  subproject,
+  conversationId,
   codeServerPort,
   onClose
 }) => {
@@ -232,7 +239,7 @@ export const ArtifactDrawer: React.FC<ArtifactDrawerProps> = ({
     setLoading(true);
     setError(null);
 
-    api.getFileRaw(cleanPath)
+    api.getFileRaw(cleanPath, subproject, conversationId)
       .then((res) => {
         if (!isMounted) return;
         setData(res);
@@ -252,7 +259,7 @@ export const ArtifactDrawer: React.FC<ArtifactDrawerProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [cleanPath]);
+  }, [cleanPath, subproject, conversationId]);
 
   // Rolar suavemente até a primeira linha destacada quando houver âncora
   useEffect(() => {
@@ -418,6 +425,26 @@ export const ArtifactDrawer: React.FC<ArtifactDrawerProps> = ({
                     L{lineRange.start}{lineRange.start !== lineRange.end ? `-L${lineRange.end}` : ''}
                   </span>
                 )}
+                {data?.source?.startsWith('ai-memory') && (
+                  <span 
+                    className="badge badge-sm badge-accent font-medium text-[10px] shrink-0 gap-1"
+                    title="Conteúdo recuperado do AI Memory"
+                    data-testid="artifact-source-memory-badge"
+                  >
+                    <Brain className="w-2.5 h-2.5" />
+                    AI Memory
+                  </span>
+                )}
+                {data?.source === 'history' && (
+                  <span 
+                    className="badge badge-sm badge-info font-medium text-[10px] shrink-0 gap-1"
+                    title="Conteúdo recuperado do histórico de ferramentas da sessão"
+                    data-testid="artifact-source-history-badge"
+                  >
+                    <HistoryIcon className="w-2.5 h-2.5" />
+                    Histórico
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-base-content/50 font-mono truncate" title={data?.path || cleanPath}>
                 {data?.path || cleanPath}
@@ -577,7 +604,7 @@ export const ArtifactDrawer: React.FC<ArtifactDrawerProps> = ({
                 onClick={() => {
                   setError(null);
                   setLoading(true);
-                  api.getFileRaw(cleanPath)
+                  api.getFileRaw(cleanPath, subproject, conversationId)
                     .then(setData)
                     .catch((err) => setError(err.message))
                     .finally(() => setLoading(false));

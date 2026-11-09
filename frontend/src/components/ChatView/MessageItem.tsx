@@ -304,8 +304,15 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
       );
 
       if (isFileLink) {
-        const rawClean = href.replace(/^file:\/\/\/?/, '/').replace(/^file:\/\//, '/').replace(/^file:/, '');
-        const cleanPath = (!rawClean.match(/^[a-zA-Z]:/) && !rawClean.startsWith('/')) ? '/' + rawClean : rawClean;
+        let cleanPath = href.trim();
+        if (cleanPath.startsWith('file://')) {
+          cleanPath = cleanPath.slice(7);
+        } else if (cleanPath.startsWith('file:')) {
+          cleanPath = cleanPath.slice(5);
+        }
+        if (cleanPath.startsWith('./')) {
+          cleanPath = cleanPath.slice(2);
+        }
         return (
           <button
             type="button"

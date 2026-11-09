@@ -37,6 +37,7 @@ interface ChatViewProps {
   onSubprojectChange?: (subproject: string) => void;
   // Tags contextuais dinâmicas
   tags?: string[];
+  conversationId?: string;
   // Modo de Operação
   chatMode?: 'agent' | 'chat';
   onChatModeChange?: (mode: 'agent' | 'chat') => void;
@@ -69,6 +70,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   subproject = '',
   onSubprojectChange,
   tags = [],
+  conversationId,
   chatMode = 'agent',
   onChatModeChange,
   codeServerPort
@@ -449,6 +451,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
       <ArtifactDrawer
         filePath={selectedArtifactPath}
+        subproject={subproject}
+        conversationId={conversationId}
         codeServerPort={codeServerPort}
         onClose={() => setSelectedArtifactPath(null)}
       />

@@ -262,16 +262,21 @@ export const api = {
     return data;
   },
 
-  async getFileRaw(filePath: string): Promise<{
+  async getFileRaw(filePath: string, subproject?: string, conversationId?: string): Promise<{
     path: string;
     filename: string;
     extension: string;
     size: number;
     isMarkdown: boolean;
     content: string;
+    source?: 'disk' | 'ai-memory' | 'history' | 'ai-memory-history';
     error?: string;
   }> {
-    const res = await fetch(`${getApiBase()}/files/raw?path=${encodeURIComponent(filePath)}`, {
+    const params = new URLSearchParams({ path: filePath });
+    if (subproject) params.set('subproject', subproject);
+    if (conversationId) params.set('conversationId', conversationId);
+
+    const res = await fetch(`${getApiBase()}/files/raw?${params.toString()}`, {
       headers: authHeaders()
     });
     const data = await res.json();
