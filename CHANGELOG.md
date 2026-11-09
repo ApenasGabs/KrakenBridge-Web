@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.30.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.30.0...v1.30.1) (2026-11-09)
+
+### 🐛 Bug Fixes
+
+* **files:** resolução resiliente de arquivos no visualizador (Refs [#148](https://github.com/ApenasGabs/KrakenBridge-Web/issues/148)) ([fac596f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/fac596f6c1269ea6d64f9fb74fc222c11e0c41c2))
+
 ## [1.30.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.29.0...v1.30.0) (2026-11-07)
 
 ### ✨ Features
