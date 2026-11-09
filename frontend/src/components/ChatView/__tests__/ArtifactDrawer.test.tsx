@@ -174,7 +174,7 @@ describe('ArtifactDrawer Component (Issue #50)', () => {
     );
 
     // Deve chamar getFileRaw sem o fragmento de âncora
-    expect(api.getFileRaw).toHaveBeenCalledWith('/root/project/src/index.ts');
+    expect(api.getFileRaw).toHaveBeenCalledWith('/root/project/src/index.ts', undefined, undefined);
 
     await waitFor(() => {
       expect(screen.getByText('index.ts')).toBeInTheDocument();
@@ -193,17 +193,49 @@ describe('ArtifactDrawer Component (Issue #50)', () => {
     const ideBtn = screen.getByTestId('artifact-drawer-ide-btn');
     expect(ideBtn).toHaveAttribute('href', expect.stringContaining(':2'));
   });
-  it('deve exibir as abas Código (Shiki), Editar (CodeMirror) e VS Code (Monaco)', async () => {
+  it('deve repassar subproject e conversationId para api.getFileRaw', async () => {
     vi.mocked(api.getFileRaw).mockResolvedValue(sampleData);
+    render(
+      <ArtifactDrawer 
+        filePath={sampleFilePath} 
+        subproject="meuestoque" 
+        conversationId="conv-123" 
+        onClose={vi.fn()} 
+      />
+    );
+
+    await waitFor(() => {
+      expect(api.getFileRaw).toHaveBeenCalledWith(sampleFilePath, 'meuestoque', 'conv-123');
+    });
+  });
+
+  it('deve exibir badge de AI Memory quando source for ai-memory ou ai-memory-history', async () => {
+    vi.mocked(api.getFileRaw).mockResolvedValue({
+      ...sampleData,
+      source: 'ai-memory-history'
+    });
     render(
       <ArtifactDrawer filePath={sampleFilePath} onClose={vi.fn()} />
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId('artifact-tab-raw')).toBeInTheDocument();
+      expect(screen.getByTestId('artifact-source-memory-badge')).toBeInTheDocument();
     });
+    expect(screen.getByText('AI Memory')).toBeInTheDocument();
+  });
 
-    expect(screen.getByTestId('artifact-tab-edit')).toBeInTheDocument();
-    expect(screen.getByTestId('artifact-tab-monaco')).toBeInTheDocument();
+  it('deve exibir badge de Histórico quando source for history', async () => {
+    vi.mocked(api.getFileRaw).mockResolvedValue({
+      ...sampleData,
+      source: 'history'
+    });
+    render(
+      <ArtifactDrawer filePath={sampleFilePath} onClose={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('artifact-source-history-badge')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Histórico')).toBeInTheDocument();
   });
 });
