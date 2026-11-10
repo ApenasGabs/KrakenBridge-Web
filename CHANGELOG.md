@@ -5,6 +5,13 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.31.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.30.1...v1.31.0) (2026-11-10)
+
+### ✨ Features
+
+* **chat:** remover ícones de perfil das mensagens para otimizar espaço (Refs [#150](https://github.com/ApenasGabs/KrakenBridge-Web/issues/150)) ([7be1c2d](https://github.com/ApenasGabs/KrakenBridge-Web/commit/7be1c2d62ba673200aec4b7b6d557e8e1bedb290))
+* **standards:** instituir auditoria obrigatoria do agent-standards e aviso transparente no chat (Refs [#150](https://github.com/ApenasGabs/KrakenBridge-Web/issues/150)) ([56ac990](https://github.com/ApenasGabs/KrakenBridge-Web/commit/56ac990d022bf35e0edf9f079871c1355cd84e26))
+
 ## [1.30.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.30.0...v1.30.1) (2026-11-09)
 
 ### 🐛 Bug Fixes
