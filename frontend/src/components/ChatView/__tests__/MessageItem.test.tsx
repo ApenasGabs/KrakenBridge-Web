@@ -163,4 +163,33 @@ describe('MessageItem Component', () => {
     expect(link).toHaveAttribute('href', 'https://github.com/ApenasGabs/KrakenBridge-Web');
     expect(link).toHaveAttribute('target', '_blank');
   });
+
+  it('não deve renderizar ícone de perfil/avatar nem em mensagens do usuário nem do assistente (Issue #150)', () => {
+    const userMsg: ChatMessage = {
+      id: 'msg-user-avatar-check',
+      role: 'user',
+      text: 'Mensagem enviada pelo usuário',
+      timestamp: '2026-10-15T20:00:00.000Z',
+    };
+
+    const { container: userContainer, unmount } = render(<MessageItem message={userMsg} />);
+    expect(userContainer.querySelector('.chat-image')).toBeNull();
+    expect(userContainer.querySelector('.avatar')).toBeNull();
+    expect(screen.getByText('Você')).toBeInTheDocument();
+    expect(screen.getByText('Mensagem enviada pelo usuário')).toBeInTheDocument();
+    unmount();
+
+    const assistantMsg: ChatMessage = {
+      id: 'msg-assist-avatar-check',
+      role: 'assistant',
+      text: 'Mensagem de resposta do assistente',
+      timestamp: '2026-10-15T20:00:00.000Z',
+    };
+
+    const { container: assistContainer } = render(<MessageItem message={assistantMsg} />);
+    expect(assistContainer.querySelector('.chat-image')).toBeNull();
+    expect(assistContainer.querySelector('.avatar')).toBeNull();
+    expect(screen.getByText('Antigravity Agent')).toBeInTheDocument();
+    expect(screen.getByText('Mensagem de resposta do assistente')).toBeInTheDocument();
+  });
 });

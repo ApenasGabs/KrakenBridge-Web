@@ -5,8 +5,6 @@ import { Highlight, themes } from 'prism-react-renderer';
 import { getPrismLanguage } from './ArtifactDrawer';
 import type { ChatMessage, ToolCall } from '../../types';
 import { 
-  Bot, 
-  User, 
   Terminal, 
   BrainCircuit, 
   Copy, 
@@ -357,13 +355,6 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
 
   return (
     <div className={`chat ${isUser ? 'chat-end' : 'chat-start'} mb-4 animate-in fade-in duration-150`}>
-      {/* Avatar do emissor */}
-      <div className="chat-image avatar">
-        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isUser ? 'bg-primary text-primary-content' : 'bg-base-300 text-base-content'}`}>
-          {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-        </div>
-      </div>
-
       {/* Header do balão */}
       <div className="chat-header text-xs text-base-content/60 mb-1 flex items-center gap-2">
         <span className="font-semibold text-base-content/90">
