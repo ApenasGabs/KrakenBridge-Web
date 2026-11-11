@@ -5,6 +5,16 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.34.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.33.0...v1.34.0) (2026-11-11)
+
+### ✨ Features
+
+* **office:** ✨ integrar subagentes e tarefas locais do Kraken no visualizador Office Floor 2D (Refs [#154](https://github.com/ApenasGabs/KrakenBridge-Web/issues/154)) ([7e79561](https://github.com/ApenasGabs/KrakenBridge-Web/commit/7e79561c493076c907282cc0b005a02572908a25))
+
+### 🐛 Bug Fixes
+
+* **office:** 🐛 corrigir cor de accent de subagent-swarm para tokens válidos (Refs [#154](https://github.com/ApenasGabs/KrakenBridge-Web/issues/154)) ([e6cc155](https://github.com/ApenasGabs/KrakenBridge-Web/commit/e6cc155a7d9959ef775910a0f947f036e693798e))
+
 ## [1.33.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.32.1...v1.33.0) (2026-11-11)
 
 ### ✨ Features
