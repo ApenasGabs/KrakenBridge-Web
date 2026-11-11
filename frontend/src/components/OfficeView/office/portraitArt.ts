@@ -25,7 +25,7 @@ type Buf = Uint8ClampedArray;
 let CUR_W = PORTRAIT_W, CUR_H = PORTRAIT_H;
 
 const clamp = (v: number) => (v < 0 ? 0 : v > 255 ? 255 : Math.round(v));
-function shades(rgb: RGB, dl = 1.22, dd = 0.68): [RGB, RGB, RGB] {
+const shades = (rgb: RGB, dl = 1.22, dd = 0.68) : [RGB, RGB, RGB] => {
   return [
     [clamp(rgb[0] * dl), clamp(rgb[1] * dl), clamp(rgb[2] * dl)],
     [rgb[0], rgb[1], rgb[2]],
@@ -33,21 +33,21 @@ function shades(rgb: RGB, dl = 1.22, dd = 0.68): [RGB, RGB, RGB] {
   ];
 }
 
-function set(buf: Buf, x: number, y: number, c: RGB, a = 255): void {
+const set = (buf: Buf, x: number, y: number, c: RGB, a = 255) : void => {
   if (x < 0 || x >= CUR_W || y < 0 || y >= CUR_H) return;
   const i = (y * CUR_W + x) * 4;
   buf[i] = c[0]; buf[i + 1] = c[1]; buf[i + 2] = c[2]; buf[i + 3] = a;
 }
-function alphaAt(buf: Buf, x: number, y: number): number {
+const alphaAt = (buf: Buf, x: number, y: number) : number => {
   if (x < 0 || x >= CUR_W || y < 0 || y >= CUR_H) return 0;
   return buf[(y * CUR_W + x) * 4 + 3];
 }
-function rgbAt(buf: Buf, x: number, y: number): RGB {
+const rgbAt = (buf: Buf, x: number, y: number) : RGB => {
   const i = (y * CUR_W + x) * 4;
   return [buf[i], buf[i + 1], buf[i + 2]];
 }
-function eq(a: RGB, b: RGB): boolean { return a[0] === b[0] && a[1] === b[1] && a[2] === b[2]; }
-function rect(buf: Buf, x0: number, y0: number, x1: number, y1: number, c: RGB): void {
+const eq = (a: RGB, b: RGB) : boolean => { return a[0] === b[0] && a[1] === b[1] && a[2] === b[2]; }
+const rect = (buf: Buf, x0: number, y0: number, x1: number, y1: number, c: RGB) : void => {
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) set(buf, x, y, c);
 }
 
@@ -61,7 +61,7 @@ const SKIN: Record<string, SkinPal> = {
 };
 
 // ─── head + face ─────────────────────────────────────────────────────────────
-function drawHead(buf: Buf, skin: string): void {
+const drawHead = (buf: Buf, skin: string) : void => {
   const s = SKIN[skin];
   for (let y = 4; y <= 16; y++) {
     for (let x = HX0; x <= HX1; x++) {
@@ -79,7 +79,7 @@ function drawHead(buf: Buf, skin: string): void {
 
 type Brow = 'flat' | 'angry' | 'raised' | 'soft';
 type Mouth = 'neutral' | 'smile' | 'frown' | 'grin';
-function drawFace(buf: Buf, skin: string, brow: Brow, mouth: Mouth, blush: boolean, lashes = false): void {
+const drawFace = (buf: Buf, skin: string, brow: Brow, mouth: Mouth, blush: boolean, lashes = false) : void => {
   const s = SKIN[skin];
   const white: RGB = [250, 248, 244], pup: RGB = [46, 38, 42];
   for (const [a, b, p] of [[5, 6, 6], [10, 11, 10]] as const) {
@@ -248,7 +248,7 @@ type HairStyle = keyof typeof HAIR_FNS;
 
 // ─── facial hair ─────────────────────────────────────────────────────────────
 type Facial = 'mustache' | 'mustacheSm' | 'stubble' | 'goatee';
-function drawFacial(buf: Buf, kind: Facial, color: RGB): void {
+const drawFacial = (buf: Buf, kind: Facial, color: RGB) : void => {
   const [, base, sh] = shades(color);
   if (kind === 'mustache') {
     for (const x of [6, 7, 8, 9, 10]) set(buf, x, 13, base);
@@ -269,7 +269,7 @@ function drawFacial(buf: Buf, kind: Facial, color: RGB): void {
 // Clear prescription glasses (NOT sunglasses): a thin rim that frames each eye
 // without covering it. The lens interior keeps the eye/skin already drawn, plus
 // a small white glint so the lens reads as transparent glass.
-function drawGlasses(buf: Buf): void {
+const drawGlasses = (buf: Buf) : void => {
   const frame: RGB = [60, 54, 62];
   const glint: RGB = [236, 240, 246];
   // Left lens rim around the eye at (5-6, 9): top, bottom, outer + inner edge.
@@ -289,7 +289,7 @@ function drawGlasses(buf: Buf): void {
 
 // ─── clothing ────────────────────────────────────────────────────────────────
 type Cloth = 'suit' | 'dressshirt' | 'polo' | 'blouse' | 'cardigan' | 'sweater';
-function bodyShape(buf: Buf, col: RGB, heavy = false): void {
+const bodyShape = (buf: Buf, col: RGB, heavy = false) : void => {
   const [, base, sh] = shades(col);
   const rows: [number, number, number][] = heavy
     ? [[19, 5, 12], [20, 3, 14], [21, 2, 15], [22, 1, 16], [23, 1, 16], [24, 0, 17], [25, 0, 17], [26, 0, 17], [27, 0, 17]]
@@ -298,7 +298,7 @@ function bodyShape(buf: Buf, col: RGB, heavy = false): void {
   const [lo, hi] = heavy ? [1, 16] : [2, 15];
   for (let y = 22; y < 28; y++) { set(buf, lo, y, sh); set(buf, hi, y, sh); }
 }
-function drawClothing(buf: Buf, kind: Cloth, c1: RGB, c2: RGB | undefined, tie: RGB | undefined, skin: string, heavy = false): void {
+const drawClothing = (buf: Buf, kind: Cloth, c1: RGB, c2: RGB | undefined, tie: RGB | undefined, skin: string, heavy = false) : void => {
   const [hi, base, sh] = shades(c1);
   bodyShape(buf, c1, heavy);
   if (kind === 'suit') {
@@ -328,7 +328,7 @@ function drawClothing(buf: Buf, kind: Cloth, c1: RGB, c2: RGB | undefined, tie: 
     for (const [x, y] of [[6, 19], [7, 19], [8, 19], [9, 19], [10, 19], [11, 19]] as const) set(buf, x, y, sh);
   }
 }
-function collarNeck(buf: Buf, skin: string): void {
+const collarNeck = (buf: Buf, skin: string) : void => {
   rect(buf, 7, 18, 10, 19, SKIN[skin].sh);
 }
 
@@ -337,7 +337,7 @@ function collarNeck(buf: Buf, skin: string): void {
 // legs. Head (rows 2-16) sits above; this draws rows 18-31.
 const SHOE: RGB = [44, 40, 48];
 
-function drawSceneLegs(buf: Buf, pants: RGB, phase: number): void {
+const drawSceneLegs = (buf: Buf, pants: RGB, phase: number) : void => {
   const [, base, sh] = shades(pants);
   // two legs cols 5-7 / 10-12, gap at 8-9
   for (const [lx0, lx1] of [[5, 7], [10, 12]] as const) {
@@ -350,7 +350,7 @@ function drawSceneLegs(buf: Buf, pants: RGB, phase: number): void {
   rect(buf, 10, rightLow ? 31 : 30, 12, rightLow ? 31 : 30, SHOE);
 }
 
-function drawSceneTorso(buf: Buf, r: Recipe, back: boolean): void {
+const drawSceneTorso = (buf: Buf, r: Recipe, back: boolean) : void => {
   const [hi, base, sh] = shades(r.c1);
   // shoulders → torso, narrower than the portrait bust (wider + rounder if heavy)
   if (r.heavy) {
@@ -396,7 +396,7 @@ function drawSceneTorso(buf: Buf, r: Recipe, back: boolean): void {
 }
 
 /** Back of the head: a rounded hair-covered skull with crown sheen + nape, no face. */
-function drawHeadBack(buf: Buf, r: Recipe): void {
+const drawHeadBack = (buf: Buf, r: Recipe) : void => {
   const s = SKIN[r.skin];
   if (r.hair === 'styleBald') { drawHeadBackBald(buf, r); return; }
   const [hi, base, sh] = shades(r.hairc);
@@ -424,7 +424,7 @@ function drawHeadBack(buf: Buf, r: Recipe): void {
 }
 
 /** Back of a bald head: a skin skull with a sheen and a low hair fringe ring. */
-function drawHeadBackBald(buf: Buf, r: Recipe): void {
+const drawHeadBackBald = (buf: Buf, r: Recipe) : void => {
   const s = SKIN[r.skin];
   const [shi, sbase, ssh] = shades(s.base, 1.1, 0.82);
   const rows: [number, number, number][] = [
@@ -444,13 +444,13 @@ function drawHeadBackBald(buf: Buf, r: Recipe): void {
   rect(buf, 7, 15, 9, 15, s.base);
 }
 
-function drawSceneBody(buf: Buf, r: Recipe, phase: number, back: boolean): void {
+const drawSceneBody = (buf: Buf, r: Recipe, phase: number, back: boolean) : void => {
   drawSceneTorso(buf, r, back);
   drawSceneLegs(buf, defaultPants(r), phase);
 }
 
 // ─── outline pass ────────────────────────────────────────────────────────────
-function outlinePass(buf: Buf): void {
+const outlinePass = (buf: Buf) : void => {
   const pts: [number, number][] = [];
   for (let y = 0; y < CUR_H; y++) {
     for (let x = 0; x < CUR_W; x++) {
@@ -477,7 +477,7 @@ interface Recipe {
 // Puff the lower face into round cheeks + a double chin so a character reads as
 // heavier. Runs after drawHead (adds skin at the jaw) and is safe before the
 // face features, which sit higher (eyes y9, mouth y14).
-function drawHeavyFace(buf: Buf, skin: string): void {
+const drawHeavyFace = (buf: Buf, skin: string) : void => {
   const s = SKIN[skin];
   // Chubby cheeks: bulge the jaw outward past the normal x4..13 head box.
   for (let y = 11; y <= 15; y++) { set(buf, HX0 - 1, y, s.base); set(buf, HX1 + 1, y, s.base); }
@@ -509,7 +509,7 @@ const RECIPES: Record<OfficeCharacterName, Recipe> = {
 };
 
 /** The face/hair group (head → face → facial hair → hair → glasses), no clothing. */
-function drawHeadGroup(buf: Buf, r: Recipe): void {
+const drawHeadGroup = (buf: Buf, r: Recipe) : void => {
   const skinBase = SKIN[r.skin].base;
   drawHead(buf, r.skin);
   if (r.heavy) drawHeavyFace(buf, r.skin);
@@ -519,13 +519,13 @@ function drawHeadGroup(buf: Buf, r: Recipe): void {
   if (r.glasses) drawGlasses(buf);
 }
 
-function defaultPants(r: Recipe): RGB {
+const defaultPants = (r: Recipe) : RGB => {
   if (r.pants) return r.pants;
   return r.cloth === 'suit' ? shades(r.c1)[2] : [54, 56, 70];
 }
 
 /** Portrait bust: shoulders-height clothing + front head group. */
-function compose(r: Recipe): Buf {
+const compose = (r: Recipe) : Buf => {
   CUR_W = PORTRAIT_W; CUR_H = PORTRAIT_H;
   const buf = new Uint8ClampedArray(PORTRAIT_W * PORTRAIT_H * 4);
   drawClothing(buf, r.cloth, r.c1, r.c2, r.tie, r.skin, r.heavy ?? false);
@@ -536,7 +536,7 @@ function compose(r: Recipe): Buf {
 }
 
 /** Full-body 18×32 scene sprite. `back=false` reuses the portrait's exact face. */
-function composeScene(r: Recipe, phase: number, back: boolean): Buf {
+const composeScene = (r: Recipe, phase: number, back: boolean) : Buf => {
   CUR_W = SCENE_W; CUR_H = SCENE_H;
   const buf = new Uint8ClampedArray(SCENE_W * SCENE_H * 4);
   drawSceneBody(buf, r, phase, back);
@@ -550,7 +550,7 @@ function composeScene(r: Recipe, phase: number, back: boolean): Buf {
 const bufCache = new Map<OfficeCharacterName, Buf>();
 const sceneCache = new Map<OfficeCharacterName, SceneFrames>();
 
-function getBuf(name: OfficeCharacterName): Buf {
+const getBuf = (name: OfficeCharacterName) : Buf => {
   let buf = bufCache.get(name);
   if (!buf) {
     buf = compose(RECIPES[name] ?? RECIPES.jim);
@@ -562,7 +562,7 @@ function getBuf(name: OfficeCharacterName): Buf {
 export interface SceneFrames { front: Buf[]; back: Buf[]; }
 
 /** Walk-phase frames (stand, step-L, step-R) for the in-scene sprite, front + back. */
-export function sceneFrameBufs(name: OfficeCharacterName): SceneFrames {
+export const sceneFrameBufs = (name: OfficeCharacterName) : SceneFrames => {
   let frames = sceneCache.get(name);
   if (!frames) {
     const r = RECIPES[name] ?? RECIPES.jim;
@@ -576,7 +576,7 @@ export function sceneFrameBufs(name: OfficeCharacterName): SceneFrames {
 }
 
 /** Paint a character's procedural portrait onto `ctx`, nearest-neighbor at `scale`. */
-export function paintPortrait(ctx: CanvasRenderingContext2D, name: OfficeCharacterName, scale = 2): void {
+export const paintPortrait = (ctx: CanvasRenderingContext2D, name: OfficeCharacterName, scale = 2) : void => {
   const buf = getBuf(name);
   // Stage at 1× on an offscreen canvas, then blit scaled with smoothing off.
   const stage = document.createElement('canvas');

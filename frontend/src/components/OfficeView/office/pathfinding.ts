@@ -19,7 +19,7 @@ const DIRECTIONS: Point[] = [
   { x: 1, y: 0 },
 ];
 
-export function findPath(map: Walkable, start: Point, goal: Point): Point[] | null {
+export const findPath = (map: Walkable, start: Point, goal: Point) : Point[] | null => {
   if (start.x === goal.x && start.y === goal.y) return [];
   if (!map.isWalkable(goal.x, goal.y)) return null;
 
@@ -52,7 +52,7 @@ export function findPath(map: Walkable, start: Point, goal: Point): Point[] | nu
   return null;
 }
 
-function reconstructPath(parent: Map<string, Point>, start: Point, goal: Point): Point[] {
+const reconstructPath = (parent: Map<string, Point>, start: Point, goal: Point) : Point[] => {
   const path: Point[] = [];
   let current = goal;
   const key = (p: Point) => `${p.x},${p.y}`;

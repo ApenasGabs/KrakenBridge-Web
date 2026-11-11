@@ -86,6 +86,6 @@ export const accentLightByName: Record<AccentColorName, number> = {
 };
 
 // Convert 0xRRGGBB to "#RRGGBB"
-export function hex(c: number): string {
+export const hex = (c: number) : string => {
   return '#' + c.toString(16).padStart(6, '0').toUpperCase();
 }

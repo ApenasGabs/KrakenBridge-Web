@@ -36,7 +36,7 @@ const FADE_IN = 0.14;
 const FADE_OUT = 0.22;
 const BURST_DURATION = 0.34; // arrival sparkle ring
 
-function easeInOut(t: number): number {
+const easeInOut = (t: number) : number => {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 

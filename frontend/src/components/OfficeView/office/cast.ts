@@ -47,14 +47,14 @@ export const CAST_BY_NAME: Record<OfficeCharacterName, CastMember> =
 
 export const DEFAULT_CHARACTER: OfficeCharacterName = 'jim';
 
-export function hexToNumber(hex: string): number {
+export const hexToNumber = (hex: string) : number => {
   return parseInt(hex.replace('#', ''), 16);
 }
 
 // ─── scene frames ────────────────────────────────────────────────────────────
 const frameCache = new Map<OfficeCharacterName, Texture[][]>();
 
-function bufToTexture(buf: Uint8ClampedArray): Texture {
+const bufToTexture = (buf: Uint8ClampedArray) : Texture => {
   const canvas = document.createElement('canvas');
   canvas.width = SCENE_W; canvas.height = SCENE_H;
   const ctx = canvas.getContext('2d')!;
@@ -73,7 +73,7 @@ function bufToTexture(buf: Uint8ClampedArray): Texture {
  * and a back view (up — agents seated facing their desk show their back). The
  * three walk frames are stand / step-left / step-right.
  */
-export async function getCastFrames(name: OfficeCharacterName): Promise<Texture[][]> {
+export const getCastFrames = async (name: OfficeCharacterName) : Promise<Texture[][]> => {
   const cached = frameCache.get(name);
   if (cached) return cached;
   const { front, back } = sceneFrameBufs(name);
@@ -91,10 +91,10 @@ export async function getCastFrames(name: OfficeCharacterName): Promise<Texture[
  * Paint a character's static portrait for cards / the picker (delegates to the
  * custom procedural composer in portraitArt.ts).
  */
-export async function paintCastPortrait(
+export const paintCastPortrait = async (
   ctx: CanvasRenderingContext2D,
   name: OfficeCharacterName,
   scale = 2,
-): Promise<void> {
+) : Promise<void> => {
   paintPortrait(ctx, name, scale);
 }

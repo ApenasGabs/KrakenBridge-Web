@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useStore } from '../store/officeStore';
-import type { PaperclipStateSnapshot } from '../../../types';
+import type { PaperclipStateSnapshot, PaperclipAgent, PaperclipIssue } from '../../../types';
 
 describe('officeStore', () => {
   beforeEach(() => {
@@ -50,7 +50,7 @@ describe('officeStore', () => {
           lifecycleState: 'ready',
           updatedAt: new Date().toISOString(),
           title: 'Executando testes',
-        } as any,
+        } as unknown as PaperclipAgent,
       ],
       issues: [
         {
@@ -59,7 +59,7 @@ describe('officeStore', () => {
           title: 'feat(office): implementar office floor',
           status: 'in_progress',
           assigneeAgentId: 'fb0ad346-e4b6-42dc-a3fa-ec26d43454d1',
-        } as any,
+        } as unknown as PaperclipIssue,
       ],
       activeRuns: [],
       recentRuns: [],

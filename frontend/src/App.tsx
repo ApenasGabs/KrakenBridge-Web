@@ -101,7 +101,7 @@ export const App: React.FC = () => {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Layout & Abas (Sincronizado com a URL do navegador)
-  const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office'>(initialRoute.tab as any);
+  const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office'>(initialRoute.tab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );

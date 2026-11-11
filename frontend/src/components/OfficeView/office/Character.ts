@@ -14,7 +14,7 @@ import { colors } from '../design/tokens';
 export type CharacterAnimation = 'idle' | 'walk' | 'type' | 'read';
 export type StatusGlyph = 'none' | 'blocked' | 'success' | 'compacting' | 'looping';
 
-function lerp(a: number, b: number, t: number): number {
+const lerp = (a: number, b: number, t: number) : number => {
   const tt = Math.min(Math.max(t, 0), 1);
   return a + (b - a) * tt;
 }
@@ -23,7 +23,7 @@ function lerp(a: number, b: number, t: number): number {
  *  bottom-left. Same silhouette as the mug the tileset used to bake onto
  *  every desk — now it only exists where an agent actually put one down.
  *  Shared with the scene (the clean-cup sideboard renders its stock with it). */
-export function paintCup(g: Graphics, x: number, y: number): void {
+export const paintCup = (g: Graphics, x: number, y: number) : void => {
   g.rect(x, y - 4, 5, 4).fill(0xf2ede2);
   g.rect(x, y - 2, 5, 1).fill(0xe8c14d);
   g.rect(x + 5, y - 3, 1, 2).fill(0xd9d2c4);

@@ -41,10 +41,10 @@ export const DEFAULT_REBUILD_DELAY_MS = 1500;
 
 /** Listen for context loss on `canvas` and rebuild. Returns an uninstall fn;
  *  call it from the effect cleanup so a torn-down scene stops responding. */
-export function installContextLossRecovery(
+export const installContextLossRecovery = (
   canvas: EventTarget,
   opts: GlRecoveryOptions
-): () => void {
+) : () => void => {
   const max = opts.maxRebuilds ?? DEFAULT_MAX_REBUILDS;
   const delay = opts.delayMs ?? DEFAULT_REBUILD_DELAY_MS;
   const schedule = opts.schedule ?? ((fn, ms) => setTimeout(fn, ms));
@@ -124,7 +124,7 @@ const CONTEXT_UNAVAILABLE = [
 /** True when `err` says a rendering context could not be obtained — a busy
  *  process, not a browser without WebGL. Follows the `cause` chain so a caller
  *  that wrapped the failure in its own Error still classifies correctly. */
-export function isContextUnavailableError(err: unknown): boolean {
+export const isContextUnavailableError = (err: unknown) : boolean => {
   for (let e: unknown = err, depth = 0; e && depth < 5; depth++) {
     const msg = typeof e === 'string' ? e : (e as { message?: unknown })?.message;
     if (typeof msg === 'string' && CONTEXT_UNAVAILABLE.some((re) => re.test(msg))) return true;
@@ -143,11 +143,11 @@ export type InitFailurePlan =
 
 /** Decide what a rejected `app.init()` means. `attemptsUsed` is how many retries
  *  this mount has already spent, so the budget survives across rebuilds. */
-export function planInitFailure(
+export const planInitFailure = (
   err: unknown,
   attemptsUsed: number,
   opts: { maxRetries?: number; delayMs?: number } = {}
-): InitFailurePlan {
+) : InitFailurePlan => {
   if (!isContextUnavailableError(err)) return { action: 'report' };
   const max = opts.maxRetries ?? DEFAULT_MAX_INIT_RETRIES;
   if (attemptsUsed >= max) return { action: 'give-up' };

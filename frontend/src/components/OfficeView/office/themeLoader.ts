@@ -19,7 +19,7 @@ import {
  *  `embedded` atlases keep the map's own inline metadata; the rest are replaced
  *  by the theme's inline metadata (firstgid + image dimensions). The result's
  *  tileset order matches the texture-load order (texture[i] ↔ tilesets[i]). */
-export function resolveThemeMap(theme: ThemeConfig): TiledMap {
+export const resolveThemeMap = (theme: ThemeConfig) : TiledMap => {
   const m = JSON.parse(theme.mapRaw) as TiledMap;
   return {
     ...m,
@@ -34,12 +34,12 @@ export function resolveThemeMap(theme: ThemeConfig): TiledMap {
 
 /** The ordered tileset image URLs to load as textures, matching the map's
  *  tileset order (so texture[i] lines up with tilesets[i]). */
-export function themeTilesetUrls(theme: ThemeConfig): string[] {
+export const themeTilesetUrls = (theme: ThemeConfig) : string[] => {
   return theme.tilesets.map((t) => t.url);
 }
 
 /** Light validation: the theme's map must parse and carry sane dimensions. */
-function isThemeRenderable(theme: ThemeConfig): boolean {
+const isThemeRenderable = (theme: ThemeConfig) : boolean => {
   try {
     const m = JSON.parse(theme.mapRaw) as TiledMap;
     return (
@@ -55,7 +55,7 @@ function isThemeRenderable(theme: ThemeConfig): boolean {
 /** Resolve a theme id to a renderable ThemeConfig. Async by design (later
  *  phases may fetch a show bundle here); falls back to the office theme if the
  *  requested theme is missing or its map won't parse. */
-export async function loadTheme(id: ThemeId): Promise<ThemeConfig> {
+export const loadTheme = async (id: ThemeId) : Promise<ThemeConfig> => {
   const theme = getTheme(id);
   if (!isThemeRenderable(theme)) {
     console.warn(`[themeLoader] theme '${id}' is not renderable — falling back to 'office'`);

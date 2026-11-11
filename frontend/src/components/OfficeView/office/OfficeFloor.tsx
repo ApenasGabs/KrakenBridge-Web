@@ -58,7 +58,7 @@ const I18N_DICT: Record<string, string> = {
   'office.errand.smoke.3': 'Revisando as metas do trimestre.'
 };
 
-function useTranslation() {
+const useTranslation = () => {
   const t = (key: string, params?: Record<string, any>): string => {
     let str = I18N_DICT[key] || key;
     if (params) {
@@ -184,7 +184,7 @@ const CHEER_KEYS = [
 /** Load a texture via an <img> element. Unlike Pixi's Assets.load(), this
  *  handles extension-less data: URLs (Vite inlines small assets like the a5
  *  tileset as base64), which the Assets resolver fails to type-detect. */
-function loadTexture(url: string): Promise<Texture> {
+const loadTexture = (url: string) : Promise<Texture> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -201,14 +201,14 @@ function loadTexture(url: string): Promise<Texture> {
  *  `action` (e.g. "edit App.tsx", "bash npm test"), fall back to the prompt we
  *  gave it, then to a caller-supplied generic. Returns '' for the working state
  *  with nothing concrete yet — the bubble renders an animated "…" for that. */
-function liveActivity(agent: Agent, fallback = ''): string {
+const liveActivity = (agent: Agent, fallback = '') : string => {
   const action = (agent.action || '').trim();
   if (action) return action;
   return firstWords(agent.lastPrompt) || fallback;
 }
 
 /** First few words of the last user prompt, for the desk card. */
-function firstWords(prompt: string | undefined, maxWords = 6, maxChars = 42): string {
+const firstWords = (prompt: string | undefined, maxWords = 6, maxChars = 42) : string => {
   if (!prompt) return '';
   const words = prompt.trim().split(/\s+/);
   let out = words.slice(0, maxWords).join(' ');
@@ -218,7 +218,7 @@ function firstWords(prompt: string | undefined, maxWords = 6, maxChars = 42): st
   return out;
 }
 
-export function OfficeFloor() {
+export const OfficeFloor = () => {
   const { t, i18n } = useTranslation();
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
@@ -1842,7 +1842,7 @@ export function OfficeFloor() {
 
 /** A message where the floor should be — the only thing the user sees when the
  *  scene cannot run, so all three failure paths share one look. */
-function floorNote(text: string): HTMLDivElement {
+const floorNote = (text: string) : HTMLDivElement => {
   const note = document.createElement('div');
   note.style.cssText =
     'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;' +
@@ -1850,9 +1850,9 @@ function floorNote(text: string): HTMLDivElement {
   note.textContent = text;
   return note;
 }
-function hexNum(n: number): number { return n; }
-function hex(n: number): string { return '#' + n.toString(16).padStart(6, '0'); }
-function safeDestroy(app: Application) {
+const hexNum = (n: number) : number => { return n; }
+const hex = (n: number) : string => { return '#' + n.toString(16).padStart(6, '0'); }
+const safeDestroy = (app: Application) => {
   try { app.ticker?.stop(); } catch { /* noop */ }
   try { app.destroy(true, { children: true }); } catch { /* noop */ }
 }

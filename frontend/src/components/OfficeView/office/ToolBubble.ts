@@ -42,7 +42,7 @@ const MAX_CHARS = 150;
 
 type BubbleState = 'hidden' | 'fading-in' | 'visible' | 'lingering' | 'fading-out';
 
-export function toolIcon(toolName: string): string {
+export const toolIcon = (toolName: string) : string => {
   return TOOL_ICONS[toolName] ?? DEFAULT_ICON;
 }
 

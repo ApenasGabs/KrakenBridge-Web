@@ -294,6 +294,6 @@ export const THEMES: Partial<Record<ThemeId, ThemeConfig>> = {
 
 /** Look up a theme by id, falling back to the office theme if unknown/missing
  *  (a bad/absent show bundle must never break the floor — see report §E). */
-export function getTheme(id: ThemeId): ThemeConfig {
+export const getTheme = (id: ThemeId) : ThemeConfig => {
   return THEMES[id] ?? OFFICE_THEME;
 }
