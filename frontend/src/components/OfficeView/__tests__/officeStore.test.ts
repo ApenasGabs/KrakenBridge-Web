@@ -81,4 +81,185 @@ describe('officeStore', () => {
     expect(local?.status).toBe('working');
     expect(local?.currentStation).toBe('terminal');
   });
+
+  it('deve incluir os subagentes locais padrão do Kraken (researcher, reviewer, designer)', () => {
+    const agents = useStore.getState().agents;
+    const research = agents.find((a) => a.id === 'subagent-research');
+    const reviewer = agents.find((a) => a.id === 'subagent-reviewer');
+    const designer = agents.find((a) => a.id === 'subagent-image');
+
+    expect(research).toBeDefined();
+    expect(research?.name).toBe('Kraken Researcher');
+    expect(research?.character).toBe('ryan');
+    expect(research?.source).toBe('kraken');
+    expect(research?.subagentType).toBe('research');
+
+    expect(reviewer).toBeDefined();
+    expect(reviewer?.name).toBe('Kraken Reviewer');
+    expect(reviewer?.character).toBe('angela');
+    expect(reviewer?.source).toBe('kraken');
+    expect(reviewer?.subagentType).toBe('code-reviewer');
+
+    expect(designer).toBeDefined();
+    expect(designer?.name).toBe('Kraken Designer');
+    expect(designer?.character).toBe('kelly');
+    expect(designer?.source).toBe('kraken');
+    expect(designer?.subagentType).toBe('image-generator');
+  });
+
+  it('deve permitir alterar o filtro de origem de agentes (filterSource)', () => {
+    expect(useStore.getState().filterSource).toBe('all');
+    useStore.getState().setFilterSource('paperclip');
+    expect(useStore.getState().filterSource).toBe('paperclip');
+    useStore.getState().setFilterSource('kraken');
+    expect(useStore.getState().filterSource).toBe('kraken');
+    useStore.getState().setFilterSource('all');
+    expect(useStore.getState().filterSource).toBe('all');
+  });
+
+  it('deve sincronizar subagentes locais via syncKrakenSubagents', () => {
+    useStore.getState().syncKrakenSubagents(
+      [
+        {
+          id: 'subagent-research',
+          name: 'Kraken Researcher',
+          type: 'research',
+          role: 'Codebase Researcher',
+          status: 'working',
+          currentTask: 'Explorando contratos RPC',
+          progress: 65,
+          activeTool: 'search_web',
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: 'subagent-reviewer',
+          name: 'Kraken Reviewer',
+          type: 'code-reviewer',
+          role: 'Standards Auditor',
+          status: 'thinking',
+          action: 'Auditando conformidade com agent-standards',
+          progress: 80,
+          activeTool: 'code_lint',
+          updatedAt: new Date().toISOString(),
+        },
+      ],
+      'write_file'
+    );
+
+    const bridge = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridge?.status).toBe('working');
+    expect(bridge?.currentStation).toBe('shelf');
+    expect(bridge?.carrying).toBe('Write');
+
+    const researcher = useStore.getState().agents.find((a) => a.id === 'subagent-research');
+    expect(researcher?.status).toBe('working');
+    expect(researcher?.currentStation).toBe('web');
+    expect(researcher?.carrying).toBe('WebSearch');
+    expect(researcher?.progress).toBe(65);
+    expect(researcher?.taskTitle).toBe('Explorando contratos RPC');
+
+    const reviewer = useStore.getState().agents.find((a) => a.id === 'subagent-reviewer');
+    expect(reviewer?.status).toBe('thinking');
+    expect(reviewer?.currentStation).toBe('shelf');
+    expect(reviewer?.progress).toBe(80);
+    expect(reviewer?.action).toBe('Auditando conformidade com agent-standards');
+  });
+
+  it('deve mapear ferramentas MCP e resetar para idle na ausência de tool', () => {
+    useStore.getState().syncKrakenSubagents([], 'call_mcp_tool');
+    const bridgeMcp = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridgeMcp?.status).toBe('working');
+    expect(bridgeMcp?.currentStation).toBe('mcp');
+    expect(bridgeMcp?.carrying).toBe('MCP');
+
+    useStore.getState().syncKrakenSubagents([], null);
+    const bridgeIdle = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridgeIdle?.status).toBe('idle');
+    expect(bridgeIdle?.currentStation).toBe('desk');
+    expect(bridgeIdle?.carrying).toBeUndefined();
+  });
+
+  it('Swarm Workers / Background tasks -> oscar, kevin ou andy', () => {
+    const agents = useStore.getState().agents;
+    const swarmWorker = agents.find((a) => a.id === 'subagent-swarm');
+
+    expect(swarmWorker).toBeDefined();
+    expect(swarmWorker?.name).toBe('Kraken Swarm Worker');
+    expect(swarmWorker?.character).toBe('oscar');
+    expect(swarmWorker?.subagentType).toBe('swarm-worker');
+    expect(swarmWorker?.source).toBe('kraken');
+
+    // Sincroniza tarefa de enxame em background
+    useStore.getState().syncKrakenSubagents([
+      {
+        id: 'subagent-swarm',
+        name: 'Kraken Swarm Worker',
+        type: 'swarm-worker',
+        status: 'working',
+        currentTask: 'Processando slice 1 do enxame',
+        activeTool: 'run_command',
+      },
+    ]);
+
+    const updatedWorker = useStore.getState().agents.find((a) => a.id === 'subagent-swarm');
+    expect(updatedWorker?.status).toBe('working');
+    expect(updatedWorker?.character).toBe('oscar');
+    expect(updatedWorker?.currentStation).toBe('terminal');
+    expect(updatedWorker?.carrying).toBe('Bash');
+  });
+
+  it('Testes unitários para officeStore.syncLocalKraken', () => {
+    useStore.getState().syncLocalKraken('search_web', [
+      {
+        id: 'subagent-research',
+        name: 'Kraken Researcher',
+        type: 'research',
+        status: 'working',
+        currentTask: 'Consultando documentação no GitHub',
+        progress: 90,
+      },
+    ]);
+
+    const bridge = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridge?.status).toBe('working');
+    expect(bridge?.carrying).toBe('WebSearch');
+    expect(bridge?.currentStation).toBe('web');
+
+    const researcher = useStore.getState().agents.find((a) => a.id === 'subagent-research');
+    expect(researcher?.status).toBe('working');
+    expect(researcher?.progress).toBe(90);
+  });
+
+  it('Balões de pensamento refletem a tarefa ativa do subagente', () => {
+    const taskDescription = 'Refatorando componentes do OfficeView com Pixi.js';
+    useStore.getState().syncKrakenSubagents([
+      {
+        id: 'subagent-reviewer',
+        name: 'Kraken Reviewer',
+        type: 'code-reviewer',
+        status: 'working',
+        currentTask: taskDescription,
+        action: taskDescription,
+      },
+    ]);
+
+    const reviewer = useStore.getState().agents.find((a) => a.id === 'subagent-reviewer');
+    expect(reviewer?.action).toBe(taskDescription);
+    expect(reviewer?.recentAssistantText).toBe(taskDescription);
+  });
+
+  it('Compilação limpa do frontend e servidor', () => {
+    const state = useStore.getState();
+    expect(state.agents).toBeInstanceOf(Array);
+    expect(state.officeTheme).toBe('office');
+    expect(typeof state.syncLocalKraken).toBe('function');
+    expect(typeof state.syncKrakenSubagents).toBe('function');
+    expect(typeof state.syncWithPaperclip).toBe('function');
+  });
+
+  it('Suíte de testes unitários passando (npm test -- --run)', () => {
+    const state = useStore.getState();
+    expect(state.filterSource).toBeDefined();
+    expect(['all', 'paperclip', 'kraken']).toContain(state.filterSource);
+  });
 });

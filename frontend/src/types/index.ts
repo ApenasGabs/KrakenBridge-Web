@@ -732,7 +732,7 @@ export interface PaperclipTimelineEvent {
   issueUrl?: string;
   prUrl?: string;
   runId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface DetectedStall {
@@ -765,6 +765,20 @@ export interface PaperclipStateSnapshot {
   stalls: DetectedStall[];
   timeline: PaperclipTimelineEvent[];
 }
+
+export interface LocalSubagent {
+  id: string;
+  name: string;
+  type: 'research' | 'code-reviewer' | 'image-generator' | 'swarm-worker' | string;
+  role?: string;
+  status?: 'idle' | 'working' | 'thinking' | 'done' | 'error';
+  action?: string;
+  currentTask?: string;
+  progress?: number;
+  activeTool?: string;
+  updatedAt?: string;
+}
+
 
 
 

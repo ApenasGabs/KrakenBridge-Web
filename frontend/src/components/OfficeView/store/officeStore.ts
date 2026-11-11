@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { OfficeCharacterName } from '../office/cast';
 import type { AccentColorName } from '../design/tokens';
 import type { ThemeId } from '../office/themeRegistry';
-import type { PaperclipStateSnapshot, PaperclipAgent, PaperclipIssue } from '../../../types';
+import type { PaperclipStateSnapshot, PaperclipAgent, PaperclipIssue, LocalSubagent } from '../../../types';
 
 export type ToolKind =
   | 'Read' | 'Edit' | 'Write' | 'Bash' | 'WebFetch' | 'WebSearch'
@@ -22,6 +22,8 @@ export type StatusKind =
   | 'compacting'
   | 'looping';
 
+export type AgentSource = 'paperclip' | 'kraken';
+
 export interface Agent {
   id: string;
   name: string;
@@ -40,6 +42,8 @@ export interface Agent {
   lastPrompt?: string;
   taskTitle?: string;
   taskId?: string;
+  source?: AgentSource;
+  subagentType?: string;
 }
 
 export interface OfficeState {
@@ -48,12 +52,34 @@ export interface OfficeState {
   ideOpen: boolean;
   selectedId: string | null;
   agents: Agent[];
+  filterSource: 'all' | 'paperclip' | 'kraken';
+  setFilterSource: (source: 'all' | 'paperclip' | 'kraken') => void;
   select: (id: string | null) => void;
   setAgents: (agents: Agent[]) => void;
   updateAgent: (id: string, patch: Partial<Agent>) => void;
   requestCommandCenterTab?: (tab: string) => void;
-  syncWithPaperclip: (snapshot: PaperclipStateSnapshot | null, localActiveTool?: string | null) => void;
+  syncWithPaperclip: (
+    snapshot: PaperclipStateSnapshot | null,
+    localActiveTool?: string | null,
+    localSubagents?: LocalSubagent[] | null
+  ) => void;
+  syncKrakenSubagents: (
+    subagents?: LocalSubagent[] | null,
+    localActiveTool?: string | null
+  ) => void;
+  syncLocalKraken: (
+    activeTool?: string | null,
+    subagents?: LocalSubagent[] | null
+  ) => void;
 }
+
+const mapSubagentStatus = (status?: string, isWorking = false): StatusKind => {
+  if (status === 'working' || status === 'running') return 'working';
+  if (status === 'thinking') return 'thinking';
+  if (status === 'error' || status === 'blocked') return 'blocked';
+  if (status === 'done' || status === 'success') return 'success';
+  return isWorking ? 'working' : 'idle';
+};
 
 const DEFAULT_AGENTS: Agent[] = [
   {
@@ -67,6 +93,7 @@ const DEFAULT_AGENTS: Agent[] = [
     action: 'Planejando e orquestrando o ecossistema',
     progress: 100,
     isGod: true,
+    source: 'paperclip',
   },
   {
     id: 'fb0ad346-e4b6-42dc-a3fa-ec26d43454d1',
@@ -79,6 +106,7 @@ const DEFAULT_AGENTS: Agent[] = [
     action: 'Pronto para tarefas de código e refatoração',
     progress: 0,
     currentStation: 'terminal',
+    source: 'paperclip',
   },
   {
     id: '217c4ccc-e831-4d0e-bf70-a0266f7ceb15',
@@ -91,6 +119,7 @@ const DEFAULT_AGENTS: Agent[] = [
     action: 'Monitorando suites de teste e Browserless',
     progress: 0,
     currentStation: 'desk',
+    source: 'paperclip',
   },
   {
     id: '1f898ec2-7916-4f2f-828e-f96b06a798b9',
@@ -103,6 +132,7 @@ const DEFAULT_AGENTS: Agent[] = [
     action: 'Auditando métricas e telemetria',
     progress: 0,
     currentStation: 'shelf',
+    source: 'paperclip',
   },
   {
     id: 'local-kraken-bridge',
@@ -115,6 +145,63 @@ const DEFAULT_AGENTS: Agent[] = [
     action: 'Conectado à dashboard web',
     progress: 100,
     currentStation: 'desk',
+    source: 'kraken',
+  },
+  {
+    id: 'subagent-research',
+    name: 'Kraken Researcher',
+    character: 'ryan',
+    accent: 'mint',
+    description: 'Subagente de pesquisa no codebase e internet (read-only)',
+    project: 'KrakenBridge-Web',
+    status: 'idle',
+    action: 'Pronto para pesquisas e documentação',
+    progress: 0,
+    currentStation: 'web',
+    source: 'kraken',
+    subagentType: 'research',
+  },
+  {
+    id: 'subagent-reviewer',
+    name: 'Kraken Reviewer',
+    character: 'angela',
+    accent: 'coral',
+    description: 'Auditor de regras, padrões e testes (agent-standards)',
+    project: 'KrakenBridge-Web',
+    status: 'idle',
+    action: 'Pronto para auditoria de código e PRs',
+    progress: 0,
+    currentStation: 'shelf',
+    source: 'kraken',
+    subagentType: 'code-reviewer',
+  },
+  {
+    id: 'subagent-image',
+    name: 'Kraken Designer',
+    character: 'kelly',
+    accent: 'lilac',
+    description: 'Geração e edição visual de assets e imagens',
+    project: 'KrakenBridge-Web',
+    status: 'idle',
+    action: 'Pronto para criação e mockups visuais',
+    progress: 0,
+    currentStation: 'desk',
+    source: 'kraken',
+    subagentType: 'image-generator',
+  },
+  {
+    id: 'subagent-swarm',
+    name: 'Kraken Swarm Worker',
+    character: 'oscar',
+    accent: 'peach',
+    description: 'Trabalhador paralelo de tarefas de enxame (Swarm Workers / Background tasks -> oscar, kevin ou andy)',
+    project: 'KrakenBridge-Web',
+    status: 'idle',
+    action: 'Pronto para tarefas paralelas e background',
+    progress: 0,
+    currentStation: 'terminal',
+    source: 'kraken',
+    subagentType: 'swarm-worker',
   },
 ];
 
@@ -124,6 +211,9 @@ export const useStore = create<OfficeState>((set, get) => ({
   ideOpen: false,
   selectedId: null,
   agents: DEFAULT_AGENTS,
+  filterSource: 'all',
+
+  setFilterSource: (source) => set({ filterSource: source }),
 
   select: (id) => set({ selectedId: id }),
 
@@ -134,11 +224,99 @@ export const useStore = create<OfficeState>((set, get) => ({
       agents: state.agents.map((a) => (a.id === id ? { ...a, ...patch } : a)),
     })),
 
-  requestCommandCenterTab: (_tab: string) => {
+  requestCommandCenterTab: () => {
     // Intencional no-op: no Electron original abria a aba de triggers/tarefas no Command Center
   },
 
-  syncWithPaperclip: (snapshot, localActiveTool) => {
+  syncLocalKraken: (activeTool, subagents) => {
+    get().syncKrakenSubagents(subagents, activeTool);
+  },
+
+  syncKrakenSubagents: (subagents, localActiveTool) => {
+    const agentsMap: Record<string, Partial<Agent>> = {};
+
+    // Atualiza Kraken Bridge local se houver tool em execução
+    if (localActiveTool) {
+      let station: StationKind = 'terminal';
+      let toolKind: ToolKind = 'Bash';
+
+      if (localActiveTool.includes('file') || localActiveTool.includes('edit')) {
+        station = 'shelf';
+        toolKind = 'Write';
+      } else if (localActiveTool.includes('mcp')) {
+        station = 'mcp';
+        toolKind = 'MCP';
+      } else if (localActiveTool.includes('search') || localActiveTool.includes('web')) {
+        station = 'web';
+        toolKind = 'WebSearch';
+      }
+
+      agentsMap['local-kraken-bridge'] = {
+        status: 'working',
+        action: `Executando: ${localActiveTool}`,
+        currentStation: station,
+        carrying: toolKind,
+      };
+    } else {
+      agentsMap['local-kraken-bridge'] = {
+        status: 'idle',
+        action: 'Aguardando instruções no chat',
+        currentStation: 'desk',
+        carrying: undefined,
+      };
+    }
+
+    // Sincroniza subagentes locais se fornecidos
+    if (subagents && Array.isArray(subagents)) {
+      subagents.forEach((sa) => {
+        const existing = get().agents.find((a) => a.id === sa.id || a.subagentType === sa.type);
+        const targetId = existing?.id || sa.id;
+
+        let station: StationKind = 'desk';
+        let toolKind: ToolKind = 'Read';
+        if (sa.type === 'research' || sa.activeTool?.includes('search') || sa.activeTool?.includes('web')) {
+          station = 'web';
+          toolKind = 'WebSearch';
+        } else if (sa.type === 'code-reviewer' || sa.activeTool?.includes('lint') || sa.activeTool?.includes('test')) {
+          station = 'shelf';
+          toolKind = 'Grep';
+        } else if (
+          sa.type === 'swarm-worker' ||
+          sa.id.includes('swarm') ||
+          sa.activeTool?.includes('bash') ||
+          sa.activeTool?.includes('command')
+        ) {
+          station = 'terminal';
+          toolKind = 'Bash';
+        }
+
+        const isWorking = sa.status === 'working' || sa.status === 'thinking';
+
+        // Balões de pensamento refletem a tarefa ativa do subagente
+        const activeThought = sa.action || sa.currentTask || (isWorking ? 'Executando subagente...' : 'Pronto');
+
+        agentsMap[targetId] = {
+          status: mapSubagentStatus(sa.status, isWorking),
+          action: activeThought,
+          recentAssistantText: activeThought,
+          taskTitle: sa.currentTask,
+          currentStation: isWorking ? station : 'desk',
+          carrying: isWorking ? toolKind : undefined,
+          progress: sa.progress ?? (isWorking ? 50 : 0),
+        };
+      });
+    }
+
+    const currentAgents = get().agents;
+    const updated = currentAgents.map((agent) => {
+      const patch = agentsMap[agent.id];
+      return patch ? { ...agent, ...patch } : agent;
+    });
+
+    set({ agents: updated });
+  },
+
+  syncWithPaperclip: (snapshot, localActiveTool, localSubagents) => {
     if (!snapshot) return;
 
     const agentsMap: Record<string, Partial<Agent>> = {};
@@ -207,6 +385,22 @@ export const useStore = create<OfficeState>((set, get) => ({
         currentStation: 'desk',
         carrying: undefined,
       };
+    }
+
+    // Sincroniza subagentes locais se fornecidos
+    if (localSubagents && Array.isArray(localSubagents)) {
+      localSubagents.forEach((sa) => {
+        const existing = get().agents.find((a) => a.id === sa.id || a.subagentType === sa.type);
+        const targetId = existing?.id || sa.id;
+
+        const isWorking = sa.status === 'working' || sa.status === 'thinking';
+        agentsMap[targetId] = {
+          status: mapSubagentStatus(sa.status, isWorking),
+          action: sa.action || sa.currentTask || (isWorking ? 'Executando subagente...' : 'Pronto'),
+          taskTitle: sa.currentTask,
+          progress: sa.progress ?? (isWorking ? 50 : 0),
+        };
+      });
     }
 
     const currentAgents = get().agents;

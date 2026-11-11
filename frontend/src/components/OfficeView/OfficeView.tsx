@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { OfficeFloor } from './office/OfficeFloor';
 import { useStore, type Agent } from './store/officeStore';
 import { api } from '../../services/api';
-import type { PaperclipStateSnapshot } from '../../types';
+import type { PaperclipStateSnapshot, LocalSubagent } from '../../types';
 import {
   Building2,
   Users,
@@ -20,13 +20,19 @@ import {
 
 interface OfficeViewProps {
   localActiveTool?: string | null;
+  localSubagents?: LocalSubagent[] | null;
+  onFocusChat?: () => void;
 }
 
-export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
+export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool, localSubagents, onFocusChat }) => {
   const agents = useStore((s) => s.agents);
   const selectedId = useStore((s) => s.selectedId);
   const select = useStore((s) => s.select);
+  const filterSource = useStore((s) => s.filterSource);
+  const setFilterSource = useStore((s) => s.setFilterSource);
   const syncWithPaperclip = useStore((s) => s.syncWithPaperclip);
+  const syncKrakenSubagents = useStore((s) => s.syncKrakenSubagents);
+  const syncLocalKraken = useStore((s) => s.syncLocalKraken);
 
   const [isLive, setIsLive] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -38,15 +44,15 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
     setIsRefreshing(true);
     try {
       const snapshot = await api.getPaperclipStatus();
-      syncWithPaperclip(snapshot, localActiveTool);
+      syncWithPaperclip(snapshot, localActiveTool, localSubagents);
       setLastSyncTime(new Date());
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn('[OfficeView] Falha ao sincronizar com Paperclip:', err);
+      syncLocalKraken(localActiveTool, localSubagents);
     } finally {
       setIsRefreshing(false);
     }
-  }, [syncWithPaperclip, localActiveTool]);
+  }, [syncWithPaperclip, syncLocalKraken, localActiveTool, localSubagents]);
 
   useEffect(() => {
     void refreshStatus();
@@ -56,7 +62,7 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
       es = api.createPaperclipEventSource(
         (snapshot: PaperclipStateSnapshot) => {
           setIsLive(true);
-          syncWithPaperclip(snapshot, localActiveTool);
+          syncWithPaperclip(snapshot, localActiveTool, localSubagents);
           setLastSyncTime(new Date());
         },
         () => {
@@ -82,7 +88,12 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
         es.close();
       }
     };
-  }, [refreshStatus, syncWithPaperclip, localActiveTool]);
+  }, [refreshStatus, syncWithPaperclip, localActiveTool, localSubagents]);
+
+  // Sincroniza subagentes do Kraken reativamente quando mudarem
+  useEffect(() => {
+    syncKrakenSubagents(localSubagents, localActiveTool);
+  }, [localActiveTool, localSubagents, syncKrakenSubagents]);
 
   // Se o usuário selecionou um agente, abre os detalhes
   useEffect(() => {
@@ -101,8 +112,15 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
     const working = agents.filter((a) => a.status === 'working' || a.status === 'thinking').length;
     const idle = agents.filter((a) => a.status === 'idle').length;
     const blocked = agents.filter((a) => a.status === 'blocked').length;
-    return { total, working, idle, blocked };
+    const paperclipCount = agents.filter((a) => a.source === 'paperclip').length;
+    const krakenCount = agents.filter((a) => a.source === 'kraken').length;
+    return { total, working, idle, blocked, paperclipCount, krakenCount };
   }, [agents]);
+
+  const displayedAgents = useMemo(
+    () => agents.filter((a) => (filterSource === 'all' ? true : a.source === filterSource)),
+    [agents, filterSource]
+  );
 
   const getStatusBadge = (status: Agent['status']) => {
     switch (status) {
@@ -139,39 +157,47 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
                 className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full ${
                   isLive ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
                 }`}
-                title={isLive ? 'Conexão SSE com Paperclip ativa' : 'Operando via polling'}
               >
                 <Radio className={`w-3 h-3 ${isLive ? 'animate-pulse' : ''}`} />
-                <span>{isLive ? 'Paperclip Live' : 'Polling'}</span>
+                <span>{isLive ? 'Paperclip Live (SSE)' : 'Polling (15s)'}</span>
               </div>
             </div>
-            <p className="text-[11px] text-base-content/60 flex items-center gap-1 mt-0.5">
-              <span>Simulação interativa dos agentes em tempo real</span>
-              {lastSyncTime && (
-                <span className="text-[10px] opacity-75">
-                  • Atualizado às {lastSyncTime.toLocaleTimeString()}
-                </span>
-              )}
+            <p className="text-[11px] text-base-content/60 mt-0.5">
+              Escritório unificado dos agentes do Paperclip AI e subagentes locais do Kraken
             </p>
           </div>
         </div>
 
-        {/* Resumo de Agentes & Ações */}
+        {/* Estatísticas Rápidas & Atualizar */}
         <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-1.5 bg-base-200/80 px-2.5 py-1 rounded-lg border border-base-300 text-xs">
-            <Users className="w-3.5 h-3.5 text-base-content/60" />
-            <span className="font-semibold text-base-content">{stats.total} agentes</span>
-            <span className="text-base-content/30">•</span>
-            <span className="text-warning font-medium">{stats.working} ativos</span>
-            <span className="text-base-content/30">•</span>
-            <span className="text-base-content/60">{stats.idle} ociosos</span>
+          <div className="hidden sm:flex items-center gap-1.5 text-xs text-base-content/70 bg-base-200/80 px-2.5 py-1 rounded-lg border border-base-300">
+            <span className="flex items-center gap-1">
+              <Users className="w-3.5 h-3.5 text-primary" />
+              <strong>{stats.total}</strong> agentes
+            </span>
+            <span className="opacity-40">•</span>
+            <span className="text-success font-medium">
+              {stats.working} ativos
+            </span>
+            <span className="opacity-40">•</span>
+            <span className="text-secondary font-medium">
+              {stats.krakenCount} Kraken
+            </span>
+            {lastSyncTime && (
+              <>
+                <span className="opacity-40">•</span>
+                <span className="text-base-content/50 font-mono text-[10px]">
+                  {lastSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              </>
+            )}
           </div>
 
           <button
             onClick={() => void refreshStatus()}
             disabled={isRefreshing}
             className="btn btn-ghost btn-sm btn-square"
-            title="Atualizar status do Paperclip"
+            title="Atualizar status do Paperclip e Kraken"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -197,14 +223,48 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-primary" />
               <span className="text-xs font-bold uppercase tracking-wider text-base-content/80">
-                Elenco do Homelab
+                Elenco do Escritório
               </span>
             </div>
-            <span className="badge badge-neutral badge-xs">{agents.length}</span>
+            <span className="badge badge-neutral badge-xs">{displayedAgents.length}</span>
+          </div>
+
+          {/* Filtro de Origem: Todos vs Paperclip vs Kraken */}
+          <div className="px-2 pt-2 pb-1.5 border-b border-base-300/60 bg-base-100 flex items-center gap-1">
+            <button
+              onClick={() => setFilterSource('all')}
+              className={`btn btn-xs flex-1 text-[11px] font-medium transition-all ${
+                filterSource === 'all'
+                  ? 'btn-primary shadow-xs'
+                  : 'btn-ghost text-base-content/70 hover:text-base-content'
+              }`}
+            >
+              Todos ({agents.length})
+            </button>
+            <button
+              onClick={() => setFilterSource('paperclip')}
+              className={`btn btn-xs flex-1 text-[11px] font-medium transition-all ${
+                filterSource === 'paperclip'
+                  ? 'btn-primary shadow-xs'
+                  : 'btn-ghost text-base-content/70 hover:text-base-content'
+              }`}
+            >
+              Paperclip ({stats.paperclipCount})
+            </button>
+            <button
+              onClick={() => setFilterSource('kraken')}
+              className={`btn btn-xs flex-1 text-[11px] font-medium transition-all ${
+                filterSource === 'kraken'
+                  ? 'btn-primary shadow-xs'
+                  : 'btn-ghost text-base-content/70 hover:text-base-content'
+              }`}
+            >
+              Kraken ({stats.krakenCount})
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-            {agents.map((agent) => {
+            {displayedAgents.map((agent) => {
               const isSelected = selectedId === agent.id;
               return (
                 <div
@@ -217,13 +277,13 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-base-200 border border-base-300 flex items-center justify-center font-bold text-xs capitalize text-primary shadow-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-lg bg-base-200 border border-base-300 flex items-center justify-center font-bold text-xs capitalize text-primary shadow-xs shrink-0">
                         {agent.name.charAt(0)}
                       </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-base-content leading-none">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-base-content leading-none truncate">
                             {agent.name}
                           </span>
                           {agent.isGod && (
@@ -231,13 +291,24 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
                               CEO
                             </span>
                           )}
+                          <span
+                            className={`badge badge-xs font-semibold ${
+                              agent.source === 'kraken'
+                                ? 'badge-secondary text-[10px]'
+                                : 'badge-primary badge-outline text-[10px]'
+                            }`}
+                          >
+                            {agent.source === 'kraken' ? 'Kraken' : 'Paperclip'}
+                          </span>
                         </div>
                         <span className="text-[10px] text-base-content/50 truncate block max-w-[140px]">
-                          {agent.project}
+                          {agent.project} {agent.subagentType ? `• ${agent.subagentType}` : ''}
                         </span>
                       </div>
                     </div>
-                    {getStatusBadge(agent.status)}
+                    <div className="shrink-0 ml-1">
+                      {getStatusBadge(agent.status)}
+                    </div>
                   </div>
 
                   <p className="text-[11px] text-base-content/70 line-clamp-2 bg-base-200/60 p-1.5 rounded-md leading-relaxed border border-base-300/30">
@@ -268,12 +339,22 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
               {selectedAgent.name.charAt(0)}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm font-bold text-base-content truncate">
                   {selectedAgent.name}
                 </h3>
+                <span
+                  className={`badge badge-xs font-semibold ${
+                    selectedAgent.source === 'kraken' ? 'badge-secondary' : 'badge-primary'
+                  }`}
+                >
+                  {selectedAgent.source === 'kraken' ? 'Kraken Local' : 'Paperclip AI'}
+                </span>
                 {selectedAgent.isGod && (
                   <span className="badge badge-primary badge-xs">Chefe / God Agent</span>
+                )}
+                {selectedAgent.subagentType && (
+                  <span className="badge badge-neutral badge-xs font-mono">{selectedAgent.subagentType}</span>
                 )}
                 {getStatusBadge(selectedAgent.status)}
               </div>
@@ -294,6 +375,15 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool }) => {
                 <ExternalLink className="w-3.5 h-3.5" />
                 <span>Ver no Paperclip</span>
               </a>
+            )}
+            {selectedAgent.source === 'kraken' && onFocusChat && (
+              <button
+                onClick={onFocusChat}
+                className="btn btn-sm btn-secondary btn-outline text-xs gap-1.5"
+              >
+                <Terminal className="w-3.5 h-3.5" />
+                <span>Abrir no Chat</span>
+              </button>
             )}
             <button
               onClick={() => setSelectedAgentDetailsOpen(false)}
