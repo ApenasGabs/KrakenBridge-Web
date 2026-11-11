@@ -5,6 +5,21 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.32.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.31.0...v1.32.0) (2026-11-11)
+
+### ✨ Features
+
+* **paperclip:** status em tempo real, detector de stalls e notificações (Refs [#141](https://github.com/ApenasGabs/KrakenBridge-Web/issues/141)) ([c00862e](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c00862e141678785950d04524c0cad3e555c3744))
+* **paperclip:** testes automatizados de backend, unref de timers e otimizacao de polling (Refs [#141](https://github.com/ApenasGabs/KrakenBridge-Web/issues/141)) ([f6ced28](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f6ced2835b4421f48e4c9e164d1ccef8ef8f6d23))
+
+### 🐛 Bug Fixes
+
+* **standards:** resolver apontamentos de spec e tipagem estrita no paperclip (Refs [#141](https://github.com/ApenasGabs/KrakenBridge-Web/issues/141)) ([2f801f7](https://github.com/ApenasGabs/KrakenBridge-Web/commit/2f801f72579d57759f3b3e38fa2e881f17634893))
+
+### 🧪 Tests
+
+* **visual:** atualizar snapshots de regressao visual com botao do paperclip (Refs [#141](https://github.com/ApenasGabs/KrakenBridge-Web/issues/141)) ([a6cda85](https://github.com/ApenasGabs/KrakenBridge-Web/commit/a6cda85982d910b457da8558fd86590737751f46))
+
 ## [1.31.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.30.1...v1.31.0) (2026-11-10)
 
 ### ✨ Features
