@@ -134,9 +134,8 @@ export const useStore = create<OfficeState>((set, get) => ({
       agents: state.agents.map((a) => (a.id === id ? { ...a, ...patch } : a)),
     })),
 
-  requestCommandCenterTab: (tab: string) => {
-    // eslint-disable-next-line no-console
-    console.log(`[Office] Request tab: ${tab}`);
+  requestCommandCenterTab: (_tab: string) => {
+    // Intencional no-op: no Electron original abria a aba de triggers/tarefas no Command Center
   },
 
   syncWithPaperclip: (snapshot, localActiveTool) => {

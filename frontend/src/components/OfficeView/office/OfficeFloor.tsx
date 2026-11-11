@@ -58,8 +58,24 @@ const I18N_DICT: Record<string, string> = {
   'office.errand.smoke.3': 'Revisando as metas do trimestre.'
 };
 
+interface ExtendedApplication extends Application {
+  __glRecovery?: () => void;
+  __taskBoardPoll?: ReturnType<typeof setInterval>;
+  __unsub?: () => void;
+  __offMessage?: () => void;
+  __resize?: ResizeObserver;
+}
+
+interface CountedGraphics extends Graphics {
+  __count?: number;
+}
+
+interface WindowCthBridge {
+  onHiveMessage?: (callback: (e: { targets: string[]; from: string; act: MessageAct; needsHuman: boolean }) => void) => () => void;
+}
+
 const useTranslation = () => {
-  const t = (key: string, params?: Record<string, any>): string => {
+  const t = (key: string, params?: Record<string, unknown>): string => {
     let str = I18N_DICT[key] || key;
     if (params) {
       Object.entries(params).forEach(([k, v]) => {
@@ -221,7 +237,7 @@ const firstWords = (prompt: string | undefined, maxWords = 6, maxChars = 42) : s
 export const OfficeFloor = () => {
   const { t, i18n } = useTranslation();
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const appRef = useRef<Application | null>(null);
+  const appRef = useRef<ExtendedApplication | null>(null);
   const mountIdRef = useRef(0);
   // Bumped when the WebGL context is evicted; a dep of the effect below, so the
   // whole scene is torn down and rebuilt through the existing mount path rather
@@ -284,7 +300,7 @@ export const OfficeFloor = () => {
     while (host.firstChild) host.removeChild(host.firstChild);
 
     const mountId = ++mountIdRef.current;
-    const app = new Application();
+    const app = new Application() as ExtendedApplication;
     appRef.current = app;
 
     const runtimes = new Map<string, Runtime>();
@@ -321,7 +337,7 @@ export const OfficeFloor = () => {
       // each of which takes a context via @xterm/addon-webgl — are open. Pixi
       // reports nothing when that happens: the floor just goes blank forever.
       // Rebuild instead. See glRecovery.ts.
-      (app as any).__glRecovery = installContextLossRecovery(app.canvas, {
+      app.__glRecovery = installContextLossRecovery(app.canvas, {
         onRebuild: () => { if (mountIdRef.current === mountId) setGlGeneration((n) => n + 1); },
         onGiveUp: () => {
           if (mountIdRef.current !== mountId) return;
@@ -341,9 +357,6 @@ export const OfficeFloor = () => {
       const mapRenderer = new TiledMapRenderer(resolveThemeMap(theme), tilesetTextures);
       world.addChild(mapRenderer.getContainer());
       const charLayer = mapRenderer.getCharacterContainer();
-      const tileCount = mapRenderer.getContainer().children.reduce(
-        (n, c) => n + ((c as Container).children?.length ?? 0), 0);
-      console.log(`[OfficeFloor] map ${mapRenderer.width}x${mapRenderer.height}, ${tileCount} tile sprites rendered`);
 
       const camera = new Camera(world);
       camera.setMapSize(mapRenderer.width * mapRenderer.tileSize, mapRenderer.height * mapRenderer.tileSize);
@@ -1091,7 +1104,7 @@ export const OfficeFloor = () => {
       });
       charLayer.addChild(boardG);
       // One small Graphics per desk currently holding a taken note.
-      const deskNoteG = new Map<string, Graphics>();
+      const deskNoteG = new Map<string, CountedGraphics>();
       const clearDeskNotes = (): void => {
         for (const g of deskNoteG.values()) { g.parent?.removeChild(g); g.destroy(); }
         deskNoteG.clear();
@@ -1133,7 +1146,7 @@ export const OfficeFloor = () => {
           const desk = rt.character.getDeskTile();
           let g = deskNoteG.get(t.assignee!);
           if (!g) {
-            g = new Graphics();
+            g = new Graphics() as CountedGraphics;
             g.eventMode = 'none';
             g.position.set((desk.x - 1) * tsB + 3, (desk.y - 1) * tsB + 8);
             g.zIndex = desk.y * tsB - 1;
@@ -1141,8 +1154,8 @@ export const OfficeFloor = () => {
             deskNoteG.set(t.assignee!, g);
           }
           // stack multiple taken notes side by side on the same desk
-          const idx = (g as any).__count ?? 0;
-          (g as any).__count = idx + 1;
+          const idx = g.__count ?? 0;
+          g.__count = idx + 1;
           g.rect(idx * 7, -(idx % 2), 5, 4).fill(NOTE_COLORS.doing);
           g.rect(idx * 7 + 2, -(idx % 2), 1, 1).fill(0x4a3b52);
         }
@@ -1428,7 +1441,7 @@ export const OfficeFloor = () => {
       };
       void pollTaskBoard();
       const taskBoardPoll = setInterval(() => { void pollTaskBoard(); }, 5000);
-      (app as any).__taskBoardPoll = taskBoardPoll;
+      app.__taskBoardPoll = taskBoardPoll;
 
       const addCharacter = async (agent: Agent) => {
         const charName = theme.cast.byName[agent.character] ? agent.character : theme.cast.defaultCharacter;
@@ -1655,7 +1668,7 @@ export const OfficeFloor = () => {
           }
         }
       });
-      (app as any).__unsub = unsubscribe;
+      app.__unsub = unsubscribe;
 
       // Fly an envelope from a sender's desk to each recipient when the hive
       // routes a message. Endpoints are snapshotted at spawn, so the paper flies
@@ -1682,8 +1695,9 @@ export const OfficeFloor = () => {
       // Real path: the main-process router emits one event per routed message.
       // Guarded so a stale preload bridge (e.g. before a dev-server restart adds
       // this method) degrades to "no envelopes" rather than crashing the floor.
-      const offMessage = (window as any).cth?.onHiveMessage
-        ? (window as any).cth.onHiveMessage((e: { targets: string[]; from: string; act: MessageAct; needsHuman: boolean }) => {
+      const winCth = (window as unknown as { cth?: WindowCthBridge }).cth;
+      const offMessage = winCth?.onHiveMessage
+        ? winCth.onHiveMessage((e: { targets: string[]; from: string; act: MessageAct; needsHuman: boolean }) => {
             for (const target of e.targets) spawnHandoff(e.from, target, e.act, e.needsHuman);
           })
         : () => { /* onHiveMessage unavailable */ };
@@ -1694,7 +1708,7 @@ export const OfficeFloor = () => {
         if (d) spawnHandoff(d.from, d.to, d.act, false);
       };
       window.addEventListener('cth:demo-handoff', onDemoHandoff);
-      (app as any).__offMessage = () => {
+      app.__offMessage = () => {
         offMessage();
         window.removeEventListener('cth:demo-handoff', onDemoHandoff);
       };
@@ -1771,7 +1785,7 @@ export const OfficeFloor = () => {
         }
       });
       resize.observe(host);
-      (app as any).__resize = resize;
+      app.__resize = resize;
       // The floor is up: give the next crowded start-up a full budget again.
       initRetriesRef.current = 0;
     };
@@ -1794,7 +1808,7 @@ export const OfficeFloor = () => {
       }
 
       // Out of budget. The stack would say "does not support WebGL", which is
-      // both untrue and unactionable; say what actually helps instead.
+      // both untrue and actionable; say what actually helps instead.
       if (plan.action === 'give-up') {
         console.error(`[OfficeFloor] still no WebGL context after ${DEFAULT_MAX_INIT_RETRIES} retries:`, err);
         host.appendChild(floorNote(
@@ -1814,11 +1828,11 @@ export const OfficeFloor = () => {
       mountIdRef.current++;
       const a = appRef.current;
       if (a) {
-        (a as any).__glRecovery?.();
-        (a as any).__resize?.disconnect?.();
-        try { (a as any).__unsub?.(); } catch { /* noop */ }
-        try { (a as any).__offMessage?.(); } catch { /* noop */ }
-        try { clearInterval((a as any).__taskBoardPoll); } catch { /* noop */ }
+        a.__glRecovery?.();
+        a.__resize?.disconnect();
+        try { a.__unsub?.(); } catch { /* noop */ }
+        try { a.__offMessage?.(); } catch { /* noop */ }
+        try { if (a.__taskBoardPoll) clearInterval(a.__taskBoardPoll); } catch { /* noop */ }
         safeDestroy(a);
       }
       appRef.current = null;
