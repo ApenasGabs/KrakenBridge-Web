@@ -24,7 +24,9 @@ import type {
   MemoryHandoff,
   EvolutionStatus,
   RefinePromptPayload,
-  RefinePromptResponse
+  RefinePromptResponse,
+  PaperclipStateSnapshot,
+  PaperclipTimelineEvent
 } from '../types';
 
 export interface SSECallbacks {
@@ -1155,6 +1157,84 @@ export const api = {
       throw new Error(err.error || 'Falha ao atualizar sistema');
     }
     return res.json();
+  },
+
+  // ==========================================
+  // Paperclip & Multi-Agent Realtime (Issue #141)
+  // ==========================================
+
+  async getPaperclipStatus(): Promise<PaperclipStateSnapshot> {
+    const res = await fetchWithAuth(`${getApiBase()}/paperclip/status`);
+    if (!res.ok) throw new Error('Falha ao obter status do Paperclip');
+    return res.json();
+  },
+
+  async getPaperclipSummary(): Promise<{ summary: string }> {
+    const res = await fetchWithAuth(`${getApiBase()}/paperclip/summary`);
+    if (!res.ok) throw new Error('Falha ao obter resumo do Paperclip');
+    return res.json();
+  },
+
+  async pollPaperclip(): Promise<{ success: boolean; snapshot: PaperclipStateSnapshot }> {
+    const res = await fetchWithAuth(`${getApiBase()}/paperclip/poll`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Falha ao acionar sincronização do Paperclip');
+    return res.json();
+  },
+
+  async simulatePaperclipEvent(type: 'error' | 'blocked' | 'stall' | 'ci_failed'): Promise<{ success: boolean; event?: PaperclipTimelineEvent; error?: string }> {
+    const res = await fetchWithAuth(`${getApiBase()}/paperclip/simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type })
+    });
+    if (!res.ok) throw new Error('Falha ao simular evento no Paperclip');
+    return res.json();
+  },
+
+  async sendPaperclipAction(action: string, agentId?: string, issueId?: string): Promise<{ success: boolean; result?: unknown; error?: string }> {
+    const res = await fetchWithAuth(`${getApiBase()}/paperclip/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, agentId, issueId })
+    });
+    if (!res.ok) throw new Error('Falha ao executar ação no Paperclip');
+    return res.json();
+  },
+
+  createPaperclipEventSource(
+    onStatus: (data: PaperclipStateSnapshot) => void,
+    onEvent: (event: PaperclipTimelineEvent) => void,
+    onError?: (err: Event | unknown) => void
+  ): EventSource {
+    const token = getStoredPinToken();
+    const url = `${getApiBase()}/paperclip/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+    const es = new EventSource(url);
+
+    es.addEventListener('status', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        onStatus(data);
+      } catch (err) {
+        console.warn('[SSE] Erro ao deserializar status do Paperclip:', err);
+      }
+    });
+
+    es.addEventListener('paperclip_event', (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data);
+        onEvent(data);
+      } catch (err) {
+        console.warn('[SSE] Erro ao deserializar evento da timeline:', err);
+      }
+    });
+
+    es.onerror = (err) => {
+      if (onError) onError(err);
+    };
+
+    return es;
   }
 };
 

@@ -17,6 +17,7 @@ import { filesRouter } from './routes/files.js';
 import { notificationsRouter } from './routes/notifications.js';
 import { coucouRouter } from './routes/coucou.js';
 import { crawlerRouter } from './routes/crawler.js';
+import { paperclipRouter } from './routes/paperclip.js';
 import { evolutionService } from './services/evolutionService.js';
 import { telemetryService } from './services/telemetryService.js';
 import { workspaceManager } from './services/workspaceManager.js';
@@ -176,6 +177,7 @@ const registerRoutes = (prefix: string) => {
   app.use(`${prefix}/notifications`, notificationsRouter);
   app.use(`${prefix}/coucou`, coucouRouter);
   app.use(`${prefix}/crawler`, crawlerRouter);
+  app.use(`${prefix}/paperclip`, paperclipRouter);
 
   app.post(`${prefix}/stop`, (_req: Request, res: Response) => res.redirect(307, `${prefix}/chat/stop`));
 
