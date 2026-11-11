@@ -48,6 +48,7 @@ export class PaperclipService {
 
   private pollIntervalMs = 35000; // 35 segundos
   private pollTimer: NodeJS.Timeout | null = null;
+  private initialPollTimeout: NodeJS.Timeout | null = null;
   private isPolling = false;
 
   // SSE Clients
@@ -86,7 +87,9 @@ export class PaperclipService {
       timeline: []
     };
 
-    this.startBackgroundPolling();
+    if (process.env.NODE_ENV !== 'test') {
+      this.startBackgroundPolling();
+    }
   }
 
   /**
@@ -143,22 +146,29 @@ export class PaperclipService {
    * Inicia o ciclo de background polling
    */
   public startBackgroundPolling() {
-    if (this.pollTimer) return;
+    if (this.pollTimer || this.initialPollTimeout) return;
     // Executa primeira busca em 1s
-    setTimeout(() => {
+    this.initialPollTimeout = setTimeout(() => {
+      this.initialPollTimeout = null;
       this.poll().catch(err => {
         console.warn('[PaperclipService] Aviso no primeiro poll:', (err as Error).message);
       });
     }, 1000);
+    this.initialPollTimeout.unref();
 
     this.pollTimer = setInterval(() => {
       this.poll().catch(err => {
         console.warn('[PaperclipService] Erro no polling de rotina:', (err as Error).message);
       });
     }, this.pollIntervalMs);
+    this.pollTimer.unref();
   }
 
   public stopBackgroundPolling() {
+    if (this.initialPollTimeout) {
+      clearTimeout(this.initialPollTimeout);
+      this.initialPollTimeout = null;
+    }
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
