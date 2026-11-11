@@ -343,9 +343,10 @@ export class PaperclipService {
       // Notifica todos os SSE clients conectados com o snapshot atualizado
       this.broadcastSSE('status', this.snapshot);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
       this.snapshot.connected = false;
-      this.snapshot.lastError = err?.message || String(err);
+      this.snapshot.lastError = errorMsg;
       console.warn('[PaperclipService] Falha ao sincronizar com Paperclip:', this.snapshot.lastError);
       this.broadcastSSE('error', { message: this.snapshot.lastError });
     } finally {
@@ -367,6 +368,14 @@ export class PaperclipService {
         const { stdout } = await execAsync(cmd, { timeout: 10000 });
         if (!stdout.trim()) continue;
 
+        interface CheckRollupItem {
+          status?: string;
+          conclusion?: string;
+          name?: string;
+          workflowName?: string;
+          detailsUrl?: string;
+        }
+
         const prs = JSON.parse(stdout);
         for (const pr of prs) {
           let ciStatus: 'SUCCESS' | 'FAILURE' | 'PENDING' | 'UNKNOWN' = 'UNKNOWN';
@@ -374,13 +383,13 @@ export class PaperclipService {
           let detailsUrl: string | undefined = undefined;
 
           if (Array.isArray(pr.statusCheckRollup) && pr.statusCheckRollup.length > 0) {
-            const hasFailure = pr.statusCheckRollup.some((c: any) => c.conclusion === 'FAILURE');
-            const hasPending = pr.statusCheckRollup.some((c: any) => c.status !== 'COMPLETED' || !c.conclusion);
-            const allSuccess = pr.statusCheckRollup.every((c: any) => c.conclusion === 'SUCCESS');
+            const hasFailure = pr.statusCheckRollup.some((c: CheckRollupItem) => c.conclusion === 'FAILURE');
+            const hasPending = pr.statusCheckRollup.some((c: CheckRollupItem) => c.status !== 'COMPLETED' || !c.conclusion);
+            const allSuccess = pr.statusCheckRollup.every((c: CheckRollupItem) => c.conclusion === 'SUCCESS');
 
             if (hasFailure) {
               ciStatus = 'FAILURE';
-              const failCheck = pr.statusCheckRollup.find((c: any) => c.conclusion === 'FAILURE');
+              const failCheck = pr.statusCheckRollup.find((c: CheckRollupItem) => c.conclusion === 'FAILURE');
               workflowName = failCheck?.name || failCheck?.workflowName;
               detailsUrl = failCheck?.detailsUrl;
             } else if (hasPending) {
@@ -830,7 +839,7 @@ export class PaperclipService {
   /**
    * Broadcast seguro para todos os clientes conectados via SSE
    */
-  private broadcastSSE(event: string, data: any) {
+  private broadcastSSE(event: string, data: unknown) {
     const message = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const client of this.sseClients) {
       try {
@@ -846,7 +855,7 @@ export class PaperclipService {
   /**
    * Simula um evento para testes e validação de critérios de aceite
    */
-  public async simulateEvent(type: 'error' | 'blocked' | 'stall' | 'ci_failed', customData?: any) {
+  public async simulateEvent(type: 'error' | 'blocked' | 'stall' | 'ci_failed', customData?: unknown) {
     if (type === 'error') {
       const event = this.addTimelineEvent({
         type: 'agent.status_changed',

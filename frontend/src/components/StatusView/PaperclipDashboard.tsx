@@ -83,8 +83,9 @@ export const PaperclipDashboard: React.FC = () => {
         setSnapshot(res.snapshot);
         if (res.snapshot.timeline) setTimeline(res.snapshot.timeline);
       }
-    } catch (err: any) {
-      setActionFeedback({ message: `Erro ao sincronizar: ${err.message}`, type: 'error' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setActionFeedback({ message: `Erro ao sincronizar: ${msg}`, type: 'error' });
     } finally {
       setIsRefreshing(false);
     }
@@ -96,11 +97,13 @@ export const PaperclipDashboard: React.FC = () => {
     try {
       const res = await api.simulatePaperclipEvent(type);
       if (res.event) {
-        setTimeline((prev) => [res.event, ...prev]);
+        const newEvent = res.event;
+        setTimeline((prev) => [newEvent, ...prev]);
         setActionFeedback({ message: `Evento simulado disparado com sucesso (${type})!`, type: 'success' });
       }
-    } catch (err: any) {
-      setActionFeedback({ message: `Falha ao simular: ${err.message}`, type: 'error' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setActionFeedback({ message: `Falha ao simular: ${msg}`, type: 'error' });
     }
   }, []);
 
@@ -111,8 +114,9 @@ export const PaperclipDashboard: React.FC = () => {
       await api.sendPaperclipAction('wakeup', agentId, issueId);
       setActionFeedback({ message: `Comando wakeup enviado com sucesso para o agente!`, type: 'success' });
       handleRefresh();
-    } catch (err: any) {
-      setActionFeedback({ message: `Erro ao acordar agente: ${err.message}`, type: 'error' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setActionFeedback({ message: `Erro ao acordar agente: ${msg}`, type: 'error' });
     }
   }, [handleRefresh]);
 

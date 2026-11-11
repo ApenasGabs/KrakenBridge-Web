@@ -59,8 +59,9 @@ paperclipRouter.post('/poll', async (_req: Request, res: Response) => {
   try {
     const snapshot = await paperclipService.poll();
     res.json({ success: true, snapshot });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err?.message || String(err) });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ success: false, error });
   }
 });
 
@@ -77,8 +78,9 @@ paperclipRouter.post('/simulate', async (req: Request, res: Response) => {
   try {
     const event = await paperclipService.simulateEvent(type, req.body);
     res.json({ success: true, event });
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: err?.message || String(err) });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ success: false, error });
   }
 });
 
@@ -128,8 +130,9 @@ paperclipRouter.post('/action', async (req: Request, res: Response) => {
 
       const json = await response.json().catch(() => ({}));
       return res.json({ success: true, result: json });
-    } catch (err: any) {
-      return res.status(500).json({ error: err?.message || String(err) });
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err.message : String(err);
+      return res.status(500).json({ error });
     }
   }
 

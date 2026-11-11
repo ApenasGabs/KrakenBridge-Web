@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import { setupMockApi } from './helpers/mockApi';
 
 const VIEWPORTS = [
-  { name: 'Mobile (360px)', width: 360, height: 800, isMobile: true },
+  { name: 'Mobile (375px)', width: 375, height: 812, isMobile: true },
   { name: 'Tablet (768px)', width: 768, height: 1024, isMobile: false },
-  { name: 'Desktop (1280px)', width: 1280, height: 800, isMobile: false }
+  { name: 'Desktop (1440px)', width: 1440, height: 900, isMobile: false }
 ];
 
 test.describe('Validação Responsiva & Regressão de Layout (Issue #49)', () => {

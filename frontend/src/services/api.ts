@@ -1183,7 +1183,7 @@ export const api = {
     return res.json();
   },
 
-  async simulatePaperclipEvent(type: 'error' | 'blocked' | 'stall' | 'ci_failed'): Promise<any> {
+  async simulatePaperclipEvent(type: 'error' | 'blocked' | 'stall' | 'ci_failed'): Promise<{ success: boolean; event?: PaperclipTimelineEvent; error?: string }> {
     const res = await fetchWithAuth(`${getApiBase()}/paperclip/simulate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1193,7 +1193,7 @@ export const api = {
     return res.json();
   },
 
-  async sendPaperclipAction(action: string, agentId?: string, issueId?: string): Promise<any> {
+  async sendPaperclipAction(action: string, agentId?: string, issueId?: string): Promise<{ success: boolean; result?: unknown; error?: string }> {
     const res = await fetchWithAuth(`${getApiBase()}/paperclip/action`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1206,7 +1206,7 @@ export const api = {
   createPaperclipEventSource(
     onStatus: (data: PaperclipStateSnapshot) => void,
     onEvent: (event: PaperclipTimelineEvent) => void,
-    onError?: (err: any) => void
+    onError?: (err: Event | unknown) => void
   ): EventSource {
     const token = getStoredPinToken();
     const url = `${getApiBase()}/paperclip/stream${token ? `?token=${encodeURIComponent(token)}` : ''}`;

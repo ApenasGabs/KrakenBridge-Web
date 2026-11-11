@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PaperclipService } from '../../../../src/services/paperclipService';
-import type { PaperclipAgent, PaperclipIssue, PaperclipRun } from '../../../../src/types/paperclip';
+import type { PaperclipAgent, PaperclipIssue, PaperclipRun, PaperclipStateSnapshot } from '../../../../src/types/paperclip';
 
 describe('PaperclipService - Realtime Status, Stalls & Notifications (Issue #141)', () => {
   let service: PaperclipService;
@@ -193,7 +193,7 @@ describe('PaperclipService - Realtime Status, Stalls & Notifications (Issue #141
   describe('Resumo Estruturado do Chat (/paperclip status)', () => {
     it('deve gerar markdown com agentes, erros reais, stalls e PRs', () => {
       // Configura snapshot simulado
-      (service as any).snapshot = {
+      (service as unknown as { snapshot: PaperclipStateSnapshot }).snapshot = {
         connected: true,
         lastPollAt: new Date().toISOString(),
         companyId: 'company-1',

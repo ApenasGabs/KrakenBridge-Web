@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { PaperclipDashboard } from '../PaperclipDashboard';
 import { api } from '../../../services/api';
+import type { PaperclipStateSnapshot } from '../../../types';
 
 vi.mock('../../../services/api', () => ({
   api: {
@@ -17,7 +18,7 @@ vi.mock('../../../services/api', () => ({
 }));
 
 describe('PaperclipDashboard UI Component (Issue #141)', () => {
-  const mockSnapshot = {
+  const mockSnapshot: PaperclipStateSnapshot = {
     connected: true,
     lastPollAt: '2026-11-05T21:15:00.000Z',
     companyId: '4034eb89-a640-48d2-8b4d-f2bb0f10a119',
@@ -129,8 +130,8 @@ describe('PaperclipDashboard UI Component (Issue #141)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(api.getPaperclipStatus).mockResolvedValue(mockSnapshot as any);
-    vi.mocked(api.pollPaperclip).mockResolvedValue({ success: true, snapshot: mockSnapshot as any });
+    vi.mocked(api.getPaperclipStatus).mockResolvedValue(mockSnapshot);
+    vi.mocked(api.pollPaperclip).mockResolvedValue({ success: true, snapshot: mockSnapshot });
     vi.mocked(api.sendPaperclipAction).mockResolvedValue({ success: true });
     vi.mocked(api.simulatePaperclipEvent).mockResolvedValue({
       success: true,
