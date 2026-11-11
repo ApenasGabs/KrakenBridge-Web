@@ -64,9 +64,9 @@ export const Header: React.FC<HeaderProps> = ({
   const isAuthOk = authStatus?.authenticated || authStatus?.isKeyValid;
 
   return (
-    <header className="navbar bg-base-100 border-b border-base-300 px-1.5 sm:px-3 min-h-14 gap-1 sm:gap-2 z-20">
+    <header className="navbar bg-base-100 border-b border-base-300 px-1 sm:px-3 min-h-14 gap-0.5 sm:gap-2 z-20">
       {/* Lado Esquerdo: Toggle Sidebar + Marca */}
-      <div className="flex items-center gap-1 sm:gap-2 shrink-0 min-w-0">
+      <div className="flex items-center gap-0.5 sm:gap-2 shrink-0 min-w-0">
         <button
           onClick={onToggleSidebar}
           className="btn btn-ghost btn-sm btn-square shrink-0"
@@ -89,12 +89,12 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Tabs Centrais: Status vs What's Next vs Chat vs IDE */}
+        {/* Tabs Centrais: Status vs Office vs What's Next vs Chat vs IDE vs Memória */}
         <div className="inline-flex items-center bg-base-200/80 rounded-lg p-0.5 ml-0.5 sm:ml-2 shrink-0">
           <button
             data-testid="tab-status"
             onClick={() => onTabChange('status')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[32px] sm:min-h-0 px-1 sm:px-2 lg:px-2.5 py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'status' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -102,13 +102,13 @@ export const Header: React.FC<HeaderProps> = ({
             title="Status Operacional, Métricas de IA e Malha de Agentes"
           >
             <Activity className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden min-[400px]:inline sm:inline">Status</span>
+            <span className="hidden lg:inline">Status</span>
           </button>
 
           <button
             data-testid="tab-office"
             onClick={() => onTabChange('office')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[32px] sm:min-h-0 px-1 sm:px-2 lg:px-2.5 py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'office' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -116,13 +116,13 @@ export const Header: React.FC<HeaderProps> = ({
             title="Escritório Multi-Agente 2D (The Floor • PixiJS)"
           >
             <Building2 className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden min-[400px]:inline sm:inline">Office</span>
+            <span className="hidden lg:inline">Office</span>
           </button>
 
           <button
             data-testid="tab-whatsnext"
             onClick={() => onTabChange('whatsnext')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[32px] sm:min-h-0 px-1 sm:px-2 lg:px-2.5 py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'whatsnext' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -130,39 +130,39 @@ export const Header: React.FC<HeaderProps> = ({
             title="What's Next (Backlog de Issues) e Central de Revisão de PRs"
           >
             <Compass className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden min-[480px]:inline sm:inline">What's Next</span>
+            <span className="hidden xl:inline">What's Next</span>
           </button>
 
           <button
             data-testid="tab-chat"
             onClick={() => onTabChange('chat')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[32px] sm:min-h-0 px-1 sm:px-2 lg:px-2.5 py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'chat' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
             }`}
           >
             <Bot className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden min-[400px]:inline sm:inline">Chat</span>
+            <span className="hidden lg:inline">Chat</span>
           </button>
 
           <button
             data-testid="tab-ide"
             onClick={() => onTabChange('ide')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[32px] sm:min-h-0 px-1 sm:px-2 lg:px-2.5 py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'ide' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
             }`}
           >
             <Code2 className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden min-[400px]:inline sm:inline">IDE</span>
+            <span className="hidden lg:inline">IDE</span>
           </button>
 
           <button
             data-testid="tab-memory"
             onClick={() => onTabChange('memory')}
-            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+            className={`min-h-[32px] sm:min-h-0 px-1 sm:px-2 lg:px-2.5 py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
               activeTab === 'memory' 
                 ? 'bg-primary text-primary-content shadow-sm' 
                 : 'text-base-content/70 hover:text-base-content'
@@ -170,7 +170,7 @@ export const Header: React.FC<HeaderProps> = ({
             title="Memória de Longo Prazo, Wiki em Git e Handoffs (ai-memory)"
           >
             <Database className="w-3.5 h-3.5 shrink-0" />
-            <span className="hidden min-[400px]:inline sm:inline">Memória</span>
+            <span className="hidden lg:inline">Memória</span>
           </button>
         </div>
       </div>
@@ -390,11 +390,11 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Lado Direito Mobile: Tokens + Tema + Auth + Menu Dropdown [...] */}
-      <div className="flex md:hidden items-center gap-1 shrink-0">
+      <div className="flex md:hidden items-center gap-0.5 sm:gap-1 shrink-0">
         {/* Tokens / Água Compacto no Mobile */}
         <button 
           onClick={onToggleQuota}
-          className="btn btn-ghost btn-xs px-1.5 h-8 gap-1 font-mono text-[11px] rounded-lg"
+          className="btn btn-ghost btn-xs px-1 sm:px-1.5 h-8 gap-0.5 sm:gap-1 font-mono text-[11px] rounded-lg"
           title={showWaterMetrics ? "Ver cotas e telemetria de consumo hídrico" : "Ver cotas e telemetria de tokens"}
         >
           {showWaterMetrics ? (
