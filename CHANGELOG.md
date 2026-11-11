@@ -5,6 +5,18 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.33.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.32.1...v1.33.0) (2026-11-11)
+
+### ✨ Features
+
+* **office:** ✨ integrar visualizador 2D Office Floor (Pixi.js) com status do Paperclip (Refs [#152](https://github.com/ApenasGabs/KrakenBridge-Web/issues/152)) ([ddb63aa](https://github.com/ApenasGabs/KrakenBridge-Web/commit/ddb63aa3eb2b26b9b5b3fc7d1b1c9b67012c1900))
+
+### 🐛 Bug Fixes
+
+* 🧹 sanar casts any e logs residuais no visualizador office (Refs [#152](https://github.com/ApenasGabs/KrakenBridge-Web/issues/152)) ([6a5264f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/6a5264f64a7d4a5d8da6fddc8471efe45462b5e4))
+* **navbar:** 📱 otimizar responsividade das abas e seletores no mobile e tablet (Refs [#152](https://github.com/ApenasGabs/KrakenBridge-Web/issues/152)) ([42baf43](https://github.com/ApenasGabs/KrakenBridge-Web/commit/42baf4314c69aae6382282d0079f5b95029f1d77))
+* **standards:** ♻️ converter funções para arrow functions e remover type casts (Refs [#152](https://github.com/ApenasGabs/KrakenBridge-Web/issues/152)) ([7fe1dce](https://github.com/ApenasGabs/KrakenBridge-Web/commit/7fe1dce3716001ee5b5937e9c60cf583f6aee166))
+
 ## [1.32.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.32.0...v1.32.1) (2026-11-11)
 
 ### 🐛 Bug Fixes
