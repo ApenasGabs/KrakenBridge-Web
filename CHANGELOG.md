@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.32.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.32.0...v1.32.1) (2026-11-11)
+
+### 🐛 Bug Fixes
+
+* **system:** instalar dependências de backend e frontend antes da compilação no auto-update (Refs APE-66) ([d0b4cfb](https://github.com/ApenasGabs/KrakenBridge-Web/commit/d0b4cfb35f6ef7eaec0c4f45a6e59b5e2d01038c))
+
 ## [1.32.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.31.0...v1.32.0) (2026-11-11)
 
 ### ✨ Features
