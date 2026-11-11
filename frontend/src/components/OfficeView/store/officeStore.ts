@@ -193,7 +193,7 @@ const DEFAULT_AGENTS: Agent[] = [
     id: 'subagent-swarm',
     name: 'Kraken Swarm Worker',
     character: 'oscar',
-    accent: 'lime',
+    accent: 'peach',
     description: 'Trabalhador paralelo de tarefas de enxame (Swarm Workers / Background tasks -> oscar, kevin ou andy)',
     project: 'KrakenBridge-Web',
     status: 'idle',
