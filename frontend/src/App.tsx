@@ -20,6 +20,7 @@ import { IdeView } from './components/IdeView/IdeView';
 import { StatusView } from './components/StatusView/StatusView';
 import { WhatsNextView } from './components/WhatsNextView/WhatsNextView';
 import { MemoryView } from './components/MemoryView/MemoryView';
+import { OfficeView } from './components/OfficeView/OfficeView';
 import { AuthModal } from './components/AuthModal/AuthModal';
 import { QuotaBubble } from './components/QuotaBubble/QuotaBubble';
 import { McpModal } from './components/McpModal/McpModal';
@@ -39,7 +40,7 @@ import {
 } from './utils/offlineStorage';
 
 // Helper para recuperar a rota e conversa inicial a partir da URL do navegador
-const getInitialRoute = (): { tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory'; convId: string | null } => {
+const getInitialRoute = (): { tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office'; convId: string | null } => {
   if (typeof window === 'undefined') return { tab: 'status', convId: null };
 
   const pathname = window.location.pathname;
@@ -57,11 +58,12 @@ const getInitialRoute = (): { tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'me
   }
 
   const queryTab = searchParams.get('tab');
-  if (queryTab === 'status' || queryTab === 'whatsnext' || queryTab === 'chat' || queryTab === 'ide' || queryTab === 'memory') {
+  if (queryTab === 'status' || queryTab === 'whatsnext' || queryTab === 'chat' || queryTab === 'ide' || queryTab === 'memory' || queryTab === 'office') {
     return { tab: queryTab, convId: null };
   }
 
   if (pathname.includes('/whatsnext')) return { tab: 'whatsnext', convId: null };
+  if (pathname.includes('/office')) return { tab: 'office', convId: null };
   if (pathname.includes('/ide')) return { tab: 'ide', convId: null };
   if (pathname.includes('/memory')) return { tab: 'memory', convId: null };
   if (pathname.includes('/chat')) return { tab: 'chat', convId: null };
@@ -99,7 +101,7 @@ export const App: React.FC = () => {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Layout & Abas (Sincronizado com a URL do navegador)
-  const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide' | 'memory'>(initialRoute.tab);
+  const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office'>(initialRoute.tab as any);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
@@ -257,7 +259,7 @@ export const App: React.FC = () => {
   }, [checkPinAndInit]);
 
   // Sincronização da URL do navegador (preserva a barra final canônica /chat/ para suportar gateways e recargas sem 404)
-  const updateUrl = useCallback((tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory', convId: string | null) => {
+  const updateUrl = useCallback((tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office', convId: string | null) => {
     if (typeof window === 'undefined') return;
     const isSubpath = window.location.pathname.startsWith('/chat');
     const basePrefix = isSubpath ? '/chat' : '';
@@ -280,7 +282,7 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  const handleTabChange = useCallback((newTab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory') => {
+  const handleTabChange = useCallback((newTab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office') => {
     setActiveTab(newTab);
     updateUrl(newTab, newTab === 'chat' ? activeConvIdRef.current : null);
   }, [updateUrl]);
@@ -1145,7 +1147,7 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Visão de Status vs What's Next vs Chat vs IDE */}
+        {/* Visão de Status vs Office vs What's Next vs Chat vs IDE */}
         {activeTab === 'status' ? (
           <StatusView
             conversations={conversations}
@@ -1156,6 +1158,8 @@ export const App: React.FC = () => {
             onNewChat={handleNewChat}
             onStartSetupChat={handleStartSetupChat}
           />
+        ) : activeTab === 'office' ? (
+          <OfficeView />
         ) : activeTab === 'whatsnext' ? (
           <WhatsNextView
             onResolveIssue={handleResolveIssue}

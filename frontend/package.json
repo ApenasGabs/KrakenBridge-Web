@@ -32,6 +32,7 @@
     "lucide-react": "^1.16.0",
     "mermaid": "^12.2.0",
     "monaco-editor": "^0.57.0",
+    "pixi.js": "^8.22.0",
     "prism-react-renderer": "^2.4.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -40,7 +41,8 @@
     "remark-gfm": "^4.0.0",
     "shiki": "^4.5.0",
     "tailwindcss": "^4.1.18",
-    "workbox-window": "^7.4.1"
+    "workbox-window": "^7.4.1",
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

@@ -18,13 +18,14 @@ import {
   Bell,
   Sparkles,
   GitBranch,
-  Droplets
+  Droplets,
+  Building2
 } from 'lucide-react';
 import { formatWaterLiters, useWaterMetrics } from '../../utils/waterConsumption';
 
 interface HeaderProps {
-  activeTab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory';
-  onTabChange: (tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory') => void;
+  activeTab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office';
+  onTabChange: (tab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office') => void;
   onToggleSidebar: () => void;
   isOptionsOpen: boolean;
   onToggleOptions: () => void;
@@ -102,6 +103,20 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Activity className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden min-[400px]:inline sm:inline">Status</span>
+          </button>
+
+          <button
+            data-testid="tab-office"
+            onClick={() => onTabChange('office')}
+            className={`min-h-[36px] sm:min-h-0 px-1.5 sm:px-2 lg:px-2.5 py-1.5 sm:py-1 text-xs rounded-md flex items-center justify-center gap-1 sm:gap-1.5 font-medium transition-all ${
+              activeTab === 'office' 
+                ? 'bg-primary text-primary-content shadow-sm' 
+                : 'text-base-content/70 hover:text-base-content'
+            }`}
+            title="Escritório Multi-Agente 2D (The Floor • PixiJS)"
+          >
+            <Building2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden min-[400px]:inline sm:inline">Office</span>
           </button>
 
           <button
