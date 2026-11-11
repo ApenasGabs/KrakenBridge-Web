@@ -111,7 +111,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
         <div className="drawer-content">
           <label
             htmlFor={drawerId}
-            className={`btn btn-ghost btn-sm gap-1.5 ${compact ? 'px-2 text-xs' : 'px-2.5 text-xs sm:text-sm'}`}
+            className={`btn btn-ghost ${compact ? 'btn-xs btn-square h-8 w-8 p-0' : 'btn-sm gap-1.5 px-2.5 text-xs sm:text-sm'}`}
             role="button"
             aria-label="Temas"
             data-testid="theme-button"
