@@ -9,7 +9,8 @@ import type {
   ModelsConfig,
   QueuedMessage,
   AccountInfo,
-  EvolutionStatus
+  EvolutionStatus,
+  LocalSubagent
 } from './types';
 import { api } from './services/api';
 import { Sidebar } from './components/Sidebar/Sidebar';
@@ -152,6 +153,45 @@ export const App: React.FC = () => {
       localStorage.setItem('kraken_auto_route_model', String(newOptions.autoRouteByModelQuota));
     }
   }, []);
+
+  // Extrai a tool ativa e subagentes locais em execução a partir da sessão ativa de chat
+  const { localActiveTool, localSubagents } = useMemo(() => {
+    let activeTool: string | null = null;
+    const subagents: LocalSubagent[] = [];
+
+    if (isLoading && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.toolCalls && lastMsg.toolCalls.length > 0) {
+        const lastTool = lastMsg.toolCalls[lastMsg.toolCalls.length - 1];
+        if (lastTool.state === 'RUNNING' || lastTool.state === 'ACTIVE' || !lastTool.state) {
+          activeTool = lastTool.summary || lastTool.name || lastTool.command || null;
+
+          if (lastTool.name === 'invoke_subagent') {
+            const typeName = (lastTool.args?.TypeName as string) || 'generic';
+            const role = (lastTool.args?.Role as string) || 'Subagent';
+            subagents.push({
+              id: `subagent-${typeName}`,
+              name: role,
+              type: typeName,
+              status: 'working',
+              action: `Executando: ${role}`,
+              currentTask: (lastTool.args?.Prompt as string)?.slice(0, 80),
+            });
+          } else if (lastTool.name === 'swarm') {
+            subagents.push({
+              id: 'subagent-swarm',
+              name: 'Swarm Worker',
+              type: 'swarm-worker',
+              status: 'working',
+              action: 'Executando em swarm',
+            });
+          }
+        }
+      }
+    }
+
+    return { localActiveTool: activeTool, localSubagents: subagents };
+  }, [isLoading, messages]);
 
   // Estatísticas de Cota e Consumo de Tokens
   const [sessionUsage, setSessionUsage] = useState<SessionUsage>({
@@ -1159,7 +1199,11 @@ export const App: React.FC = () => {
             onStartSetupChat={handleStartSetupChat}
           />
         ) : activeTab === 'office' ? (
-          <OfficeView />
+          <OfficeView
+            localActiveTool={localActiveTool}
+            localSubagents={localSubagents}
+            onFocusChat={() => handleTabChange('chat')}
+          />
         ) : activeTab === 'whatsnext' ? (
           <WhatsNextView
             onResolveIssue={handleResolveIssue}
