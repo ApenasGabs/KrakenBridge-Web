@@ -5,6 +5,16 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.37.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.36.0...v1.37.0) (2026-11-13)
+
+### ✨ Features
+
+* **sla:** fluxo de notificação no WhatsApp de MR/PR com escalação de 2h para o Kraken Sentinel (Refs [#160](https://github.com/ApenasGabs/KrakenBridge-Web/issues/160)) ([7437521](https://github.com/ApenasGabs/KrakenBridge-Web/commit/7437521e3651f2fd0702809ab37ccb483aa7a399))
+
+### 🐛 Bug Fixes
+
+* **review:** resolver apontamentos de standards e spec da issue [#160](https://github.com/ApenasGabs/KrakenBridge-Web/issues/160) ([753a8bc](https://github.com/ApenasGabs/KrakenBridge-Web/commit/753a8bc195b28d4d432b823dfad87ee3195c5450))
+
 ## [1.36.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.35.0...v1.36.0) (2026-11-13)
 
 ### ✨ Features
