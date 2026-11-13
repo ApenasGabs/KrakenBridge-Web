@@ -122,7 +122,16 @@ const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
       }
       return args;
     },
-    buildEnv: (env) => ({ ...env, HOME: env.HOME || '/root', ANTHROPIC_API_KEY: env.ANTHROPIC_API_KEY })
+    buildEnv: (env) => {
+      const e: Record<string, string | undefined> = {
+        ...env,
+        HOME: env.HOME || '/root',
+        CLAUDE_CONFIG_DIR: env.CLAUDE_CONFIG_DIR || '/root/.claude'
+      };
+      if (env.ANTHROPIC_API_KEY) e.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
+      if (env.CLAUDE_CODE_OAUTH_TOKEN) e.CLAUDE_CODE_OAUTH_TOKEN = env.CLAUDE_CODE_OAUTH_TOKEN;
+      return e;
+    }
   },
 
   aider: {
