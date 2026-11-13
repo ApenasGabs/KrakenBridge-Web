@@ -152,10 +152,30 @@ export type PaperclipEventType =
   | 'run.failed'
   | 'issue.status_changed'
   | 'issue.blocked'
+  | 'issue.auto_remediated'
   | 'pr.opened'
   | 'pr.merged'
   | 'ci.failed'
   | 'stall.detected';
+
+export type RemediationCategory = 'permission_denied' | 'git_hook_missing' | 'git_index_lock' | 'unknown';
+
+export interface RemediationResult {
+  issueId: string;
+  identifier: string;
+  category: RemediationCategory;
+  remediated: boolean;
+  actionsTaken: string[];
+  unblocked: boolean;
+  error?: string;
+  timestamp: string;
+}
+
+export interface RemediationScanReport {
+  scannedAt: string;
+  blockedIssuesCount: number;
+  remediations: RemediationResult[];
+}
 
 export interface PaperclipTimelineEvent {
   id: string;

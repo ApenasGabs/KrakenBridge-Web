@@ -5,6 +5,7 @@ import { promisify } from 'util';
 import type { Response } from 'express';
 import { pushNotificationService } from './pushNotificationService.js';
 import { PrReviewSlaService } from './prReviewSlaService.js';
+import { PaperclipAutoRemediationService } from './paperclipAutoRemediationService.js';
 import type {
   PaperclipAgent,
   PaperclipIssue,
@@ -52,6 +53,7 @@ export class PaperclipService {
   private gabotWebhookUrl: string;
   private gabotWebhookSecret: string;
   public prReviewSlaService: PrReviewSlaService;
+  public autoRemediationService: PaperclipAutoRemediationService;
 
   private pollIntervalMs = 35000; // 35 segundos
   private pollTimer: NodeJS.Timeout | null = null;
@@ -99,6 +101,14 @@ export class PaperclipService {
       companyId: this.companyId,
       apiToken: this.apiToken,
       notifyAlert: this.notifyAlert.bind(this)
+    });
+
+    this.autoRemediationService = new PaperclipAutoRemediationService({
+      paperclipUrl: this.paperclipUrl,
+      companyId: this.companyId,
+      apiToken: this.apiToken,
+      notifyAlert: this.notifyAlert.bind(this),
+      addTimelineEvent: this.addTimelineEvent.bind(this)
     });
 
     if (process.env.NODE_ENV !== 'test') {
@@ -341,6 +351,13 @@ export class PaperclipService {
 
       // Detector de Stalls (Inatividade > 30 min sem run em issue atribuída ou agente sem heartbeat > 60 min)
       const detectedStalls = this.detectStalls(issues, agents, activeRuns, recentRuns);
+
+      // Auto-remediação proativa de issues bloqueadas por falhas de infraestrutura
+      try {
+        await this.autoRemediationService.evaluateBlockedIssues(issues);
+      } catch (remErr) {
+        console.warn('[PaperclipService] Falha na auto-remediação de issues bloqueadas:', (remErr as Error).message);
+      }
 
       // Atualiza o snapshot
       this.snapshot = {
@@ -656,6 +673,9 @@ export class PaperclipService {
         });
 
         if (isBlocked) {
+          // Dispara auto-remediação imediata para falhas de infraestrutura
+          void this.autoRemediationService.evaluateBlockedIssues([issue]);
+
           const actionText = (issue.activeRecoveryAction?.nextAction || '').toLowerCase();
           const isHumanRequired = Boolean(
             issue.activeRecoveryAction?.kind === 'human_intervention_required' ||
