@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.38.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.38.0...v1.38.1) (2026-11-13)
+
+### 🐛 Bug Fixes
+
+* **office:** sincronizar chats ativos e sessões do Kraken no Office Floor (Refs [#162](https://github.com/ApenasGabs/KrakenBridge-Web/issues/162)) ([37034de](https://github.com/ApenasGabs/KrakenBridge-Web/commit/37034de86af00d8cec2baaeb7320fd6aafd2ce35))
+
 ## [1.38.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.37.0...v1.38.0) (2026-11-13)
 
 ### ✨ Features
