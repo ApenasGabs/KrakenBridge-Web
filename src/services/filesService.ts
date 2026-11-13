@@ -13,7 +13,7 @@ export function getAllowedDirectories(): string[] {
     '/root/.gemini',
     ...(isTest ? [] : ['/app']),
     os.tmpdir(),
-    '/tmp'
+    ...(isTest ? [] : ['/tmp'])
   ];
 
   const home = os.homedir();
