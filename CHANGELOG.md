@@ -5,6 +5,16 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.38.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.37.0...v1.38.0) (2026-11-13)
+
+### ✨ Features
+
+* **sre:** ✨ serviço autônomo de auto-remediação de bloqueios do Paperclip (Refs [#163](https://github.com/ApenasGabs/KrakenBridge-Web/issues/163)) ([e4e0799](https://github.com/ApenasGabs/KrakenBridge-Web/commit/e4e07990cdb99bfa975045196cd49e9b2440d515))
+
+### 🐛 Bug Fixes
+
+* **sre:** tipagem estrita no PaperclipAutoRemediationService sem any e especificações da issue (Refs [#163](https://github.com/ApenasGabs/KrakenBridge-Web/issues/163)) ([28243ca](https://github.com/ApenasGabs/KrakenBridge-Web/commit/28243ca4dc4ea798c3fc0eb0e421f3fc64f90f0f))
+
 ## [1.37.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.36.0...v1.37.0) (2026-11-13)
 
 ### ✨ Features
