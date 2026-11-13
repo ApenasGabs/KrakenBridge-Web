@@ -56,6 +56,31 @@ describe('BatchDispatchModal Component', () => {
     expect(screen.getByText('ajuste item pipipopopo no header')).toBeInTheDocument();
   });
 
+  it('Suporte completo a múltiplos itens mistos (N OKs e N Ajustes com notas) no modal de despacho', () => {
+    const multiItems: BatchItemDecision[] = [
+      { itemKey: 'ApenasGabs/repo#1', itemType: 'pr', repo: 'ApenasGabs/repo', number: 1, title: 'PR 1', action: 'approve' },
+      { itemKey: 'ApenasGabs/repo#2', itemType: 'pr', repo: 'ApenasGabs/repo', number: 2, title: 'PR 2', action: 'approve' },
+      { itemKey: 'ApenasGabs/repo#3', itemType: 'pr', repo: 'ApenasGabs/repo', number: 3, title: 'PR 3', action: 'request_changes', notes: 'ajuste pipipopopo' },
+      { itemKey: 'ApenasGabs/repo#4', itemType: 'pr', repo: 'ApenasGabs/repo', number: 4, title: 'PR 4', action: 'request_changes', notes: 'segundo ajuste' }
+    ];
+
+    render(
+      <BatchDispatchModal
+        isOpen={true}
+        onClose={vi.fn()}
+        items={multiItems}
+        isDispatching={false}
+        onConfirmDispatch={vi.fn()}
+        result={null}
+      />
+    );
+
+    expect(screen.getByText('Aprovação Direta (2)')).toBeInTheDocument();
+    expect(screen.getByText('Ajustes com Anotações (2)')).toBeInTheDocument();
+    expect(screen.getByText('ajuste pipipopopo')).toBeInTheDocument();
+    expect(screen.getByText('segundo ajuste')).toBeInTheDocument();
+  });
+
   it('deve chamar onConfirmDispatch ao clicar no botão de confirmação', () => {
     const confirmMock = vi.fn();
     render(

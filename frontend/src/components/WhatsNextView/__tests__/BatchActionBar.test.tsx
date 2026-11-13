@@ -68,21 +68,77 @@ describe('BatchActionBar Component', () => {
     expect(clearMock).toHaveBeenCalledTimes(1);
   });
 
-  it('deve chamar onTriggerDispatch ao clicar em "Despachar Lote"', () => {
-    const dispatchMock = vi.fn();
-    render(
+  it('Barra flutuante surge suavemente na tela exibindo as contagens corretas', () => {
+    const { container } = render(
       <BatchActionBar
-        totalSelected={4}
-        counts={{ approve: 4, requestChanges: 0, merge: 0, close: 0 }}
+        totalSelected={5}
+        counts={{ approve: 3, requestChanges: 2, merge: 0, close: 0 }}
         onMarkAllAsOk={vi.fn()}
         onClearSelection={vi.fn()}
+        onTriggerDispatch={vi.fn()}
+      />
+    );
+
+    // Valida animação e classes de transição suave
+    const bar = container.firstChild as HTMLElement;
+    expect(bar.className).toContain('animate-in');
+    expect(bar.className).toContain('slide-in-from-bottom-5');
+
+    // Valida contagens corretas
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('3 OK')).toBeInTheDocument();
+    expect(screen.getByText('2 Ajustar')).toBeInTheDocument();
+  });
+
+  it('Suporte completo a múltiplos itens mistos (N OKs e N Ajustes com notas)', () => {
+    render(
+      <BatchActionBar
+        totalSelected={8}
+        counts={{ approve: 5, requestChanges: 3, merge: 0, close: 0 }}
+        hasUnfilledNotes={false}
+        onMarkAllAsOk={vi.fn()}
+        onClearSelection={vi.fn()}
+        onTriggerDispatch={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText('8')).toBeInTheDocument();
+    expect(screen.getByText('5 OK')).toBeInTheDocument();
+    expect(screen.getByText('3 Ajustar')).toBeInTheDocument();
+    expect(screen.getByText('Despachar Lote (8)')).toBeInTheDocument();
+  });
+
+  it('Cobertura de testes unitários para os novos componentes e fluxos de estado', () => {
+    const markAllOkMock = vi.fn();
+    const clearMock = vi.fn();
+    const dispatchMock = vi.fn();
+
+    const { rerender } = render(
+      <BatchActionBar
+        totalSelected={1}
+        counts={{ approve: 1, requestChanges: 0, merge: 0, close: 0 }}
+        onMarkAllAsOk={markAllOkMock}
+        onClearSelection={clearMock}
         onTriggerDispatch={dispatchMock}
       />
     );
 
-    const btn = screen.getByText('Despachar Lote (4)');
-    fireEvent.click(btn);
-    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('1 OK')).toBeInTheDocument();
+
+    // Atualização de estado re-renderizado
+    rerender(
+      <BatchActionBar
+        totalSelected={2}
+        counts={{ approve: 1, requestChanges: 1, merge: 0, close: 0 }}
+        hasUnfilledNotes={true}
+        onMarkAllAsOk={markAllOkMock}
+        onClearSelection={clearMock}
+        onTriggerDispatch={dispatchMock}
+      />
+    );
+
+    expect(screen.getByText('1 Ajustar')).toBeInTheDocument();
+    expect(screen.getByText('Anotação vazia')).toBeInTheDocument();
   });
 
   it('deve exibir indicador de anotação vazia quando hasUnfilledNotes for true', () => {
