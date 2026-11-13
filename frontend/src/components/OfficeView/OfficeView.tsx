@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { OfficeFloor } from './office/OfficeFloor';
-import { useStore, type Agent } from './store/officeStore';
+import { useStore, type Agent, type LocalKrakenChatState } from './store/officeStore';
 import { api } from '../../services/api';
-import type { PaperclipStateSnapshot, LocalSubagent } from '../../types';
+import type { PaperclipStateSnapshot, LocalSubagent, ConversationSession } from '../../types';
 import {
   Building2,
   Users,
@@ -22,9 +22,19 @@ interface OfficeViewProps {
   localActiveTool?: string | null;
   localSubagents?: LocalSubagent[] | null;
   onFocusChat?: () => void;
+  conversations?: ConversationSession[];
+  isLoading?: boolean;
+  activeConversationTitle?: string | null;
 }
 
-export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool, localSubagents, onFocusChat }) => {
+export const OfficeView: React.FC<OfficeViewProps> = ({
+  localActiveTool,
+  localSubagents,
+  onFocusChat,
+  conversations,
+  isLoading,
+  activeConversationTitle,
+}) => {
   const agents = useStore((s) => s.agents);
   const selectedId = useStore((s) => s.selectedId);
   const select = useStore((s) => s.select);
@@ -39,20 +49,42 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool, localSu
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [selectedAgentDetailsOpen, setSelectedAgentDetailsOpen] = useState(false);
 
+  // Computa estado dos chats e sessões ativas do Kraken
+  const runningBackgroundConversations = useMemo(
+    () => (conversations || []).filter((c) => c.isRunning),
+    [conversations]
+  );
+
+  const localChatState: LocalKrakenChatState = useMemo(() => {
+    const isRunning = runningBackgroundConversations.length > 0;
+    const runningChatTitles = runningBackgroundConversations.map((c) => c.title);
+    const activeTitle = activeConversationTitle || (runningChatTitles.length > 0 ? runningChatTitles[0] : null);
+    const isThinking = Boolean(isLoading && !localActiveTool);
+
+    return {
+      isLoading: Boolean(isLoading),
+      isRunning,
+      isThinking,
+      activeChatTitle: activeTitle,
+      runningChatsCount: runningBackgroundConversations.length,
+      runningChatTitles,
+    };
+  }, [isLoading, localActiveTool, runningBackgroundConversations, activeConversationTitle]);
+
   // Carrega status inicial do Paperclip e configura SSE
   const refreshStatus = useCallback(async () => {
     setIsRefreshing(true);
     try {
       const snapshot = await api.getPaperclipStatus();
-      syncWithPaperclip(snapshot, localActiveTool, localSubagents);
+      syncWithPaperclip(snapshot, localActiveTool, localSubagents, localChatState);
       setLastSyncTime(new Date());
     } catch (err) {
       console.warn('[OfficeView] Falha ao sincronizar com Paperclip:', err);
-      syncLocalKraken(localActiveTool, localSubagents);
+      syncLocalKraken(localActiveTool, localSubagents, localChatState);
     } finally {
       setIsRefreshing(false);
     }
-  }, [syncWithPaperclip, syncLocalKraken, localActiveTool, localSubagents]);
+  }, [syncWithPaperclip, syncLocalKraken, localActiveTool, localSubagents, localChatState]);
 
   useEffect(() => {
     void refreshStatus();
@@ -62,7 +94,7 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool, localSu
       es = api.createPaperclipEventSource(
         (snapshot: PaperclipStateSnapshot) => {
           setIsLive(true);
-          syncWithPaperclip(snapshot, localActiveTool, localSubagents);
+          syncWithPaperclip(snapshot, localActiveTool, localSubagents, localChatState);
           setLastSyncTime(new Date());
         },
         () => {
@@ -88,12 +120,12 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool, localSu
         es.close();
       }
     };
-  }, [refreshStatus, syncWithPaperclip, localActiveTool, localSubagents]);
+  }, [refreshStatus, syncWithPaperclip, localActiveTool, localSubagents, localChatState]);
 
-  // Sincroniza subagentes do Kraken reativamente quando mudarem
+  // Sincroniza subagentes e estado local do Kraken reativamente quando mudarem
   useEffect(() => {
-    syncKrakenSubagents(localSubagents, localActiveTool);
-  }, [localActiveTool, localSubagents, syncKrakenSubagents]);
+    syncKrakenSubagents(localSubagents, localActiveTool, localChatState);
+  }, [localActiveTool, localSubagents, localChatState, syncKrakenSubagents]);
 
   // Se o usuário selecionou um agente, abre os detalhes
   useEffect(() => {
@@ -109,13 +141,18 @@ export const OfficeView: React.FC<OfficeViewProps> = ({ localActiveTool, localSu
 
   const stats = useMemo(() => {
     const total = agents.length;
-    const working = agents.filter((a) => a.status === 'working' || a.status === 'thinking').length;
-    const idle = agents.filter((a) => a.status === 'idle').length;
+    const hasActiveKrakenChat = Boolean(localChatState.isLoading || localChatState.isRunning);
+    const paperclipAgents = agents.filter((a) => a.source === 'paperclip');
+    const krakenAgents = agents.filter((a) => a.source === 'kraken');
+    const paperclipWorking = paperclipAgents.filter((a) => a.status === 'working' || a.status === 'thinking').length;
+    const storeKrakenWorking = krakenAgents.filter((a) => a.status === 'working' || a.status === 'thinking').length;
+    const working = paperclipWorking + Math.max(storeKrakenWorking, hasActiveKrakenChat ? 1 : 0);
     const blocked = agents.filter((a) => a.status === 'blocked').length;
-    const paperclipCount = agents.filter((a) => a.source === 'paperclip').length;
-    const krakenCount = agents.filter((a) => a.source === 'kraken').length;
+    const idle = Math.max(0, total - working - blocked);
+    const paperclipCount = paperclipAgents.length;
+    const krakenCount = krakenAgents.length;
     return { total, working, idle, blocked, paperclipCount, krakenCount };
-  }, [agents]);
+  }, [agents, localChatState]);
 
   const displayedAgents = useMemo(
     () => agents.filter((a) => (filterSource === 'all' ? true : a.source === filterSource)),

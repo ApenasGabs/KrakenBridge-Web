@@ -154,7 +154,7 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Extrai a tool ativa e subagentes locais em execução a partir da sessão ativa de chat
+  // Extrai a tool ativa e subagentes locais em execução a partir da sessão ativa de chat e conversas em background
   const { localActiveTool, localSubagents } = useMemo(() => {
     let activeTool: string | null = null;
     const subagents: LocalSubagent[] = [];
@@ -162,36 +162,81 @@ export const App: React.FC = () => {
     if (isLoading && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg.toolCalls && lastMsg.toolCalls.length > 0) {
-        const lastTool = lastMsg.toolCalls[lastMsg.toolCalls.length - 1];
-        if (lastTool.state === 'RUNNING' || lastTool.state === 'ACTIVE' || !lastTool.state) {
-          activeTool = lastTool.summary || lastTool.name || lastTool.command || null;
+        for (const tc of lastMsg.toolCalls) {
+          if (tc.state === 'RUNNING' || tc.state === 'ACTIVE' || !tc.state) {
+            activeTool = tc.summary || tc.name || tc.command || activeTool;
 
-          if (lastTool.name === 'invoke_subagent') {
-            const typeName = (lastTool.args?.TypeName as string) || 'generic';
-            const role = (lastTool.args?.Role as string) || 'Subagent';
-            subagents.push({
-              id: `subagent-${typeName}`,
-              name: role,
-              type: typeName,
-              status: 'working',
-              action: `Executando: ${role}`,
-              currentTask: (lastTool.args?.Prompt as string)?.slice(0, 80),
-            });
-          } else if (lastTool.name === 'swarm') {
-            subagents.push({
-              id: 'subagent-swarm',
-              name: 'Swarm Worker',
-              type: 'swarm-worker',
-              status: 'working',
-              action: 'Executando em swarm',
-            });
+            if (tc.name === 'invoke_subagent') {
+              const typeName = (tc.args?.TypeName as string) || 'generic';
+              const role = (tc.args?.Role as string) || 'Subagent';
+              const saId = `subagent-${typeName}`;
+              if (!subagents.some((s) => s.id === saId)) {
+                subagents.push({
+                  id: saId,
+                  name: role,
+                  type: typeName,
+                  status: 'working',
+                  action: `Executando: ${role}`,
+                  currentTask: (tc.args?.Prompt as string)?.slice(0, 80),
+                });
+              }
+            } else if (tc.name === 'swarm') {
+              if (!subagents.some((s) => s.id === 'subagent-swarm')) {
+                subagents.push({
+                  id: 'subagent-swarm',
+                  name: 'Swarm Worker',
+                  type: 'swarm-worker',
+                  status: 'working',
+                  action: 'Executando em swarm',
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Também inspeciona conversas rodando em background (c.isRunning === true)
+    const runningBackground = (conversations || []).filter((c) => c.isRunning && c.id !== activeConvId);
+    for (const c of runningBackground) {
+      if (c.messages && c.messages.length > 0) {
+        const lastMsg = c.messages[c.messages.length - 1];
+        if (lastMsg.toolCalls && lastMsg.toolCalls.length > 0) {
+          for (const tc of lastMsg.toolCalls) {
+            if (tc.state === 'RUNNING' || tc.state === 'ACTIVE' || !tc.state) {
+              if (tc.name === 'invoke_subagent') {
+                const typeName = (tc.args?.TypeName as string) || 'generic';
+                const role = (tc.args?.Role as string) || 'Subagent';
+                const saId = `subagent-${typeName}`;
+                if (!subagents.some((s) => s.id === saId)) {
+                  subagents.push({
+                    id: saId,
+                    name: role,
+                    type: typeName,
+                    status: 'working',
+                    action: `Executando: ${role} (${c.title})`,
+                    currentTask: (tc.args?.Prompt as string)?.slice(0, 80),
+                  });
+                }
+              } else if (tc.name === 'swarm') {
+                if (!subagents.some((s) => s.id === 'subagent-swarm')) {
+                  subagents.push({
+                    id: 'subagent-swarm',
+                    name: 'Swarm Worker',
+                    type: 'swarm-worker',
+                    status: 'working',
+                    action: `Executando em swarm (${c.title})`,
+                  });
+                }
+              }
+            }
           }
         }
       }
     }
 
     return { localActiveTool: activeTool, localSubagents: subagents };
-  }, [isLoading, messages]);
+  }, [isLoading, messages, conversations, activeConvId]);
 
   // Estatísticas de Cota e Consumo de Tokens
   const [sessionUsage, setSessionUsage] = useState<SessionUsage>({
@@ -1202,6 +1247,9 @@ export const App: React.FC = () => {
           <OfficeView
             localActiveTool={localActiveTool}
             localSubagents={localSubagents}
+            conversations={conversations}
+            isLoading={isLoading}
+            activeConversationTitle={activeConversation?.title || null}
             onFocusChat={() => handleTabChange('chat')}
           />
         ) : activeTab === 'whatsnext' ? (
