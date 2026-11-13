@@ -5,6 +5,16 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.35.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.34.0...v1.35.0) (2026-11-13)
+
+### ✨ Features
+
+* **sre:** silenciar ruído e notificar apenas ações humanas requeridas (Refs [#156](https://github.com/ApenasGabs/KrakenBridge-Web/issues/156)) ([a5f197c](https://github.com/ApenasGabs/KrakenBridge-Web/commit/a5f197cdbe2594fe9b669444ebee6d362155681d))
+
+### 🧪 Tests
+
+* **paperclip:** adicionar asserção de conformidade do agent-standards (Refs [#156](https://github.com/ApenasGabs/KrakenBridge-Web/issues/156)) ([68f9131](https://github.com/ApenasGabs/KrakenBridge-Web/commit/68f913125f1f3c54ab8c13f6b508ace39567dfd9))
+
 ## [1.34.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.33.0...v1.34.0) (2026-11-11)
 
 ### ✨ Features
