@@ -5,6 +5,21 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.39.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.38.1...v1.39.0) (2026-11-13)
+
+### ✨ Features
+
+* **auth:** suporte ao Claude Code CLI com fluxo OAuth idêntico ao Google (Refs [#166](https://github.com/ApenasGabs/KrakenBridge-Web/issues/166)) ([7f13bac](https://github.com/ApenasGabs/KrakenBridge-Web/commit/7f13baca2520462fa58614efd3213f87b745b13a))
+
+### 🐛 Bug Fixes
+
+* **ci:** sincronizar package-lock.json com @anthropic-ai/claude-code (Refs [#168](https://github.com/ApenasGabs/KrakenBridge-Web/issues/168)) ([0948b59](https://github.com/ApenasGabs/KrakenBridge-Web/commit/0948b595b6b457ebbc9e1f2afa686775b263fc71))
+
+### 🧪 Tests
+
+* **auth:** cobrir formalmente fluxos de início, submissão de código e status do Claude (Refs [#166](https://github.com/ApenasGabs/KrakenBridge-Web/issues/166)) ([8758923](https://github.com/ApenasGabs/KrakenBridge-Web/commit/8758923627e7cfe2c7e2db0f55f10e9d2ebf8569))
+* **ci:** adicionar teste de integridade do lockfile e validação de npm ci (Refs [#168](https://github.com/ApenasGabs/KrakenBridge-Web/issues/168)) ([62fe907](https://github.com/ApenasGabs/KrakenBridge-Web/commit/62fe9072ca66895f2e594c42bf5a36a86d88c066))
+
 ## [1.38.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.38.0...v1.38.1) (2026-11-13)
 
 ### 🐛 Bug Fixes
