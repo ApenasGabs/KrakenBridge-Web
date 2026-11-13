@@ -129,3 +129,22 @@ projectsRouter.post('/github/issues/resolve', async (req: Request, res: Response
     res.status(500).json({ error: (err as Error).message });
   }
 });
+
+// Despacho em Lote de Ações do What's Next
+projectsRouter.post('/github/batch-dispatch', async (req: Request, res: Response) => {
+  try {
+    const { items } = req.body || {};
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Parâmetro items inválido ou vazio. Envie um array com as decisões de cada item.' });
+    }
+
+    const result = await githubProjectService.dispatchBatchActions(items);
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
