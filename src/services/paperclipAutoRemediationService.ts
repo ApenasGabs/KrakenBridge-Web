@@ -42,6 +42,18 @@ export interface AutoRemediationOptions {
   }) => void;
 }
 
+interface IssueCommentItem {
+  id?: string;
+  body?: string;
+}
+
+/**
+ * Requisitos Arquiteturais (Issue #163 & agent-standards):
+ * - Motor de execução de playbooks seguros e determinísticos.
+ * - Detecção precisa de causas de bloqueio de infraestrutura sem falsos-positivos em erros de lógica de negócio.
+ * - Cobertura de detecção de erros, execução de playbooks e resiliência de rede.
+ * - Conformidade total com agent-standards.
+ */
 export class PaperclipAutoRemediationService {
   private paperclipUrl: string;
   private companyId: string;
@@ -194,7 +206,7 @@ export class PaperclipAutoRemediationService {
       if (commentsRes && commentsRes.ok) {
         const comments = await commentsRes.json().catch(() => []);
         if (Array.isArray(comments)) {
-          const recentBodies = comments.slice(0, 5).map((c: any) => c.body || '').join(' ');
+          const recentBodies = comments.slice(0, 5).map((c: IssueCommentItem) => c.body || '').join(' ');
           contextText += ` ${recentBodies}`;
         }
       }
