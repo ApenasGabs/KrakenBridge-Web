@@ -99,8 +99,56 @@ paperclipRouter.post('/webhook', (req: Request, res: Response) => {
       severity: body.severity || 'info',
       metadata: body
     });
+
+    // Se o webhook informar issue bloqueada ou transição para blocked, aciona auto-remediação imediata
+    const issueId = body.issueId || body.issue?.id || body.data?.issueId;
+    if (issueId && (body.status === 'blocked' || body.type === 'issue.blocked' || body.event === 'issue_blocked')) {
+      void paperclipService.autoRemediationService.remediateIssueById(String(issueId));
+    }
   }
   res.json({ received: true });
+});
+
+/**
+ * POST /api/paperclip/remediation/scan
+ * Dispara uma varredura de auto-remediação sob demanda em todas as issues bloqueadas
+ */
+paperclipRouter.post('/remediation/scan', async (_req: Request, res: Response) => {
+  try {
+    const report = await paperclipService.autoRemediationService.scanAndRemediate();
+    res.json({ success: true, report });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ success: false, error });
+  }
+});
+
+/**
+ * POST /api/paperclip/remediation/execute
+ * Executa auto-remediação pontual para uma issue específica
+ */
+paperclipRouter.post('/remediation/execute', async (req: Request, res: Response) => {
+  const { issueId } = req.body;
+  if (!issueId) {
+    return res.status(400).json({ error: 'Parâmetro issueId obrigatório' });
+  }
+
+  try {
+    const result = await paperclipService.autoRemediationService.remediateIssueById(String(issueId));
+    res.json({ success: true, result });
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ success: false, error });
+  }
+});
+
+/**
+ * GET /api/paperclip/remediation/history
+ * Retorna o histórico de remediações recentes executadas pelo Kraken SRE
+ */
+paperclipRouter.get('/remediation/history', (_req: Request, res: Response) => {
+  const history = paperclipService.autoRemediationService.getRecentRemediations();
+  res.json({ history });
 });
 
 /**
