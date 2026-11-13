@@ -32,7 +32,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   status,
   onRefreshStatus
 }) => {
-  const [activeTab, setActiveTab] = useState<'accounts' | 'google' | 'github' | 'vercel' | 'cloudflare' | 'apikey' | 'ide'>('accounts');
+  const [activeTab, setActiveTab] = useState<'accounts' | 'google' | 'claude' | 'github' | 'vercel' | 'cloudflare' | 'apikey' | 'ide'>('accounts');
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [switchingEmail, setSwitchingEmail] = useState<string | null>(null);
@@ -44,6 +44,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
+
+  // Estados do Claude Code
+  const [claudeAuthUrl, setClaudeAuthUrl] = useState('');
+  const [claudeAuthCode, setClaudeAuthCode] = useState('');
+  const [claudeCopiedUrl, setClaudeCopiedUrl] = useState(false);
+  const [claudeTokenInput, setClaudeTokenInput] = useState('');
 
   // Estados do GitHub
   const [ghUserCode, setGhUserCode] = useState('');
@@ -312,6 +318,127 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Falha na requisição.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handlers do Claude Code
+  const handleStartClaudeAuth = async (force = false) => {
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await api.startClaudeAuth(force);
+      if (res.alreadyAuthenticated && !force) {
+        setMessage({
+          text: res.message || `Claude Code já conectado (${res.email || status?.claude?.email || 'Autenticado'})!`,
+          type: 'success'
+        });
+        onRefreshStatus();
+      } else if (res.authUrl) {
+        setClaudeAuthUrl(res.authUrl);
+        setActiveTab('claude');
+        setMessage({
+          text: 'Link de autenticação gerado! Abra o link abaixo, copie o código do Claude e cole aqui.',
+          type: 'info'
+        });
+      } else {
+        setMessage({ text: res.message || 'Comando de autenticação iniciado.', type: 'info' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Falha ao iniciar autenticação Claude Code.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyClaudeUrl = () => {
+    if (!claudeAuthUrl) return;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(claudeAuthUrl).catch(() => {
+        fallbackCopy(claudeAuthUrl);
+      });
+    } else {
+      fallbackCopy(claudeAuthUrl);
+    }
+    setClaudeCopiedUrl(true);
+    setTimeout(() => setClaudeCopiedUrl(false), 2000);
+  };
+
+  const handleSubmitClaudeCode = async () => {
+    let cleanCode = claudeAuthCode.trim();
+    cleanCode = cleanCode.replace(/^['"]|['"]$/g, '').trim();
+
+    if (cleanCode.includes('code=')) {
+      const match = cleanCode.match(/[?&]code=([^&]+)/);
+      if (match) {
+        cleanCode = decodeURIComponent(match[1]);
+      }
+    }
+
+    if (!cleanCode) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await api.submitClaudeCode(cleanCode);
+      if (res.success) {
+        setMessage({
+          text: res.message || 'Claude Code conectado e ativado com sucesso via OAuth!',
+          type: 'success'
+        });
+        setClaudeAuthUrl('');
+        setClaudeAuthCode('');
+        onRefreshStatus();
+      } else {
+        const errorMsg = res.error || res.message || 'Código não aceito pelo Claude Code.';
+        setMessage({ text: errorMsg, type: 'error' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao enviar código de autorização.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogoutClaude = async () => {
+    if (!window.confirm('Deseja realmente desconectar o Claude Code?')) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      await api.logoutClaude();
+      setMessage({ text: 'Claude Code desconectado com sucesso.', type: 'info' });
+      setClaudeAuthUrl('');
+      setClaudeAuthCode('');
+      onRefreshStatus();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao desconectar Claude Code.';
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveClaudeToken = async () => {
+    if (!claudeTokenInput.trim()) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const res = await api.submitClaudeCode(claudeTokenInput.trim());
+      if (res.success) {
+        setMessage({
+          text: res.message || 'Credencial do Claude Code configurada com sucesso!',
+          type: 'success'
+        });
+        setClaudeTokenInput('');
+        onRefreshStatus();
+      } else {
+        setMessage({ text: res.error || 'Erro ao validar token/chave do Claude.', type: 'error' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao salvar credencial do Claude.';
       setMessage({ text: msg, type: 'error' });
     } finally {
       setLoading(false);
@@ -663,6 +790,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <span>Google</span>
           </button>
           <button
+            data-testid="auth-tab-claude"
+            onClick={() => setActiveTab('claude')}
+            className={`tab tab-sm flex-1 min-w-[110px] gap-1.5 ${activeTab === 'claude' ? 'tab-active font-medium' : ''}`}
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            <span>Claude Code</span>
+            {status?.claude?.authenticated && (
+              <span className="badge badge-xs badge-success">OK</span>
+            )}
+          </button>
+          <button
             data-testid="auth-tab-github"
             onClick={() => setActiveTab('github')}
             className={`tab tab-sm flex-1 min-w-[100px] gap-1.5 ${activeTab === 'github' ? 'tab-active font-medium' : ''}`}
@@ -890,6 +1028,132 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     <button
                       onClick={handleSubmitGoogleCode}
                       disabled={loading || !authCode.trim()}
+                      className="btn btn-primary btn-sm"
+                    >
+                      {loading ? <span className="loading loading-spinner loading-xs" /> : 'Confirmar'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Aba Claude Code: OAuth & CLI */}
+        {activeTab === 'claude' && (
+          <div className="space-y-4 text-xs">
+            {/* Status atual do Claude Code */}
+            <div className="p-3 rounded-xl bg-base-200/50 border border-base-300 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Terminal className="w-5 h-5 text-base-content" />
+                <div>
+                  <div className="font-semibold text-base-content flex items-center gap-1.5">
+                    <span>Claude Code CLI ({status?.claude?.authenticated ? (status.claude.email || 'Conectado') : 'Não conectado'})</span>
+                    {status?.claude?.authenticated ? (
+                      <span className="badge badge-xs badge-success">Conectado</span>
+                    ) : (
+                      <span className="badge badge-xs badge-ghost">Pendente</span>
+                    )}
+                  </div>
+                  <p className="text-base-content/60 text-[11px] mt-0.5">
+                    {status?.claude?.authenticated
+                      ? `Método: ${status.claude.authMethod || 'OAuth'} | Binário nativo claude pronto para chat`
+                      : 'Conecte sua conta Claude (Pro/Team/Max) ou configure sua chave Anthropic'}
+                  </p>
+                </div>
+              </div>
+
+              {status?.claude?.authenticated && (
+                <button
+                  onClick={handleLogoutClaude}
+                  disabled={loading}
+                  className="btn btn-ghost btn-xs text-error hover:bg-error/10 gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Desconectar</span>
+                </button>
+              )}
+            </div>
+
+            <p className="text-base-content/70">
+              Faça login no Claude Code da mesma forma que no Google: gere o link oficial, autorize na sua conta Anthropic e cole o código de autorização gerado.
+            </p>
+
+            {!claudeAuthUrl ? (
+              <div className="space-y-3">
+                <button
+                  data-testid="claude-start-oauth-btn"
+                  onClick={() => handleStartClaudeAuth(true)}
+                  disabled={loading}
+                  className="btn btn-primary btn-sm w-full gap-2"
+                >
+                  {loading ? <span className="loading loading-spinner loading-xs" /> : <Terminal className="w-4 h-4" />}
+                  Iniciar Login Claude Code (OAuth)
+                </button>
+
+                <div className="divider text-[10px] my-2 text-base-content/40">OU CONFIGURE VIA TOKEN / API KEY</div>
+
+                <div className="space-y-2 bg-base-200/40 p-3 rounded-xl border border-base-300">
+                  <label className="font-semibold text-base-content block text-[11px]">
+                    Cole um Setup Token (sk-ant-oat01-...) ou Anthropic API Key (sk-ant-api03-...):
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      placeholder="sk-ant-..."
+                      value={claudeTokenInput}
+                      onChange={(e) => setClaudeTokenInput(e.target.value)}
+                      className="input input-sm input-bordered flex-1 bg-base-100 font-mono text-xs"
+                    />
+                    <button
+                      onClick={handleSaveClaudeToken}
+                      disabled={loading || !claudeTokenInput.trim()}
+                      className="btn btn-outline btn-sm"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 bg-base-200/50 p-3 rounded-xl border border-base-300">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-primary">1. Acesse o link de autorização do Claude:</span>
+                  <button onClick={copyClaudeUrl} className="btn btn-ghost btn-xs gap-1">
+                    {claudeCopiedUrl ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+                    <span>{claudeCopiedUrl ? 'Copiado' : 'Copiar URL'}</span>
+                  </button>
+                </div>
+                <div className="p-2 bg-base-100 rounded border border-base-300 font-mono text-[10px] break-all max-h-16 overflow-y-auto">
+                  {claudeAuthUrl}
+                </div>
+                <a
+                  href={claudeAuthUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-outline btn-xs w-full gap-1"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Abrir link no navegador
+                </a>
+
+                <div className="pt-2">
+                  <label className="font-semibold text-base-content block mb-1">
+                    2. Cole o código de autorização obtido:
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      data-testid="claude-auth-code-input"
+                      type="text"
+                      placeholder="Cole aqui o código de autorização..."
+                      value={claudeAuthCode}
+                      onChange={(e) => setClaudeAuthCode(e.target.value)}
+                      className="input input-sm input-bordered flex-1 bg-base-100 font-mono text-xs"
+                    />
+                    <button
+                      data-testid="claude-submit-code-btn"
+                      onClick={handleSubmitClaudeCode}
+                      disabled={loading || !claudeAuthCode.trim()}
                       className="btn btn-primary btn-sm"
                     >
                       {loading ? <span className="loading loading-spinner loading-xs" /> : 'Confirmar'}

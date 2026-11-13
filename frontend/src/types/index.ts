@@ -103,6 +103,18 @@ export interface CloudflareAuthStatus {
   error?: string;
 }
 
+export interface ClaudeAuthStatus {
+  authenticated: boolean;
+  email?: string | null;
+  name?: string | null;
+  authMethod?: string;
+  hasToken?: boolean;
+  hasKey?: boolean;
+  loginExpiresAt?: string | null;
+  configDirectory?: string;
+  error?: string;
+}
+
 export interface AuthStatus {
   authenticated: boolean;
   email?: string;
@@ -111,6 +123,7 @@ export interface AuthStatus {
   hasApiKey: boolean;
   isKeyValid: boolean;
   type?: string;
+  claude?: ClaudeAuthStatus;
   github?: GithubAuthStatus;
   vercel?: VercelAuthStatus;
   cloudflare?: CloudflareAuthStatus;
