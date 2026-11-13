@@ -4,6 +4,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import type { Response } from 'express';
 import { pushNotificationService } from './pushNotificationService.js';
+import { PrReviewSlaService } from './prReviewSlaService.js';
 import type {
   PaperclipAgent,
   PaperclipIssue,
@@ -24,12 +25,17 @@ const DEFAULT_COMPANY_ID = '4034eb89-a640-48d2-8b4d-f2bb0f10a119'; // APE
 const DEFAULT_API_TOKEN = 'pcp_5df95fac0e950db0d8e9770214678a478ccb79d6d6ce9f3a';
 const DEFAULT_GABOT_URL = 'http://192.168.31.5:3091/api/admin/notify';
 
-// Known repos to enrich
+// Repositórios monitorados do Homelab
 const MONITORED_REPOSITORIES = [
-  'ApenasGabs/kraken-cleanroom',
   'ApenasGabs/KrakenBridge-Web',
+  'ApenasGabs/kraken-cleanroom',
   'ApenasGabs/status-hub',
-  'ApenasGabs/paperclip'
+  'ApenasGabs/JobsFinder',
+  'ApenasGabs/querocomprar',
+  'ApenasGabs/meuestoque',
+  'ApenasGabs/G_aBot',
+  'ApenasGabs/paperclip',
+  'ApenasGabs/agent-standards'
 ];
 
 interface FailureTracker {
@@ -45,6 +51,7 @@ export class PaperclipService {
   private apiToken: string;
   private gabotWebhookUrl: string;
   private gabotWebhookSecret: string;
+  public prReviewSlaService: PrReviewSlaService;
 
   private pollIntervalMs = 35000; // 35 segundos
   private pollTimer: NodeJS.Timeout | null = null;
@@ -86,6 +93,13 @@ export class PaperclipService {
       stalls: [],
       timeline: []
     };
+
+    this.prReviewSlaService = new PrReviewSlaService({
+      paperclipUrl: this.paperclipUrl,
+      companyId: this.companyId,
+      apiToken: this.apiToken,
+      notifyAlert: this.notifyAlert.bind(this)
+    });
 
     if (process.env.NODE_ENV !== 'test') {
       this.startBackgroundPolling();
@@ -224,6 +238,13 @@ export class PaperclipService {
 
       // 5. Busca PRs dos repositórios monitorados
       const openPrs = await this.fetchEnrichedPRs();
+
+      // 5.1 Rastreia SLA de revisão (2h) e delega para o Sentinel em caso de timeout
+      try {
+        await this.prReviewSlaService.evaluatePrs(openPrs);
+      } catch (slaErr) {
+        console.warn('[PaperclipService] Falha na avaliação de SLA de PRs:', (slaErr as Error).message);
+      }
 
       // Normaliza agentes
       const agents: PaperclipAgent[] = rawAgents.map(a => {
@@ -364,7 +385,7 @@ export class PaperclipService {
 
     for (const repo of MONITORED_REPOSITORIES) {
       try {
-        const cmd = `gh pr list --repo "${repo}" --state open --json number,title,url,headRefName,statusCheckRollup,updatedAt`;
+        const cmd = `gh pr list --repo "${repo}" --state open --json number,title,url,headRefName,statusCheckRollup,updatedAt,author,body`;
         const { stdout } = await execAsync(cmd, { timeout: 10000 });
         if (!stdout.trim()) continue;
 
@@ -403,12 +424,17 @@ export class PaperclipService {
           const issueMatch = pr.title.match(/\b(APE-\d+|F\d+-\d+|#\d+)\b/i) ||
                              pr.headRefName?.match(/\b(APE-\d+|F\d+-\d+|#\d+)\b/i);
 
+          const author = pr.author?.login || pr.author?.name;
+          const bodySummary = this.prReviewSlaService.extractSummary(pr.body, pr.title);
+
           enrichedList.push({
             number: pr.number,
             title: pr.title,
             url: pr.url,
             repo,
             headRefName: pr.headRefName,
+            author,
+            bodySummary,
             issueIdentifier: issueMatch ? issueMatch[1].toUpperCase() : undefined,
             ciStatus,
             ciWorkflowName: workflowName,
@@ -1036,6 +1062,16 @@ export class PaperclipService {
         const ciIcon = pr.ciStatus === 'SUCCESS' ? '🟢' : pr.ciStatus === 'FAILURE' ? '🔴' : '🟡';
         lines.push(`- [PR #${pr.number} (${pr.repo})](${pr.url}): ${pr.title}`);
         lines.push(`  - Estado do CI: ${ciIcon} **${pr.ciStatus}** ${pr.ciWorkflowName ? `(${pr.ciWorkflowName})` : ''}`);
+        if (pr.sla) {
+          if (pr.sla.status === 'delegated_sentinel') {
+            const taskRef = pr.sla.paperclipIssueIdentifier ? ` ([${pr.sla.paperclipIssueIdentifier}](${this.paperclipUrl}/APE/issues/${pr.sla.paperclipIssueIdentifier}))` : '';
+            lines.push(`  - 🤖 **Revisão Delegada ao Sentinel:** SLA de 2h atingido${taskRef}`);
+          } else if (pr.sla.status === 'pending_human') {
+            const remainingMin = Math.round(pr.sla.timeRemainingMs / 60000);
+            const expiryTime = new Date(pr.sla.slaExpiresAt).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+            lines.push(`  - ⏳ **SLA Humano (2h):** Restam **${remainingMin} min** (expira às ${expiryTime} BRT)`);
+          }
+        }
       }
       lines.push('');
     }
