@@ -24,6 +24,15 @@ export type StatusKind =
 
 export type AgentSource = 'paperclip' | 'kraken';
 
+export interface LocalKrakenChatState {
+  isLoading?: boolean;
+  isRunning?: boolean;
+  isThinking?: boolean;
+  activeChatTitle?: string | null;
+  runningChatsCount?: number;
+  runningChatTitles?: string[];
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -53,7 +62,9 @@ export interface OfficeState {
   selectedId: string | null;
   agents: Agent[];
   filterSource: 'all' | 'paperclip' | 'kraken';
+  localChatState: LocalKrakenChatState | null;
   setFilterSource: (source: 'all' | 'paperclip' | 'kraken') => void;
+  setLocalChatState: (chatState: LocalKrakenChatState | null) => void;
   select: (id: string | null) => void;
   setAgents: (agents: Agent[]) => void;
   updateAgent: (id: string, patch: Partial<Agent>) => void;
@@ -61,15 +72,18 @@ export interface OfficeState {
   syncWithPaperclip: (
     snapshot: PaperclipStateSnapshot | null,
     localActiveTool?: string | null,
-    localSubagents?: LocalSubagent[] | null
+    localSubagents?: LocalSubagent[] | null,
+    localChatState?: LocalKrakenChatState | null
   ) => void;
   syncKrakenSubagents: (
     subagents?: LocalSubagent[] | null,
-    localActiveTool?: string | null
+    localActiveTool?: string | null,
+    localChatState?: LocalKrakenChatState | null
   ) => void;
   syncLocalKraken: (
     activeTool?: string | null,
-    subagents?: LocalSubagent[] | null
+    subagents?: LocalSubagent[] | null,
+    localChatState?: LocalKrakenChatState | null
   ) => void;
 }
 
@@ -205,6 +219,63 @@ const DEFAULT_AGENTS: Agent[] = [
   },
 ];
 
+const resolveKrakenBridgePatch = (
+  localActiveTool?: string | null,
+  chatState?: LocalKrakenChatState | null
+): Partial<Agent> => {
+  if (localActiveTool) {
+    let station: StationKind = 'terminal';
+    let toolKind: ToolKind = 'Bash';
+
+    if (localActiveTool.includes('file') || localActiveTool.includes('edit')) {
+      station = 'shelf';
+      toolKind = 'Write';
+    } else if (localActiveTool.includes('mcp')) {
+      station = 'mcp';
+      toolKind = 'MCP';
+    } else if (localActiveTool.includes('search') || localActiveTool.includes('web')) {
+      station = 'web';
+      toolKind = 'WebSearch';
+    }
+
+    return {
+      status: 'working',
+      action: `Executando: ${localActiveTool}`,
+      currentStation: station,
+      carrying: toolKind,
+    };
+  }
+
+  const hasActiveChat = Boolean(chatState?.isLoading || chatState?.isRunning);
+  if (hasActiveChat) {
+    const isThinking = Boolean(chatState?.isThinking);
+    const chatTitle =
+      chatState?.activeChatTitle ||
+      (chatState?.runningChatTitles && chatState.runningChatTitles[0]) ||
+      'conversa ativa';
+
+    const actionText = isThinking
+      ? `Raciocinando no chat: ${chatTitle}`
+      : `Respondendo no chat: ${chatTitle}`;
+
+    return {
+      status: isThinking ? 'thinking' : 'working',
+      action: actionText,
+      recentAssistantText: actionText,
+      currentStation: 'terminal',
+      carrying: 'Write',
+      progress: isThinking ? 30 : 60,
+    };
+  }
+
+  return {
+    status: 'idle',
+    action: 'Aguardando instruções no chat',
+    currentStation: 'desk',
+    carrying: undefined,
+  };
+};
+
 export const useStore = create<OfficeState>((set, get) => ({
   officeTheme: 'office',
   fullscreenAgentId: null,
@@ -212,8 +283,11 @@ export const useStore = create<OfficeState>((set, get) => ({
   selectedId: null,
   agents: DEFAULT_AGENTS,
   filterSource: 'all',
+  localChatState: null,
 
   setFilterSource: (source) => set({ filterSource: source }),
+
+  setLocalChatState: (chatState) => set({ localChatState: chatState }),
 
   select: (id) => set({ selectedId: id }),
 
@@ -228,43 +302,20 @@ export const useStore = create<OfficeState>((set, get) => ({
     // Intencional no-op: no Electron original abria a aba de triggers/tarefas no Command Center
   },
 
-  syncLocalKraken: (activeTool, subagents) => {
-    get().syncKrakenSubagents(subagents, activeTool);
+  syncLocalKraken: (activeTool, subagents, localChatState) => {
+    get().syncKrakenSubagents(subagents, activeTool, localChatState);
   },
 
-  syncKrakenSubagents: (subagents, localActiveTool) => {
+  syncKrakenSubagents: (subagents, localActiveTool, localChatState) => {
+    const effectiveChatState = localChatState !== undefined ? localChatState : get().localChatState;
+    if (localChatState !== undefined) {
+      set({ localChatState });
+    }
+
     const agentsMap: Record<string, Partial<Agent>> = {};
 
-    // Atualiza Kraken Bridge local se houver tool em execução
-    if (localActiveTool) {
-      let station: StationKind = 'terminal';
-      let toolKind: ToolKind = 'Bash';
-
-      if (localActiveTool.includes('file') || localActiveTool.includes('edit')) {
-        station = 'shelf';
-        toolKind = 'Write';
-      } else if (localActiveTool.includes('mcp')) {
-        station = 'mcp';
-        toolKind = 'MCP';
-      } else if (localActiveTool.includes('search') || localActiveTool.includes('web')) {
-        station = 'web';
-        toolKind = 'WebSearch';
-      }
-
-      agentsMap['local-kraken-bridge'] = {
-        status: 'working',
-        action: `Executando: ${localActiveTool}`,
-        currentStation: station,
-        carrying: toolKind,
-      };
-    } else {
-      agentsMap['local-kraken-bridge'] = {
-        status: 'idle',
-        action: 'Aguardando instruções no chat',
-        currentStation: 'desk',
-        carrying: undefined,
-      };
-    }
+    // Atualiza Kraken Bridge local (Pam) considerando ferramentas e chats ativos
+    agentsMap['local-kraken-bridge'] = resolveKrakenBridgePatch(localActiveTool, effectiveChatState);
 
     // Sincroniza subagentes locais se fornecidos
     if (subagents && Array.isArray(subagents)) {
@@ -316,8 +367,13 @@ export const useStore = create<OfficeState>((set, get) => ({
     set({ agents: updated });
   },
 
-  syncWithPaperclip: (snapshot, localActiveTool, localSubagents) => {
+  syncWithPaperclip: (snapshot, localActiveTool, localSubagents, localChatState) => {
     if (!snapshot) return;
+
+    const effectiveChatState = localChatState !== undefined ? localChatState : get().localChatState;
+    if (localChatState !== undefined) {
+      set({ localChatState });
+    }
 
     const agentsMap: Record<string, Partial<Agent>> = {};
 
@@ -356,36 +412,8 @@ export const useStore = create<OfficeState>((set, get) => ({
       });
     }
 
-    // Atualiza Kraken Bridge local se houver tool em execução
-    if (localActiveTool) {
-      let station: StationKind = 'terminal';
-      let toolKind: ToolKind = 'Bash';
-
-      if (localActiveTool.includes('file') || localActiveTool.includes('edit')) {
-        station = 'shelf';
-        toolKind = 'Write';
-      } else if (localActiveTool.includes('mcp')) {
-        station = 'mcp';
-        toolKind = 'MCP';
-      } else if (localActiveTool.includes('search') || localActiveTool.includes('web')) {
-        station = 'web';
-        toolKind = 'WebSearch';
-      }
-
-      agentsMap['local-kraken-bridge'] = {
-        status: 'working',
-        action: `Executando: ${localActiveTool}`,
-        currentStation: station,
-        carrying: toolKind,
-      };
-    } else {
-      agentsMap['local-kraken-bridge'] = {
-        status: 'idle',
-        action: 'Aguardando instruções no chat',
-        currentStation: 'desk',
-        carrying: undefined,
-      };
-    }
+    // Atualiza Kraken Bridge local (Pam) considerando ferramentas e chats ativos
+    agentsMap['local-kraken-bridge'] = resolveKrakenBridgePatch(localActiveTool, effectiveChatState);
 
     // Sincroniza subagentes locais se fornecidos
     if (localSubagents && Array.isArray(localSubagents)) {

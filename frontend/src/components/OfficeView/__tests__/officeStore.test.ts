@@ -262,4 +262,93 @@ describe('officeStore', () => {
     expect(state.filterSource).toBeDefined();
     expect(['all', 'paperclip', 'kraken']).toContain(state.filterSource);
   });
+
+  it('deve colocar o Kraken em working quando isLoading === true mesmo sem activeTool', () => {
+    useStore.getState().syncKrakenSubagents([], null, {
+      isLoading: true,
+      isRunning: false,
+      isThinking: false,
+      activeChatTitle: 'Implementar Office Floor',
+    });
+
+    const bridge = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridge?.status).toBe('working');
+    expect(bridge?.action).toContain('Respondendo no chat: Implementar Office Floor');
+    expect(bridge?.currentStation).toBe('terminal');
+    expect(bridge?.carrying).toBe('Write');
+  });
+
+  it('deve colocar o Kraken em thinking quando isThinking === true', () => {
+    useStore.getState().syncKrakenSubagents([], null, {
+      isLoading: true,
+      isRunning: false,
+      isThinking: true,
+      activeChatTitle: 'Planejamento de arquitetura',
+    });
+
+    const bridge = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridge?.status).toBe('thinking');
+    expect(bridge?.action).toContain('Raciocinando no chat: Planejamento de arquitetura');
+    expect(bridge?.currentStation).toBe('terminal');
+    expect(bridge?.carrying).toBe('Write');
+  });
+
+  it('deve colocar o Kraken em working quando houver conversas em segundo plano (isRunning === true)', () => {
+    useStore.getState().syncKrakenSubagents([], null, {
+      isLoading: false,
+      isRunning: true,
+      isThinking: false,
+      runningChatsCount: 1,
+      runningChatTitles: ['Processamento de dados em background'],
+    });
+
+    const bridge = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridge?.status).toBe('working');
+    expect(bridge?.action).toContain('Respondendo no chat: Processamento de dados em background');
+    expect(bridge?.currentStation).toBe('terminal');
+  });
+
+  it('deve preservar o estado ativo do Kraken durante syncWithPaperclip periódico (polling sem chatState explícito)', () => {
+    // 1. Kraken inicia processamento de chat
+    useStore.getState().syncKrakenSubagents([], null, {
+      isLoading: true,
+      isRunning: false,
+      isThinking: false,
+      activeChatTitle: 'Refatoração da dashboard',
+    });
+
+    let bridge = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridge?.status).toBe('working');
+
+    // 2. Polling periódico de 15s dispara syncWithPaperclip sem passar localChatState
+    const mockSnapshot: PaperclipStateSnapshot = {
+      agents: [],
+      issues: [],
+      activeRuns: [],
+      recentRuns: [],
+      projectsProgress: [],
+      timeline: [],
+    };
+    useStore.getState().syncWithPaperclip(mockSnapshot, null, null);
+
+    // 3. Kraken permanece ativo no store e não é resetado para idle
+    bridge = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridge?.status).toBe('working');
+    expect(bridge?.action).toContain('Respondendo no chat: Refatoração da dashboard');
+  });
+
+  it('deve retornar para idle quando isLoading e isRunning forem false', () => {
+    useStore.getState().syncKrakenSubagents([], null, {
+      isLoading: false,
+      isRunning: false,
+      isThinking: false,
+      activeChatTitle: null,
+    });
+
+    const bridge = useStore.getState().agents.find((a) => a.id === 'local-kraken-bridge');
+    expect(bridge?.status).toBe('idle');
+    expect(bridge?.action).toBe('Aguardando instruções no chat');
+    expect(bridge?.currentStation).toBe('desk');
+    expect(bridge?.carrying).toBeUndefined();
+  });
 });
