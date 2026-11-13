@@ -266,6 +266,70 @@ export const api = {
     return data;
   },
 
+  async startClaudeAuth(force?: boolean): Promise<{
+    status: 'waiting_for_code' | 'already_authenticated' | 'error';
+    alreadyAuthenticated?: boolean;
+    authUrl?: string;
+    email?: string;
+    message?: string;
+    error?: string;
+  }> {
+    const res = await fetch(`${getApiBase()}/auth/claude/start`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ force: !!force })
+    });
+    const data = await res.json();
+    if (!res.ok || data.status === 'error' || (data.error && !data.authUrl)) {
+      throw new Error(data.error || data.message || 'Falha ao iniciar autenticação Claude Code');
+    }
+    return data;
+  },
+
+  async submitClaudeCode(code: string): Promise<{
+    success: boolean;
+    status?: string;
+    email?: string;
+    name?: string;
+    message?: string;
+    error?: string;
+  }> {
+    const res = await fetch(`${getApiBase()}/auth/claude/submit-code`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok && !data.error && !data.message) {
+      data.error = `Erro HTTP ${res.status}: ${res.statusText || 'Falha ao processar código do Claude'}`;
+    }
+    return data;
+  },
+
+  async getClaudeStatus(): Promise<{
+    authenticated: boolean;
+    email?: string | null;
+    name?: string | null;
+    authMethod?: string;
+    hasToken?: boolean;
+    hasKey?: boolean;
+    loginExpiresAt?: string | null;
+    error?: string;
+  }> {
+    const res = await fetch(`${getApiBase()}/auth/claude/status`, {
+      headers: authHeaders()
+    });
+    return res.json();
+  },
+
+  async logoutClaude(): Promise<{ success: boolean; message?: string; error?: string }> {
+    const res = await fetch(`${getApiBase()}/auth/claude/logout`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+    return res.json();
+  },
+
   async getFileRaw(filePath: string, subproject?: string, conversationId?: string): Promise<{
     path: string;
     filename: string;
