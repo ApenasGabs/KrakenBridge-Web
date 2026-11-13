@@ -264,8 +264,13 @@ class PushNotificationService {
 
   /**
    * Notifica início de tarefa de agente (com throttle de 15 segundos por conversa)
+   * Silenciado por padrão para evitar alert fatigue — habilitável via ENABLE_TASK_LIFECYCLE_PUSH=true
    */
   public async notifyTaskStart(event: TaskStartEvent): Promise<void> {
+    if (process.env.ENABLE_TASK_LIFECYCLE_PUSH !== 'true') {
+      return;
+    }
+
     const now = Date.now();
     const lastStart = this.taskStartDebounce.get(event.conversationId) || 0;
     if (now - lastStart < 15000) return;
@@ -284,9 +289,15 @@ class PushNotificationService {
 
   /**
    * Notifica mutação de arquivo no disco (com throttle de 3 segundos por arquivo)
+   * Human-in-the-Loop: Silenciado por padrão para evitar tempestade de notificações no smartphone
+   * durante edições de código do agente. Habilitável explicitamente via ENABLE_FILE_MUTATION_PUSH=true.
    */
   public async notifyFileMutation(event: FileMutationEvent): Promise<void> {
     if (!event.file) return;
+
+    if (process.env.ENABLE_FILE_MUTATION_PUSH !== 'true') {
+      return;
+    }
 
     const fileName = path.basename(event.file);
     const key = `${event.conversationId}:${fileName}`;
@@ -308,16 +319,48 @@ class PushNotificationService {
 
   /**
    * Notifica conclusão da tarefa
+   * Notifica apenas em caso de falha/alerta que demande atenção humana, ou se explicitamente configurado.
    */
   public async notifyTaskComplete(event: TaskCompleteEvent): Promise<void> {
-    const agentName = event.agent ? event.agent.toUpperCase() : 'Agente';
-    const secs = (event.durationMs / 1000).toFixed(1);
+    if (!event.success) {
+      const agentName = event.agent ? event.agent.toUpperCase() : 'Agente';
+      await this.sendPushNotification({
+        title: `⚠️ Tarefa com Alerta (${agentName})`,
+        body: `A tarefa finalizou com erros e pode requerer atenção.`,
+        tag: `task-complete-${event.conversationId}`,
+        data: { url: `/?conv=${event.conversationId}` }
+      });
+      return;
+    }
 
+    if (process.env.ENABLE_TASK_LIFECYCLE_PUSH === 'true') {
+      const agentName = event.agent ? event.agent.toUpperCase() : 'Agente';
+      const secs = (event.durationMs / 1000).toFixed(1);
+
+      await this.sendPushNotification({
+        title: `✅ Tarefa Concluída (${secs}s)`,
+        body: `${agentName} finalizou a execução em ${secs} segundos.`,
+        tag: `task-complete-${event.conversationId}`,
+        data: { url: `/?conv=${event.conversationId}` }
+      });
+    }
+  }
+
+  /**
+   * Notifica evento que EXIGE ação humana direta (Human-in-the-Loop)
+   * Ex: Portão de aprovação manual (PR pronto para aprovação), autorização de segurança, intervenção de credenciais
+   */
+  public async notifyHumanActionRequired(event: {
+    title: string;
+    body: string;
+    url?: string;
+    tag?: string;
+  }): Promise<void> {
     await this.sendPushNotification({
-      title: event.success ? `✅ Tarefa Concluída (${secs}s)` : `⚠️ Tarefa Finalizada com Alerta`,
-      body: `${agentName} finalizou a execução em ${secs} segundos.`,
-      tag: `task-complete-${event.conversationId}`,
-      data: { url: `/?conv=${event.conversationId}` }
+      title: `🔔 Ação Humana Necessária: ${event.title}`,
+      body: event.body,
+      tag: event.tag || 'human-action-required',
+      data: { url: event.url || '/' }
     });
   }
 }

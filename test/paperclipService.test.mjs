@@ -136,7 +136,7 @@ test('paperclipService: detectStalls deve detectar agente sem heartbeat há mais
       id: 'issue-review',
       identifier: 'APE-50',
       title: 'Validar PR de Cleanroom',
-      status: 'todo',
+      status: 'in_progress',
       assigneeAgentId: 'agent-sentinel',
       updatedAt: new Date().toISOString(),
       createdAt: new Date().toISOString()
@@ -150,6 +150,68 @@ test('paperclipService: detectStalls deve detectar agente sem heartbeat há mais
   assert.match(stalls[0].reason, /sem heartbeat há 70 min/);
 });
 
+test('paperclipService: detectStalls deve IGNORAR tarefas em todo (backlog) evitando falso alarme de stall', () => {
+  const service = new PaperclipService();
+  service.stopBackgroundPolling();
+
+  const now = Date.now();
+  const fortyMinutesAgo = new Date(now - 40 * 60 * 1000).toISOString();
+
+  const mockAgents = [
+    {
+      id: 'agent-forge',
+      name: 'Kraken Forge',
+      role: 'engineer',
+      status: 'idle',
+      lastHeartbeatAt: new Date().toISOString()
+    }
+  ];
+
+  const mockIssues = [
+    {
+      id: 'issue-queued',
+      identifier: 'APE-99',
+      title: 'Tarefa futura no backlog',
+      status: 'todo',
+      assigneeAgentId: 'agent-forge',
+      updatedAt: fortyMinutesAgo,
+      createdAt: fortyMinutesAgo
+    }
+  ];
+
+  const stalls = service.detectStalls(mockIssues, mockAgents, [], []);
+  assert.equal(stalls.length, 0, 'Tarefas em todo no backlog não devem disparar stalls');
+});
+
+test('paperclipService: notifyAlert deve suprimir alertas sem requiresHumanAction e sem force', async () => {
+  const service = new PaperclipService();
+  service.stopBackgroundPolling();
+
+  const routineAlert = {
+    key: 'routine-alert',
+    severity: 'yellow',
+    title: 'Aviso operacional rotineiro',
+    body: 'Métrica oscilou',
+    requiresHumanAction: false
+  };
+
+  const res = await service.notifyAlert(routineAlert);
+  assert.equal(res.sent, false);
+  assert.equal(res.suppressed, true);
+
+  const humanAlert = {
+    key: 'human-approval-required',
+    severity: 'red',
+    title: 'Aprovação Manual Necessária',
+    body: 'Por favor aprove o PR de produção',
+    requiresHumanAction: true
+  };
+
+  const resHuman = await service.notifyAlert(humanAlert);
+  assert.equal(resHuman.sent, true);
+  assert.equal(resHuman.suppressed, undefined);
+});
+
 test('paperclipService: notifyAlert deve deduplicar alertas na janela de debounce de 20 min', async () => {
   const service = new PaperclipService();
   service.stopBackgroundPolling();
@@ -158,7 +220,8 @@ test('paperclipService: notifyAlert deve deduplicar alertas na janela de debounc
     key: 'test-agent-error',
     severity: 'red',
     title: '🔴 Agente em Erro',
-    body: 'O agente falhou no adapter'
+    body: 'O agente falhou no adapter',
+    requiresHumanAction: true
   };
 
   const firstCall = await service.notifyAlert(alertOptions);

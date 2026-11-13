@@ -129,7 +129,7 @@ describe('PaperclipService - Realtime Status, Stalls & Notifications (Issue #141
           id: 'issue-todo-1',
           identifier: 'APE-50',
           title: 'Validar testes E2E',
-          status: 'todo',
+          status: 'in_progress',
           priority: 'medium',
           assigneeAgentId: 'agent-sentinel',
           createdAt: seventyMinutesAgo,
@@ -142,6 +142,38 @@ describe('PaperclipService - Realtime Status, Stalls & Notifications (Issue #141
       expect(agentStall).toBeDefined();
       expect(agentStall?.inactiveMinutes).toBeGreaterThanOrEqual(69);
       expect(agentStall?.reason).toContain('sem heartbeat');
+    });
+
+    it('deve IGNORAR tarefas em todo (backlog) evitando falso alarme de stall', () => {
+      const now = Date.now();
+      const fortyMinutesAgo = new Date(now - 40 * 60 * 1000).toISOString();
+
+      const mockAgents: PaperclipAgent[] = [
+        {
+          id: 'agent-forge',
+          companyId: 'company-1',
+          name: 'Kraken Forge',
+          role: 'engineer',
+          status: 'idle',
+          lastHeartbeatAt: new Date().toISOString()
+        }
+      ];
+
+      const mockIssues: PaperclipIssue[] = [
+        {
+          id: 'issue-queued',
+          identifier: 'APE-99',
+          title: 'Tarefa futura no backlog',
+          status: 'todo',
+          priority: 'medium',
+          assigneeAgentId: 'agent-forge',
+          createdAt: fortyMinutesAgo,
+          updatedAt: fortyMinutesAgo
+        }
+      ];
+
+      const stalls = service.detectStalls(mockIssues, mockAgents, [], []);
+      expect(stalls.length).toBe(0);
     });
 
     it('NÃO deve disparar stall para issues já concluídas (done)', () => {
@@ -165,12 +197,25 @@ describe('PaperclipService - Realtime Status, Stalls & Notifications (Issue #141
   });
 
   describe('Deduplicação de Alertas e Notificações', () => {
+    it('deve suprimir alertas sem requiresHumanAction e sem force', async () => {
+      const res = await service.notifyAlert({
+        key: 'routine-alert-test',
+        severity: 'yellow',
+        title: 'Alerta rotineiro',
+        body: 'Métrica oscilou',
+        requiresHumanAction: false
+      });
+      expect(res.sent).toBe(false);
+      expect(res.suppressed).toBe(true);
+    });
+
     it('deve suprimir alertas duplicados para a mesma chave dentro do tempo de debounce', async () => {
       const alertOptions = {
         key: 'test-agent-error-1',
         severity: 'red' as const,
         title: '🔴 Agente em Erro',
-        body: 'Falha no adapter'
+        body: 'Falha no adapter',
+        requiresHumanAction: true
       };
 
       // Primeiro envio: sucesso

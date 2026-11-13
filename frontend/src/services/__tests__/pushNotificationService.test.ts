@@ -34,7 +34,31 @@ describe('PushNotificationService - PWA & Web Push (Issue #53)', () => {
     expect(pushNotificationService.getSubscriptionsCount()).toBe(countBefore);
   });
 
-  it('deve disparar notificação de início de tarefa respeitando throttle', async () => {
+  it('deve silenciar mutação de código e início de tarefa por padrão para evitar alert fatigue', async () => {
+    const sendSpy = vi.spyOn(pushNotificationService, 'sendPushNotification').mockResolvedValue({ sent: 1, failed: 0 });
+
+    delete process.env.ENABLE_FILE_MUTATION_PUSH;
+    delete process.env.ENABLE_TASK_LIFECYCLE_PUSH;
+
+    const convId = `conv-quiet-${Date.now()}`;
+    await pushNotificationService.notifyTaskStart({
+      conversationId: convId,
+      agent: 'antigravity',
+      subproject: 'backend'
+    });
+
+    await pushNotificationService.notifyFileMutation({
+      conversationId: convId,
+      agent: 'antigravity',
+      file: '/workspace/src/App.tsx',
+      toolName: 'replace_file_content'
+    });
+
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it('deve disparar notificação de início de tarefa respeitando throttle quando flag está ativa', async () => {
+    process.env.ENABLE_TASK_LIFECYCLE_PUSH = 'true';
     const sendSpy = vi.spyOn(pushNotificationService, 'sendPushNotification').mockResolvedValue({ sent: 1, failed: 0 });
 
     const convId = `conv-test-${Date.now()}`;
@@ -57,9 +81,11 @@ describe('PushNotificationService - PWA & Web Push (Issue #53)', () => {
       subproject: 'backend'
     });
     expect(sendSpy).toHaveBeenCalledTimes(1);
+    delete process.env.ENABLE_TASK_LIFECYCLE_PUSH;
   });
 
-  it('deve disparar notificação de mutação de arquivo no disco informando TargetFile', async () => {
+  it('deve disparar notificação de mutação de arquivo no disco informando TargetFile quando flag está ativa', async () => {
+    process.env.ENABLE_FILE_MUTATION_PUSH = 'true';
     const sendSpy = vi.spyOn(pushNotificationService, 'sendPushNotification').mockResolvedValue({ sent: 1, failed: 0 });
 
     const convId = `conv-mut-${Date.now()}`;
@@ -75,9 +101,11 @@ describe('PushNotificationService - PWA & Web Push (Issue #53)', () => {
       title: expect.stringContaining('App.tsx'),
       body: expect.stringContaining('editou')
     }));
+    delete process.env.ENABLE_FILE_MUTATION_PUSH;
   });
 
-  it('deve disparar notificação de conclusão de tarefa com tempo de execução', async () => {
+  it('deve disparar notificação de conclusão de tarefa com tempo de execução quando habilitado', async () => {
+    process.env.ENABLE_TASK_LIFECYCLE_PUSH = 'true';
     const sendSpy = vi.spyOn(pushNotificationService, 'sendPushNotification').mockResolvedValue({ sent: 1, failed: 0 });
 
     const convId = `conv-done-${Date.now()}`;
@@ -92,6 +120,23 @@ describe('PushNotificationService - PWA & Web Push (Issue #53)', () => {
     expect(sendSpy).toHaveBeenCalledWith(expect.objectContaining({
       title: expect.stringContaining('Tarefa Concluída'),
       body: expect.stringContaining('4.2 segundos')
+    }));
+    delete process.env.ENABLE_TASK_LIFECYCLE_PUSH;
+  });
+
+  it('deve disparar notificação de ação humana necessária (Human-in-the-Loop)', async () => {
+    const sendSpy = vi.spyOn(pushNotificationService, 'sendPushNotification').mockResolvedValue({ sent: 1, failed: 0 });
+
+    await pushNotificationService.notifyHumanActionRequired({
+      title: 'Aprovação Manual do PR #156',
+      body: 'O PR está pronto e requer revisão manual',
+      url: '/APE/issues/APE-156'
+    });
+
+    expect(sendSpy).toHaveBeenCalledTimes(1);
+    expect(sendSpy).toHaveBeenCalledWith(expect.objectContaining({
+      title: expect.stringContaining('Ação Humana Necessária'),
+      body: expect.stringContaining('revisão manual')
     }));
   });
 });
