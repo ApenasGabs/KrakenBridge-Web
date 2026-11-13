@@ -6,6 +6,37 @@ describe('Auth - Claude Code CLI OAuth & Credentials (Issue #166)', () => {
     vi.restoreAllMocks();
   });
 
+  it('Testes unitários/integração cobrindo os fluxos de início, submissão de código e status', async () => {
+    // Início (startAuth)
+    const mockAuthUrl = 'https://claude.com/cai/oauth/authorize?code=true';
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: 'waiting_for_code', authUrl: mockAuthUrl })
+    });
+    vi.stubGlobal('fetch', mockFetch);
+    const startRes = await api.startClaudeAuth(true);
+    expect(startRes.status).toBe('waiting_for_code');
+
+    // Submissão de código (submitCode)
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ success: true, email: 'claude@test.com' })
+    });
+    const submitRes = await api.submitClaudeCode('code_123');
+    expect(submitRes.success).toBe(true);
+
+    // Status (getClaudeStatus)
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ authenticated: true, authMethod: 'oauth' })
+    });
+    const statusRes = await api.getClaudeStatus();
+    expect(statusRes.authenticated).toBe(true);
+  });
+
   it('deve retornar authUrl ao iniciar o fluxo OAuth via api.startClaudeAuth', async () => {
     const mockAuthUrl = 'https://claude.com/cai/oauth/authorize?code=true&client_id=test-id';
     const mockFetch = vi.fn().mockResolvedValue({

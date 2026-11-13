@@ -259,7 +259,78 @@ class ClaudeAuthService {
     }
     code = code.trim();
 
-    // Caso 1: Existe uma sessão ativa do CLI aguardando o código via stdin
+    // Caso 1: O usuário colou um Setup Token (sk-ant-oat01-...) diretamente
+    if (code.startsWith('sk-ant-oat01-') || code.includes('"claudeAiOauth"')) {
+      this.cleanupSession();
+      try {
+        await fs.mkdir(CLAUDE_CONFIG_DIR, { recursive: true });
+        let tokenPayload: unknown;
+
+        if (code.startsWith('{')) {
+          tokenPayload = JSON.parse(code);
+        } else {
+          tokenPayload = {
+            claudeAiOauth: {
+              accessToken: code,
+              refreshToken: '',
+              expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000
+            }
+          };
+        }
+
+        await fs.writeFile(CREDENTIALS_FILE, JSON.stringify(tokenPayload, null, 2), 'utf8');
+        process.env.CLAUDE_CODE_OAUTH_TOKEN = typeof tokenPayload === 'string' ? tokenPayload : JSON.stringify(tokenPayload);
+
+        const updated = await this.getStatus();
+        return {
+          success: true,
+          status: 'success',
+          email: updated.email,
+          message: 'Setup Token do Claude Code salvo e ativado com sucesso!'
+        };
+      } catch (err) {
+        return {
+          success: false,
+          status: 'error',
+          error: `Erro ao salvar token do Claude: ${(err as Error).message}`
+        };
+      }
+    }
+
+    // Caso 2: O usuário colou uma API Key Anthropic (sk-ant-api03-...)
+    if (code.startsWith('sk-ant-api03-') || code.startsWith('sk-ant-')) {
+      this.cleanupSession();
+      process.env.ANTHROPIC_API_KEY = code;
+      try {
+        const envPath = path.join(WORKSPACE_DIR, '.env');
+        let envContent = '';
+        try { envContent = await fs.readFile(envPath, 'utf8'); } catch {}
+
+        const rx = /^ANTHROPIC_API_KEY=.*$/m;
+        if (rx.test(envContent)) {
+          envContent = envContent.replace(rx, `ANTHROPIC_API_KEY=${code}`);
+        } else {
+          envContent += `\nANTHROPIC_API_KEY=${code}\n`;
+        }
+        await fs.writeFile(envPath, envContent, 'utf8');
+
+        return {
+          success: true,
+          status: 'success',
+          email: 'Anthropic API Key',
+          message: 'Anthropic API Key configurada com sucesso!'
+        };
+      } catch (err) {
+        return {
+          success: true,
+          status: 'success',
+          email: 'Anthropic API Key',
+          message: 'Anthropic API Key ativa em memória nesta sessão!'
+        };
+      }
+    }
+
+    // Caso 3: Existe uma sessão ativa do CLI aguardando o código de autorização OAuth via stdin
     if (this.pendingSession && this.pendingSession.cp && !this.pendingSession.cp.killed) {
       const cp = this.pendingSession.cp;
 
@@ -330,7 +401,6 @@ class ClaudeAuthService {
         // Timeout de resposta de 15 segundos
         setTimeout(async () => {
           if (!finished) {
-            // Verifica se o status mudou para logado antes de falhar
             const st = await this.getStatus();
             if (st.authenticated) {
               complete(true);
@@ -340,75 +410,6 @@ class ClaudeAuthService {
           }
         }, 15000);
       });
-    }
-
-    // Caso 2: O usuário colou um Setup Token (sk-ant-oat01-...) diretamente
-    if (code.startsWith('sk-ant-oat01-') || code.includes('"claudeAiOauth"')) {
-      try {
-        await fs.mkdir(CLAUDE_CONFIG_DIR, { recursive: true });
-        let tokenPayload: unknown;
-
-        if (code.startsWith('{')) {
-          tokenPayload = JSON.parse(code);
-        } else {
-          tokenPayload = {
-            claudeAiOauth: {
-              accessToken: code,
-              refreshToken: '',
-              expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000
-            }
-          };
-        }
-
-        await fs.writeFile(CREDENTIALS_FILE, JSON.stringify(tokenPayload, null, 2), 'utf8');
-        process.env.CLAUDE_CODE_OAUTH_TOKEN = typeof tokenPayload === 'string' ? tokenPayload : JSON.stringify(tokenPayload);
-
-        const updated = await this.getStatus();
-        return {
-          success: true,
-          status: 'success',
-          email: updated.email,
-          message: 'Setup Token do Claude Code salvo e ativado com sucesso!'
-        };
-      } catch (err) {
-        return {
-          success: false,
-          status: 'error',
-          error: `Erro ao salvar token do Claude: ${(err as Error).message}`
-        };
-      }
-    }
-
-    // Caso 3: O usuário colou uma API Key Anthropic (sk-ant-api03-...)
-    if (code.startsWith('sk-ant-api03-') || code.startsWith('sk-ant-')) {
-      process.env.ANTHROPIC_API_KEY = code;
-      try {
-        const envPath = path.join(WORKSPACE_DIR, '.env');
-        let envContent = '';
-        try { envContent = await fs.readFile(envPath, 'utf8'); } catch {}
-
-        const rx = /^ANTHROPIC_API_KEY=.*$/m;
-        if (rx.test(envContent)) {
-          envContent = envContent.replace(rx, `ANTHROPIC_API_KEY=${code}`);
-        } else {
-          envContent += `\nANTHROPIC_API_KEY=${code}\n`;
-        }
-        await fs.writeFile(envPath, envContent, 'utf8');
-
-        return {
-          success: true,
-          status: 'success',
-          email: 'Anthropic API Key',
-          message: 'Anthropic API Key configurada com sucesso!'
-        };
-      } catch (err) {
-        return {
-          success: true,
-          status: 'success',
-          email: 'Anthropic API Key',
-          message: 'Anthropic API Key ativa em memória nesta sessão!'
-        };
-      }
     }
 
     return {

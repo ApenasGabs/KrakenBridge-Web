@@ -4,6 +4,33 @@ import { claudeAuthService } from '../dist-server/services/claudeAuthService.js'
 import express from 'express';
 import { authRouter } from '../dist-server/routes/auth.js';
 
+// Testes unitários/integração cobrindo os fluxos de início, submissão de código e status (Issue #166)
+test('Testes unitários/integração cobrindo os fluxos de início, submissão de código e status', async () => {
+  // 1. Fluxo de verificação de status
+  const statusInitial = await claudeAuthService.getStatus();
+  assert.ok(typeof statusInitial.authenticated === 'boolean');
+  assert.ok(typeof statusInitial.configDirectory === 'string');
+
+  // 2. Fluxo de início (startAuth)
+  const startResult = await claudeAuthService.startAuth(true);
+  assert.ok(startResult.status === 'waiting_for_code' || startResult.status === 'already_authenticated');
+  if (startResult.status === 'waiting_for_code') {
+    assert.ok(startResult.authUrl);
+  }
+
+  // 3. Fluxo de submissão de código (submitCode)
+  const invalidResult = await claudeAuthService.submitCode('');
+  assert.equal(invalidResult.success, false);
+  assert.equal(invalidResult.status, 'error');
+
+  const keyResult = await claudeAuthService.submitCode('sk-ant-api03-mock-flow-test-key');
+  assert.equal(keyResult.success, true);
+  assert.equal(keyResult.status, 'success');
+
+  // 4. Limpeza e logout
+  await claudeAuthService.logout();
+});
+
 test('claudeAuthService: getStatus deve retornar estrutura válida de status', async () => {
   const status = await claudeAuthService.getStatus();
   assert.ok(typeof status.authenticated === 'boolean');
