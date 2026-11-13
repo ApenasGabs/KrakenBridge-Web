@@ -41,9 +41,14 @@ export interface PrReviewSlaServiceOptions {
     linkPaperclip?: string;
     force?: boolean;
     requiresHumanAction?: boolean;
-  }) => Promise<any>;
+  }) => Promise<{ sent: boolean; deduped?: boolean } | void | unknown>;
 }
 
+/**
+ * Requisito Spec GitHub Issue #160:
+ * - Serviço em segundo plano monitorando PRs abertos.
+ * - Serviço de SLA implementado com persistência de timestamps.
+ */
 export class PrReviewSlaService {
   private slaDurationMs: number;
   private paperclipUrl: string;
@@ -327,7 +332,6 @@ export class PrReviewSlaService {
 
       // Verifica timeout de SLA para PRs ainda pendentes de aprovação humana
       if (tracked.status === 'pending_human' && now >= tracked.slaExpiresAt) {
-        console.log(`[PrReviewSlaService] ⏰ Timeout de 2h atingido para ${prKey}. Delegando para Kraken Sentinel...`);
         const delegation = await this.delegateToSentinel(tracked);
 
         tracked.delegatedToSentinel = true;
