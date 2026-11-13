@@ -26,7 +26,9 @@ import type {
   RefinePromptPayload,
   RefinePromptResponse,
   PaperclipStateSnapshot,
-  PaperclipTimelineEvent
+  PaperclipTimelineEvent,
+  BatchItemDecision,
+  BatchDispatchResult
 } from '../types';
 
 export interface SSECallbacks {
@@ -911,6 +913,19 @@ export const api = {
     const result = await res.json();
     if (!res.ok || !result.success) {
       throw new Error(result.error || `Falha ao iniciar resolução da Issue #${data.issueNumber}`);
+    }
+    return result;
+  },
+
+  async dispatchBatchWhatsNext(items: BatchItemDecision[]): Promise<BatchDispatchResult> {
+    const res = await fetch(`${getApiBase()}/projects/github/batch-dispatch`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ items })
+    });
+    const result = await res.json();
+    if (!res.ok || !result.success) {
+      throw new Error(result.error || 'Falha ao processar ações em lote do What\'s Next');
     }
     return result;
   },

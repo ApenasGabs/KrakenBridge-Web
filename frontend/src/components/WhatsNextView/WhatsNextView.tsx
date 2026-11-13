@@ -3,7 +3,10 @@ import type {
   ProjectOverview, 
   GithubIssueItem, 
   GithubPullRequestItem,
-  GithubRepoInfo
+  GithubRepoInfo,
+  BatchActionType,
+  BatchItemDecision,
+  BatchDispatchResult
 } from '../../types';
 import { api } from '../../services/api';
 import {
@@ -30,8 +33,13 @@ import {
   X,
   XCircle,
   SlidersHorizontal,
-  Globe
+  Globe,
+  ListChecks,
+  Edit3
 } from 'lucide-react';
+
+import { BatchActionBar } from './BatchActionBar';
+import { BatchDispatchModal } from './BatchDispatchModal';
 
 import {
   type WhatsNextCache,
@@ -101,6 +109,14 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+
+  // Estados de Ação em Lote (Batch Triage & Delegation)
+  const [isBatchMode, setIsBatchMode] = useState<boolean>(false);
+  const [selectedItemKeys, setSelectedItemKeys] = useState<Set<string>>(new Set());
+  const [batchDecisions, setBatchDecisions] = useState<Record<string, BatchItemDecision>>({});
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState<boolean>(false);
+  const [isDispatching, setIsDispatching] = useState<boolean>(false);
+  const [batchResult, setBatchResult] = useState<BatchDispatchResult | null>(null);
 
   // Carregar dados da visão
   const loadData = useCallback(async (force = false) => {
@@ -582,6 +598,194 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
     }
   };
 
+  // =========================================================================
+  // HANDLERS DE AÇÃO EM LOTE (BATCH TRIAGE & DELEGATION)                      
+  // =========================================================================
+
+  // Alternar modo de lote (mantém visual limpo quando desligado)
+  const toggleBatchMode = useCallback(() => {
+    setIsBatchMode(prev => {
+      if (prev) {
+        setSelectedItemKeys(new Set());
+        setBatchDecisions({});
+        setBatchResult(null);
+      }
+      return !prev;
+    });
+  }, []);
+
+  // Selecionar ou desmarcar item (assume OK por padrão ao marcar)
+  const handleToggleItemSelect = useCallback((
+    item: GithubPullRequestItem | GithubIssueItem, 
+    itemType: 'pr' | 'issue'
+  ) => {
+    const itemKey = `${item.repository?.nameWithOwner}#${item.number}`;
+    setSelectedItemKeys(prev => {
+      const next = new Set(prev);
+      if (next.has(itemKey)) {
+        next.delete(itemKey);
+        setBatchDecisions(dec => {
+          const updated = { ...dec };
+          delete updated[itemKey];
+          return updated;
+        });
+      } else {
+        next.add(itemKey);
+        setBatchDecisions(dec => ({
+          ...dec,
+          [itemKey]: {
+            itemKey,
+            itemType,
+            repo: item.repository?.nameWithOwner || '',
+            number: item.number,
+            title: item.title,
+            url: item.url,
+            branch: (item as GithubPullRequestItem).headRefName,
+            action: 'approve', // Padrão: OK / Aprovar
+            notes: '',
+            linkedConversationId: (item as GithubPullRequestItem).linkedConversation?.id
+          }
+        }));
+      }
+      return next;
+    });
+  }, []);
+
+  // Alterar ação de um item selecionado no lote
+  const handleSetItemAction = useCallback((itemKey: string, action: BatchActionType) => {
+    setBatchDecisions(prev => {
+      if (!prev[itemKey]) return prev;
+      return {
+        ...prev,
+        [itemKey]: {
+          ...prev[itemKey],
+          action
+        }
+      };
+    });
+  }, []);
+
+  // Alterar as anotações do agente em um item
+  const handleSetItemNotes = useCallback((itemKey: string, notes: string) => {
+    setBatchDecisions(prev => {
+      if (!prev[itemKey]) return prev;
+      return {
+        ...prev,
+        [itemKey]: {
+          ...prev[itemKey],
+          notes
+        }
+      };
+    });
+  }, []);
+
+  // Marcar todos os itens selecionados como OK / Aprovar
+  const handleMarkAllAsOk = useCallback(() => {
+    setBatchDecisions(prev => {
+      const updated = { ...prev };
+      for (const key of Object.keys(updated)) {
+        updated[key] = { ...updated[key], action: 'approve' };
+      }
+      return updated;
+    });
+  }, []);
+
+  // Limpar toda a seleção
+  const handleClearSelection = useCallback(() => {
+    setSelectedItemKeys(new Set());
+    setBatchDecisions({});
+    setBatchResult(null);
+  }, []);
+
+  // Alternar seleção de todos os itens visíveis da aba atual
+  const handleToggleSelectAllVisible = useCallback(() => {
+    const currentItems = activeSubTab === 'prs' ? filteredPrs : filteredIssues;
+    const currentKeys = currentItems.map(i => `${i.repository?.nameWithOwner}#${i.number}`);
+    
+    const allSelected = currentKeys.length > 0 && currentKeys.every(k => selectedItemKeys.has(k));
+    
+    if (allSelected) {
+      setSelectedItemKeys(prev => {
+        const next = new Set(prev);
+        currentKeys.forEach(k => next.delete(k));
+        return next;
+      });
+      setBatchDecisions(prev => {
+        const next = { ...prev };
+        currentKeys.forEach(k => delete next[k]);
+        return next;
+      });
+    } else {
+      setSelectedItemKeys(prev => {
+        const next = new Set(prev);
+        currentKeys.forEach(k => next.add(k));
+        return next;
+      });
+      setBatchDecisions(prev => {
+        const next = { ...prev };
+        currentItems.forEach(item => {
+          const itemKey = `${item.repository?.nameWithOwner}#${item.number}`;
+          if (!next[itemKey]) {
+            next[itemKey] = {
+              itemKey,
+              itemType: activeSubTab === 'prs' ? 'pr' : 'issue',
+              repo: item.repository?.nameWithOwner || '',
+              number: item.number,
+              title: item.title,
+              url: item.url,
+              branch: (item as GithubPullRequestItem).headRefName,
+              action: 'approve',
+              notes: '',
+              linkedConversationId: (item as GithubPullRequestItem).linkedConversation?.id
+            };
+          }
+        });
+        return next;
+      });
+    }
+  }, [activeSubTab, filteredPrs, filteredIssues, selectedItemKeys]);
+
+  // Contagem dinâmica das ações selecionadas
+  const batchCounts = useMemo(() => {
+    const counts = { approve: 0, requestChanges: 0, merge: 0, close: 0 };
+    Object.values(batchDecisions).forEach(d => {
+      if (d.action === 'approve') counts.approve++;
+      else if (d.action === 'request_changes') counts.requestChanges++;
+      else if (d.action === 'merge') counts.merge++;
+      else if (d.action === 'close') counts.close++;
+    });
+    return counts;
+  }, [batchDecisions]);
+
+  const hasUnfilledNotes = useMemo(() => {
+    return Object.values(batchDecisions).some(d => d.action === 'request_changes' && !d.notes?.trim());
+  }, [batchDecisions]);
+
+  // Despachar lote para a API / Agente Triador
+  const handleConfirmBatchDispatch = useCallback(async () => {
+    const itemsToDispatch = Object.values(batchDecisions);
+    if (itemsToDispatch.length === 0) return;
+
+    setIsDispatching(true);
+    try {
+      const res = await api.dispatchBatchWhatsNext(itemsToDispatch);
+      setBatchResult(res);
+      setActionFeedback({
+        type: res.failed === 0 ? 'success' : 'error',
+        message: `Lote despachado: ${res.successful} sucesso(s), ${res.failed} falha(s).`
+      });
+      // Recarregar os dados
+      loadData(true);
+    } catch (err) {
+      setActionFeedback({
+        type: 'error',
+        message: `Erro ao despachar lote: ${(err as Error).message}`
+      });
+    } finally {
+      setIsDispatching(false);
+    }
+  }, [batchDecisions, loadData]);
+
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-100">
       {/* Top Banner / Header do Dashboard */}
@@ -626,6 +830,25 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                 <span className={`w-1.5 h-1.5 rounded-full ${isRefreshing ? 'bg-warning animate-pulse' : 'bg-success'}`}></span>
               </div>
             )}
+
+            {/* Toggle Modo Lote (Visual Limpo quando inativo) */}
+            <button
+              onClick={toggleBatchMode}
+              className={`btn btn-xs sm:btn-sm gap-1.5 transition-all ${
+                isBatchMode
+                  ? 'btn-primary shadow-xs'
+                  : 'btn-outline border-base-300 text-base-content/70 hover:text-base-content hover:bg-base-200'
+              }`}
+              title={isBatchMode ? 'Desativar modo de seleção em lote' : 'Ativar modo de seleção em lote'}
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+              <span>{isBatchMode ? 'Modo Lote Ativo' : 'Ação em Lote'}</span>
+              {isBatchMode && selectedItemKeys.size > 0 && (
+                <span className="badge badge-xs badge-neutral bg-black/20 text-white font-mono ml-0.5">
+                  {selectedItemKeys.size}
+                </span>
+              )}
+            </button>
 
             <button
               onClick={() => loadData(true)}
@@ -693,6 +916,43 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
             </span>
           </button>
         </div>
+
+        {/* Barra de Seleção Rápida em Lote (Ativa apenas quando o modo de lote estiver ligado) */}
+        {isBatchMode && (
+          <div className="flex flex-wrap items-center justify-between p-2.5 px-3 rounded-xl bg-primary/10 border border-primary/20 text-xs gap-2 animate-in fade-in duration-150">
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-base-content hover:opacity-90">
+                <input 
+                  type="checkbox" 
+                  checked={
+                    (activeSubTab === 'prs' ? filteredPrs.length : filteredIssues.length) > 0 &&
+                    (activeSubTab === 'prs' ? filteredPrs : filteredIssues).every(
+                      item => selectedItemKeys.has(`${item.repository?.nameWithOwner}#${item.number}`)
+                    )
+                  } 
+                  onChange={handleToggleSelectAllVisible}
+                  className="checkbox checkbox-primary checkbox-xs rounded"
+                />
+                <span>
+                  Selecionar todos os {(activeSubTab === 'prs' ? filteredPrs.length : filteredIssues.length)} {activeSubTab === 'prs' ? 'PRs' : 'issues'} visíveis
+                </span>
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-base-content/70 font-mono">
+                {selectedItemKeys.size} item(ns) selecionado(s)
+              </span>
+              {selectedItemKeys.size > 0 && (
+                <button
+                  onClick={handleClearSelection}
+                  className="btn btn-ghost btn-xs text-[11px] text-base-content/60 hover:text-error h-6 min-h-0"
+                >
+                  Limpar seleção
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* BARRA DE FILTROS AVANÇADOS E CONTROLE                                      */}
@@ -1118,13 +1378,103 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                   const isReviewOpen = expandedReviewPrKey === prKey;
                   const isSubmittingReview = submittingReviewPrKey === prKey;
                   const hasLinkedConversation = !!pr.linkedConversation;
+                  const isSelected = selectedItemKeys.has(prKey);
+                  const decision = batchDecisions[prKey];
 
                   return (
                     <div
                       key={prKey}
-                      className="card bg-base-200/50 hover:bg-base-200 border border-base-300 transition-all shadow-sm"
+                      className={`card border transition-all shadow-sm ${
+                        isSelected 
+                          ? 'bg-primary/5 border-primary/40 ring-1 ring-primary/30' 
+                          : 'bg-base-200/50 hover:bg-base-200 border-base-300'
+                      }`}
                     >
                       <div className="card-body p-4 sm:p-5 space-y-3">
+                        {/* Barra de Seleção e Micro-Decisão do Card no Modo Lote */}
+                        {isBatchMode && (
+                          <div className="flex flex-wrap items-center justify-between pb-2.5 border-b border-base-300/70 gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => handleToggleItemSelect(pr, 'pr')}
+                                className="checkbox checkbox-primary checkbox-sm rounded"
+                              />
+                              <span className="text-xs font-semibold text-base-content">
+                                {isSelected ? (
+                                  <span className="text-primary font-bold">Selecionado para Lote</span>
+                                ) : (
+                                  <span className="text-base-content/70">Selecionar item</span>
+                                )}
+                              </span>
+                            </label>
+
+                            {isSelected && (
+                              <div className="flex items-center gap-1 bg-base-100 p-1 rounded-lg border border-base-300/80 text-xs">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetItemAction(prKey, 'approve')}
+                                  className={`px-2 py-0.5 rounded-md font-medium text-xs flex items-center gap-1 transition-all ${
+                                    decision?.action === 'approve'
+                                      ? 'bg-success text-success-content font-bold shadow-xs'
+                                      : 'text-base-content/60 hover:text-base-content'
+                                  }`}
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>OK</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetItemAction(prKey, 'request_changes')}
+                                  className={`px-2 py-0.5 rounded-md font-medium text-xs flex items-center gap-1 transition-all ${
+                                    decision?.action === 'request_changes'
+                                      ? 'bg-warning text-warning-content font-bold shadow-xs'
+                                      : 'text-base-content/60 hover:text-base-content'
+                                  }`}
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                  <span>Ajustar</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSetItemAction(prKey, 'merge')}
+                                  className={`px-2 py-0.5 rounded-md font-medium text-xs flex items-center gap-1 transition-all ${
+                                    decision?.action === 'merge'
+                                      ? 'bg-info text-info-content font-bold shadow-xs'
+                                      : 'text-base-content/60 hover:text-base-content'
+                                  }`}
+                                >
+                                  <GitMerge className="w-3 h-3" />
+                                  <span>Merge</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Bloco de Anotações Contextuais para o Agente Triador */}
+                        {isBatchMode && isSelected && decision?.action === 'request_changes' && (
+                          <div className="p-3 rounded-xl bg-base-100 border border-warning/30 space-y-1.5 animate-in fade-in duration-150">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-semibold text-warning flex items-center gap-1.5">
+                                <Edit3 className="w-3.5 h-3.5" />
+                                Anotação para o Agente Triador
+                              </span>
+                              <span className="text-[10px] text-base-content/50">
+                                (ex: "ajuste item pipipopopo")
+                              </span>
+                            </div>
+                            <textarea
+                              rows={2}
+                              value={decision?.notes || ''}
+                              onChange={(e) => handleSetItemNotes(prKey, e.target.value)}
+                              placeholder="Descreva o que o agente deve ajustar neste item (ex: 'ajuste item pipipopopo no header e adicione validação')..."
+                              className="textarea textarea-bordered textarea-xs w-full text-xs font-sans focus:textarea-warning"
+                            />
+                          </div>
+                        )}
+
                         {/* Header do Card */}
                         <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
                           <div className="space-y-1.5 flex-1">
@@ -1397,6 +1747,38 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
           </>
         )}
       </div>
+
+      {/* Barra Flutuante de Ação em Lote */}
+      {isBatchMode && selectedItemKeys.size > 0 && (
+        <BatchActionBar
+          totalSelected={selectedItemKeys.size}
+          counts={batchCounts}
+          hasUnfilledNotes={hasUnfilledNotes}
+          isDispatching={isDispatching}
+          onMarkAllAsOk={handleMarkAllAsOk}
+          onClearSelection={handleClearSelection}
+          onTriggerDispatch={() => setIsDispatchModalOpen(true)}
+        />
+      )}
+
+      {/* Modal de Prévia e Confirmação de Despacho em Lote */}
+      <BatchDispatchModal
+        isOpen={isDispatchModalOpen}
+        onClose={() => {
+          setIsDispatchModalOpen(false);
+          if (batchResult) {
+            handleClearSelection();
+          }
+        }}
+        items={Object.values(batchDecisions)}
+        isDispatching={isDispatching}
+        onConfirmDispatch={handleConfirmBatchDispatch}
+        result={batchResult}
+        onViewConversation={(convId) => {
+          setIsDispatchModalOpen(false);
+          onOpenConversation(convId);
+        }}
+      />
     </div>
   );
 };

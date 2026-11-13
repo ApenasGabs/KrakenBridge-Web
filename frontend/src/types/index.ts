@@ -779,6 +779,44 @@ export interface LocalSubagent {
   updatedAt?: string;
 }
 
+// ============================================================================
+// Tipos para Ações em Lote do What's Next (Batch Triage & Delegation)
+// ============================================================================
+
+export type BatchActionType = 'approve' | 'request_changes' | 'merge' | 'close';
+
+export interface BatchItemDecision {
+  itemKey: string; // Ex: `${repo}#${number}`
+  itemType: 'pr' | 'issue';
+  repo: string;
+  number: number;
+  title: string;
+  url?: string;
+  branch?: string;
+  action: BatchActionType;
+  notes?: string;
+  targetAgent?: 'auto' | 'forge' | 'sentinel' | 'pai_kraken';
+  linkedConversationId?: string;
+}
+
+export interface BatchDispatchItemResult {
+  itemKey: string;
+  action: string;
+  success: boolean;
+  message?: string;
+  conversationId?: string;
+  subproject?: string;
+}
+
+export interface BatchDispatchResult {
+  success: boolean;
+  total: number;
+  successful: number;
+  failed: number;
+  results: BatchDispatchItemResult[];
+}
+
+
 
 
 

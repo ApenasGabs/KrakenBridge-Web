@@ -970,6 +970,110 @@ class GithubProjectService {
       suggestedPrompt: promptText
     };
   }
+
+  /**
+   * Despacha um lote de ações de triagem para PRs e Issues
+   */
+  async dispatchBatchActions(items: Array<{
+    itemKey?: string;
+    itemType: 'pr' | 'issue';
+    repo: string;
+    number: number;
+    title?: string;
+    url?: string;
+    branch?: string;
+    action: 'approve' | 'merge' | 'close' | 'request_changes';
+    notes?: string;
+    targetAgent?: string;
+  }>): Promise<{
+    total: number;
+    successful: number;
+    failed: number;
+    results: Array<{
+      itemKey: string;
+      action: string;
+      success: boolean;
+      message?: string;
+      conversationId?: string;
+      subproject?: string;
+    }>;
+  }> {
+    const results: Array<{
+      itemKey: string;
+      action: string;
+      success: boolean;
+      message?: string;
+      conversationId?: string;
+      subproject?: string;
+    }> = [];
+
+    for (const item of items) {
+      const itemKey = item.itemKey || `${item.repo}#${item.number}`;
+      try {
+        if (item.action === 'approve') {
+          const res = await this.approveOrMergePR(item.repo, item.number, 'approve');
+          results.push({ itemKey, action: 'approve', success: true, message: res.message });
+        } else if (item.action === 'merge') {
+          const res = await this.approveOrMergePR(item.repo, item.number, 'merge');
+          results.push({ itemKey, action: 'merge', success: true, message: res.message });
+        } else if (item.action === 'close') {
+          if (item.itemType === 'issue') {
+            const res = await this.closeIssue(item.repo, item.number, 'completed');
+            results.push({ itemKey, action: 'close', success: true, message: res.message });
+          } else {
+            const res = await this.approveOrMergePR(item.repo, item.number, 'close');
+            results.push({ itemKey, action: 'close', success: true, message: res.message });
+          }
+        } else if (item.action === 'request_changes') {
+          const res = await this.dispatchReview({
+            repo: item.repo,
+            prNumber: item.number,
+            prTitle: item.title || `PR #${item.number}`,
+            prUrl: item.url || `https://github.com/${item.repo}/pull/${item.number}`,
+            branch: item.branch,
+            comment: item.notes?.trim() || 'Ajustes solicitados na triagem em lote.'
+          });
+          results.push({
+            itemKey,
+            action: 'request_changes',
+            success: true,
+            message: 'Revisão com notas despachada para o agente',
+            conversationId: res.conversationId,
+            subproject: res.subproject
+          });
+        } else {
+          results.push({
+            itemKey,
+            action: item.action,
+            success: false,
+            message: `Ação desconhecida: ${item.action}`
+          });
+        }
+      } catch (err) {
+        results.push({
+          itemKey,
+          action: item.action,
+          success: false,
+          message: (err as Error).message
+        });
+      }
+    }
+
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+
+    // Invalida cache de PRs e Issues para refletir alterações
+    this.memoryCache.prs = undefined;
+    this.memoryCache.issues = undefined;
+    this.memoryCache.timestamp = 0;
+
+    return {
+      total: items.length,
+      successful,
+      failed,
+      results
+    };
+  }
 }
 
 export const githubProjectService = new GithubProjectService();
