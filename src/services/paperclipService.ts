@@ -509,8 +509,9 @@ export class PaperclipService {
         continue;
       }
 
-      // Se está atribuída (in_progress ou todo com agente)
-      if (issue.assigneeAgentId && (issue.status === 'in_progress' || issue.status === 'todo')) {
+      // Se está atribuída em andamento ('in_progress') sem execuções ativas
+      // Tarefas em 'todo' estão no backlog aguardando início e NÃO devem ser marcadas como stall
+      if (issue.assigneeAgentId && issue.status === 'in_progress') {
         const isRunActive = activeRuns.some(r => r.issueId === issue.id || r.agentId === issue.assigneeAgentId);
         if (isRunActive) continue;
 
@@ -533,7 +534,7 @@ export class PaperclipService {
             issueStatus: issue.status,
             lastActivityAt: lastActivity,
             inactiveMinutes,
-            reason: `Issue atribuída em status '${issue.status}' sem execuções ativas há ${inactiveMinutes} min`,
+            reason: `Issue em andamento sem execuções ativas há ${inactiveMinutes} min`,
             recoverySuggestion: `Disparar wakeup para o agente ${agent?.name || 'responsável'} ou reatribuir a issue.`,
             detectedAt: new Date().toISOString()
           });
@@ -546,9 +547,9 @@ export class PaperclipService {
       if (agent.lastHeartbeatAt) {
         const heartbeatAgeMs = now - new Date(agent.lastHeartbeatAt).getTime();
         if (heartbeatAgeMs > AGENT_HEARTBEAT_THRESHOLD_MS) {
-          // Verifica se o agente possui issues atribuídas pendentes
-          const hasPendingWork = issues.some(i => i.assigneeAgentId === agent.id && (i.status === 'in_progress' || i.status === 'todo'));
-          if (hasPendingWork) {
+          // Verifica se o agente possui issues ativamente em andamento (in_progress)
+          const hasInProgressWork = issues.some(i => i.assigneeAgentId === agent.id && i.status === 'in_progress');
+          if (hasInProgressWork) {
             const inactiveMinutes = Math.round(heartbeatAgeMs / 60000);
             stalls.push({
               id: `stall-agent-${agent.id}`,
@@ -560,7 +561,7 @@ export class PaperclipService {
               issueStatus: agent.status,
               lastActivityAt: agent.lastHeartbeatAt,
               inactiveMinutes,
-              reason: `Agente com tarefas atribuídas sem heartbeat há ${inactiveMinutes} min (esperado < 60 min)`,
+              reason: `Agente com tarefas em andamento sem heartbeat há ${inactiveMinutes} min (esperado < 60 min)`,
               recoverySuggestion: `Verifique o contêiner e o adapter do agente ${agent.name}.`,
               detectedAt: new Date().toISOString()
             });
@@ -629,12 +630,22 @@ export class PaperclipService {
         });
 
         if (isBlocked) {
+          const actionText = (issue.activeRecoveryAction?.nextAction || '').toLowerCase();
+          const isHumanRequired = Boolean(
+            issue.activeRecoveryAction?.kind === 'human_intervention_required' ||
+            actionText.includes('manual') ||
+            actionText.includes('aprov') ||
+            actionText.includes('credencial') ||
+            actionText.includes('autoriz')
+          );
+
           await this.notifyAlert({
             key: `issue-blocked-${issue.id}`,
             severity: 'yellow',
             title: `🟠 Issue ${issue.identifier} BLOQUEADA`,
             body: `A issue ${issue.identifier} (${issue.title}) foi bloqueada.\nMotivo: ${issue.activeRecoveryAction?.nextAction || 'Aguardando dependência'}`,
-            linkPaperclip: `${this.paperclipUrl}/APE/issues/${issue.identifier}`
+            linkPaperclip: `${this.paperclipUrl}/APE/issues/${issue.identifier}`,
+            requiresHumanAction: isHumanRequired
           });
         } else if (isDone && (issue.title.toLowerCase().includes('epic') || issue.identifier === 'APE-41')) {
           await this.notifyAlert({
@@ -706,12 +717,18 @@ export class PaperclipService {
         });
       }
 
+      const isHumanRequired = Boolean(
+        stall.reason.toLowerCase().includes('lost wake') &&
+        (stall.recoverySuggestion || '').toLowerCase().includes('manual')
+      );
+
       await this.notifyAlert({
         key: alertKey,
         severity: 'yellow',
         title: `🟠 Stall Detectado: ${stall.issueIdentifier} (${stall.inactiveMinutes} min parado)`,
         body: `A tarefa ${stall.issueIdentifier} atribuída ao ${stall.agentName} está sem atividade há ${stall.inactiveMinutes} min.\nMotivo: ${stall.reason}\nAção sugerida: ${stall.recoverySuggestion || 'Acordar agente'}`,
-        linkPaperclip: stall.issueId ? `${this.paperclipUrl}/APE/issues/${stall.issueIdentifier}` : undefined
+        linkPaperclip: stall.issueId ? `${this.paperclipUrl}/APE/issues/${stall.issueIdentifier}` : undefined,
+        requiresHumanAction: isHumanRequired
       });
     }
 
@@ -734,7 +751,8 @@ export class PaperclipService {
             severity: 'yellow',
             title: `🟠 CI com Falha no PR #${pr.number} (${pr.repo})`,
             body: `O CI do PR #${pr.number} (${pr.title}) falhou na verificação.\nWorkflow: ${pr.ciWorkflowName || 'CI'}\nDetalhes: ${pr.ciDetailsUrl || pr.url}`,
-            linkPr: pr.url
+            linkPr: pr.url,
+            requiresHumanAction: false
           });
         }
       }
@@ -744,6 +762,9 @@ export class PaperclipService {
 
   /**
    * Dispara notificação in-app (PWA) e WhatsApp com deduplicação e link direto
+   * Human-in-the-Loop: Apenas canais ativos (WhatsApp e Web Push) são acionados se
+   * houver AÇÃO HUMANA NECESSÁRIA (requiresHumanAction === true) ou se for forçado (force === true).
+   * Erros e oscilações operacionais são registrados na timeline/snapshot para o Boletim SRE.
    */
   public async notifyAlert(options: {
     key: string;
@@ -753,12 +774,21 @@ export class PaperclipService {
     linkPaperclip?: string;
     linkPr?: string;
     force?: boolean;
-  }): Promise<{ sent: boolean; deduped: boolean }> {
+    requiresHumanAction?: boolean;
+  }): Promise<{ sent: boolean; deduped: boolean; suppressed?: boolean }> {
     const now = Date.now();
     const lastSent = this.alertDebounceMap.get(options.key) || 0;
 
     if (!options.force && now - lastSent < this.ALERT_DEBOUNCE_MS) {
       return { sent: false, deduped: true };
+    }
+
+    // REGRA SRE / HUMAN-IN-THE-LOOP:
+    // Notificações ativas (WhatsApp e Web Push) só devem ser emitidas se
+    // HOUVER AÇÃO HUMANA REQUERIDA (requiresHumanAction === true) ou se for explicitamente forçado (force === true).
+    // Erros do sistema e stalls ficam registrados na timeline/snapshot para o Boletim Diário SRE.
+    if (!options.requiresHumanAction && !options.force) {
+      return { sent: false, deduped: false, suppressed: true };
     }
 
     this.alertDebounceMap.set(options.key, now);
