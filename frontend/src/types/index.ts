@@ -695,17 +695,33 @@ export interface PaperclipProjectProgress {
   percentage: number;
 }
 
+export type PrSlaStatus = 'pending_human' | 'delegated_sentinel' | 'approved' | 'closed' | 'merged';
+
+export interface PrSlaInfo {
+  firstSeenAt: number;
+  slaExpiresAt: number;
+  status: PrSlaStatus;
+  timeRemainingMs: number;
+  isExpired: boolean;
+  delegatedToSentinel: boolean;
+  paperclipIssueId?: string;
+  paperclipIssueIdentifier?: string;
+}
+
 export interface EnrichedPullRequest {
   number: number;
   title: string;
   url: string;
   repo: string;
   headRefName?: string;
+  author?: string;
+  bodySummary?: string;
   issueIdentifier?: string;
   ciStatus: 'SUCCESS' | 'FAILURE' | 'PENDING' | 'UNKNOWN';
   ciWorkflowName?: string;
   ciDetailsUrl?: string;
   updatedAt?: string;
+  sla?: PrSlaInfo;
 }
 
 export type PaperclipEventType =
