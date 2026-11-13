@@ -5,6 +5,16 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.36.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.35.0...v1.36.0) (2026-11-13)
+
+### ✨ Features
+
+* **whats-next:** ação em lote para triagem e despacho com notas ao agente (Refs [#158](https://github.com/ApenasGabs/KrakenBridge-Web/issues/158)) ([c645c8a](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c645c8a0aff6366f8d0f255a11bf7c287300546f))
+
+### 🧪 Tests
+
+* **whats-next:** adicionar cobertura para itens mistos, transição da barra e fluxos de estado (Refs [#158](https://github.com/ApenasGabs/KrakenBridge-Web/issues/158)) ([62e3121](https://github.com/ApenasGabs/KrakenBridge-Web/commit/62e3121ad77c78a17c6f5cfb198e8451bb4cbe61))
+
 ## [1.35.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.34.0...v1.35.0) (2026-11-13)
 
 ### ✨ Features
