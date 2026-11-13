@@ -8,6 +8,7 @@ import { quotaService } from '../services/quotaService.js';
 import { githubAuthService } from '../services/githubAuthService.js';
 import { vercelAuthService } from '../services/vercelAuthService.js';
 import { cloudflareAuthService } from '../services/cloudflareAuthService.js';
+import { claudeAuthService } from '../services/claudeAuthService.js';
 
 export const authRouter = Router();
 
@@ -100,6 +101,7 @@ authRouter.get('/status', async (_req: Request, res: Response) => {
   const githubInfo = await githubAuthService.getStatus();
   const vercelInfo = await vercelAuthService.getStatus();
   const cloudflareInfo = await cloudflareAuthService.getStatus();
+  const claudeInfo = await claudeAuthService.getStatus();
 
   res.json({
     authenticated: isAuth,
@@ -112,7 +114,7 @@ authRouter.get('/status', async (_req: Request, res: Response) => {
     github: githubInfo,
     vercel: vercelInfo,
     cloudflare: cloudflareInfo,
-    claude: { hasKey: !!process.env.ANTHROPIC_API_KEY },
+    claude: claudeInfo,
     aider: { hasKey: !!process.env.OPENAI_API_KEY }
   });
 });
@@ -420,6 +422,65 @@ authRouter.post('/antigravity/submit-code', async (req: Request, res: Response) 
       status: 'error',
       error: `Erro ao comunicar com Google OAuth: ${(err as Error).message}`
     });
+  }
+});
+
+// ==========================================
+// ENDPOINTS CLAUDE CODE CLI AUTH
+// ==========================================
+
+// Obter status do Claude Code
+authRouter.get('/claude/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await claudeAuthService.getStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// Iniciar fluxo OAuth do Claude Code (gera URL para o usuário abrir no navegador)
+authRouter.post('/claude/start', async (req: Request, res: Response) => {
+  try {
+    const { force } = req.body || {};
+    const result = await claudeAuthService.startAuth(!!force);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: (err as Error).message });
+  }
+});
+
+// Submeter código de autorização obtido no navegador
+authRouter.post('/claude/submit-code', async (req: Request, res: Response) => {
+  try {
+    const { code } = req.body || {};
+    if (!code) {
+      return res.status(400).json({
+        success: false,
+        status: 'error',
+        error: 'Código de autorização não fornecido.',
+        message: 'Código de autorização não fornecido.'
+      });
+    }
+    const result = await claudeAuthService.submitCode(code);
+    res.status(result.success ? 200 : 400).json(result);
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      status: 'error',
+      error: (err as Error).message,
+      message: (err as Error).message
+    });
+  }
+});
+
+// Desconectar Claude Code
+authRouter.post('/claude/logout', async (_req: Request, res: Response) => {
+  try {
+    const result = await claudeAuthService.logout();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 
