@@ -15,7 +15,7 @@ describe('QuickActionChips Component (Issue #174)', () => {
     expect(screen.getByTestId('quick-action-cancel')).toHaveTextContent('Agora não');
   });
 
-  it('deve acionar onSelectAction com prompt de prosseguir ao clicar em Sim, prosseguir', () => {
+  it('deve permitir que o clique no chip preencha/envie a mensagem automaticamente ao clicar em Sim, prosseguir', () => {
     const handleSelect = vi.fn();
     render(<QuickActionChips onSelectAction={handleSelect} />);
 
