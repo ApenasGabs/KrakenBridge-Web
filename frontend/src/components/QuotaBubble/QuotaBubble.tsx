@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { QuotaStats, QuotaGroup } from '../../types';
 import { api } from '../../services/api';
 import { 
@@ -14,11 +14,13 @@ import {
   Droplets
 } from 'lucide-react';
 import { formatWaterLiters, useWaterMetrics } from '../../utils/waterConsumption';
+import { useViewport } from '../../hooks/useViewport';
 
 interface QuotaBubbleProps {
   isVisible: boolean;
   onClose: () => void;
   lastTurnTokens?: number;
+  onStatsChange?: (stats: QuotaStats) => void;
 }
 
 // Anel circular SVG estilizado exatamente como o indicador oficial do Antigravity
@@ -63,8 +65,10 @@ const QuotaGauge: React.FC<{ percent: number; size?: number; strokeWidth?: numbe
 export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
   isVisible,
   onClose,
-  lastTurnTokens
+  lastTurnTokens,
+  onStatsChange
 }) => {
+  const { isMobile } = useViewport();
   const [stats, setStats] = useState<QuotaStats | null>(null);
   const [showWaterMetrics] = useWaterMetrics();
   // Em viewports < 1024px (mobile/tablet) inicia recolhido para não obstruir a área principal
@@ -81,12 +85,18 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
   const [claudeWeekly, setClaudeWeekly] = useState<number>(100);
   const [claude5h, setClaude5h] = useState<number>(100);
   const [savingSync, setSavingSync] = useState<boolean>(false);
+  const onStatsChangeRef = useRef(onStatsChange);
+
+  useEffect(() => {
+    onStatsChangeRef.current = onStatsChange;
+  }, [onStatsChange]);
 
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.getQuotaStats();
       setStats(data);
+      onStatsChangeRef.current?.(data);
       if (data?.gemini) {
         setGeminiWeekly(data.gemini.weekly.remaining);
         setGemini5h(data.gemini.fiveHour.remaining);
@@ -108,6 +118,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
       const res = await api.refreshQuota();
       if (res?.stats) {
         setStats(res.stats);
+        onStatsChange?.(res.stats);
         if (res.stats.gemini) {
           setGeminiWeekly(res.stats.gemini.weekly.remaining);
           setGemini5h(res.stats.gemini.fiveHour.remaining);
@@ -148,6 +159,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
       });
       if (res?.stats) {
         setStats(res.stats);
+        onStatsChange?.(res.stats);
       }
       setShowConfig(false);
     } catch (err) {
@@ -222,8 +234,8 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
         }
       ];
 
-  // Modo Balão Minimizado (Pílula Flutuante)
-  if (!isExpanded) {
+  // Modo Balão Minimizado (Pílula Flutuante — apenas Tablet/Desktop >= 768px)
+  if (!isMobile && !isExpanded) {
     const firstGroup = displayGroups[0];
     const fiveHourBucket = firstGroup?.buckets.find(b => b.name.toLowerCase().includes('five') || b.name.toLowerCase().includes('5h')) || firstGroup?.buckets[0];
     const weeklyBucket = firstGroup?.buckets.find(b => b.name.toLowerCase().includes('week') || b.name.toLowerCase().includes('7d')) || firstGroup?.buckets[1];
@@ -264,9 +276,17 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
     );
   }
 
-  // Modo Balão Expandido - Réplica Fiel do Painel Oficial Antigravity
-  return (
-    <div className="fixed bottom-4 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto z-20 sm:w-96 max-w-full sm:max-w-[calc(100vw-2.5rem)] max-h-[85vh] overflow-y-auto rounded-2xl bg-[#121417]/98 backdrop-blur-xl border border-neutral-800/90 shadow-2xl p-3.5 sm:p-4 text-xs font-sans text-neutral-200 select-none animate-in fade-in slide-in-from-bottom-3 duration-200" data-testid="quota-bubble">
+  // Modo Balão Expandido (Desktop/Tablet flutuante ou Sheet Modal no Mobile)
+  const cardContent = (
+    <div
+      className={
+        isMobile
+          ? 'w-full max-w-md max-h-[80dvh] overflow-y-auto rounded-2xl bg-[#121417]/98 backdrop-blur-xl border border-neutral-800/90 shadow-2xl p-4 text-xs font-sans text-neutral-200 select-none animate-in fade-in slide-in-from-top-3 duration-200'
+          : 'fixed bottom-4 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto z-20 sm:w-96 max-w-full sm:max-w-[calc(100vw-2.5rem)] max-h-[85vh] overflow-y-auto rounded-2xl bg-[#121417]/98 backdrop-blur-xl border border-neutral-800/90 shadow-2xl p-3.5 sm:p-4 text-xs font-sans text-neutral-200 select-none animate-in fade-in slide-in-from-bottom-3 duration-200'
+      }
+      data-testid="quota-bubble"
+      onClick={(e) => e.stopPropagation()}
+    >
       
       {/* Barra de controle discreta no topo */}
       <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-neutral-800/80">
@@ -297,13 +317,15 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
           >
             <RotateCw className="w-3.5 h-3.5" />
           </button>
-          <button 
-            onClick={() => setIsExpanded(false)}
-            className="min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-[28px] p-2 sm:p-1 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 transition-colors"
-            title="Minimizar balão"
-          >
-            <Minimize2 className="w-3.5 h-3.5" />
-          </button>
+          {!isMobile && (
+            <button 
+              onClick={() => setIsExpanded(false)}
+              className="min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-[28px] p-2 sm:p-1 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 transition-colors"
+              title="Minimizar balão"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button 
             data-testid="quota-bubble-close"
             onClick={onClose}
@@ -478,4 +500,18 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
 
     </div>
   );
+
+  if (isMobile) {
+    return (
+      <div
+        data-testid="quota-mobile-backdrop"
+        onClick={onClose}
+        className="fixed inset-0 z-50 flex items-start justify-center p-3 pt-16 bg-black/50 backdrop-blur-xs"
+      >
+        {cardContent}
+      </div>
+    );
+  }
+
+  return cardContent;
 };

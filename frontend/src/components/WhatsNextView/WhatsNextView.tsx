@@ -83,6 +83,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
 
   // Navegação e Filtros
   const [activeSubTab, setActiveSubTab] = useState<'issues' | 'prs'>('issues');
+  const [isFiltersOpen, setIsFiltersOpen] = useState<boolean>(false);
   const [selectedRepo, setSelectedRepo] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [scopeFilter, setScopeFilter] = useState<'all' | 'local' | 'remote'>('all');
@@ -249,18 +250,20 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
       .slice(0, 10);
   }, [activeSubTab, issues, prs]);
 
-  // Checa se algum filtro está ativo
-  const isAnyFilterActive = useMemo(() => {
-    return (
-      selectedRepo !== 'all' ||
-      searchQuery.trim() !== '' ||
-      scopeFilter !== 'all' ||
-      authorFilter !== 'all' ||
-      prStatusFilter !== 'all' ||
-      selectedLabel !== null ||
-      sortBy !== 'updated'
-    );
+  // Checa se algum filtro está ativo e conta quantos estão ativos
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (selectedRepo !== 'all') count++;
+    if (searchQuery.trim() !== '') count++;
+    if (scopeFilter !== 'all') count++;
+    if (authorFilter !== 'all') count++;
+    if (prStatusFilter !== 'all') count++;
+    if (selectedLabel !== null) count++;
+    if (sortBy !== 'updated') count++;
+    return count;
   }, [selectedRepo, searchQuery, scopeFilter, authorFilter, prStatusFilter, selectedLabel, sortBy]);
+
+  const isAnyFilterActive = activeFilterCount > 0;
 
   // Limpar todos os filtros
   const handleClearFilters = useCallback(() => {
@@ -789,18 +792,18 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-base-100">
       {/* Top Banner / Header do Dashboard */}
-      <div className="p-4 sm:p-5 border-b border-base-300 bg-base-200/40 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="p-3 sm:p-5 border-b border-base-300 bg-base-200/40 space-y-2.5 sm:space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5 sm:gap-3">
           <div>
             <div className="flex items-center gap-2 mb-0.5">
               <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
                 <Compass className="w-4 h-4 text-primary" />
               </div>
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight text-base-content">
+              <h1 className="text-base sm:text-xl font-bold tracking-tight text-base-content">
                 What's Next & Central de Revisão
               </h1>
             </div>
-            <p className="text-xs text-base-content/60">
+            <p className="hidden sm:block text-xs text-base-content/60">
               Backlog unificado de issues e fila de Pull Requests/MRs com resolução inteligente e auto-descoberta
             </p>
           </div>
@@ -881,7 +884,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
         )}
 
         {/* Sub-Tabs: Issues vs PRs */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveSubTab('issues')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${
@@ -955,9 +958,52 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
         )}
 
         {/* ========================================================================= */}
-        {/* BARRA DE FILTROS AVANÇADOS E CONTROLE                                      */}
+        {/* GAVETA / ACCORDION DE FILTROS AVANÇADOS (RECOLHIDA NO MOBILE)            */}
         {/* ========================================================================= */}
-        <div className="p-3 rounded-xl bg-base-100 border border-base-300 shadow-sm space-y-2.5">
+        <div className="md:hidden flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="whatsnext-filters-toggle"
+            onClick={() => setIsFiltersOpen(prev => !prev)}
+            aria-expanded={isFiltersOpen}
+            className="flex-1 flex items-center justify-between px-3 py-2 rounded-xl bg-base-100 border border-base-300 shadow-sm text-xs font-medium min-h-[44px] active:scale-[0.99] transition-all"
+          >
+            <span className="flex items-center gap-2">
+              <Filter className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span>Filtros & Busca</span>
+              {activeFilterCount > 0 && (
+                <span className="badge badge-xs badge-primary font-mono">
+                  {activeFilterCount}
+                </span>
+              )}
+            </span>
+            <span className="flex items-center gap-2 text-[11px] text-base-content/60">
+              <span>
+                <strong className="text-base-content font-mono">{activeSubTab === 'issues' ? filteredIssues.length : filteredPrs.length}</strong>/{counts.total}
+              </span>
+              {isFiltersOpen ? (
+                <ChevronUp className="w-4 h-4 text-base-content/70" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-base-content/70" />
+              )}
+            </span>
+          </button>
+          {isAnyFilterActive && (
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="btn btn-ghost btn-sm min-h-[44px] text-error px-2.5 text-xs"
+              title="Limpar todos os filtros"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        <div
+          data-testid="whatsnext-filters-panel"
+          className={`${isFiltersOpen ? 'block' : 'hidden md:block'} p-3 rounded-xl bg-base-100 border border-base-300 shadow-sm space-y-2.5 max-h-[50vh] overflow-y-auto md:max-h-none md:overflow-visible`}
+        >
           {/* Linha 1 de Filtros: Escopo (Origem), Seletor de Repositório e Busca */}
           <div className="flex flex-wrap items-center justify-between gap-2.5">
             {/* Seletor de Escopo: Todos / Workspace Local / GitHub Remoto */}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { ConversationSession, ProjectWorkspace, AuthStatus } from '../../types';
+import type { ConversationSession, ProjectWorkspace, AuthStatus, QuotaStats } from '../../types';
 import { 
   Plus, 
   Search, 
@@ -9,7 +9,8 @@ import {
   Clock, 
   X,
   KeyRound,
-  Sparkles
+  Sparkles,
+  Activity
 } from 'lucide-react';
 import { filterAndRankConversations, highlightMatches } from '../../utils/searchUtils';
 
@@ -26,6 +27,8 @@ interface SidebarProps {
   onClose: () => void;
   authStatus?: AuthStatus | null;
   onOpenAuth?: () => void;
+  quotaStats?: QuotaStats | null;
+  onOpenQuota?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -40,7 +43,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onClose,
   authStatus,
-  onOpenAuth
+  onOpenAuth,
+  quotaStats,
+  onOpenQuota
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const isSearching = searchTerm.trim().length > 0;
@@ -339,6 +344,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </select>
         </div>
+
+        {/* Card de Cotas Antigravity no Mobile (substitui o balão flutuante no rodapé) */}
+        {onOpenQuota && (
+          <div className="px-3 pt-3 border-t border-base-300 bg-base-200/50 md:hidden">
+            <button
+              type="button"
+              data-testid="sidebar-quota-card"
+              onClick={() => {
+                onOpenQuota();
+                onClose();
+              }}
+              className="w-full p-2.5 rounded-xl bg-base-100 border border-base-300 hover:border-primary/50 transition-all text-left flex items-center justify-between gap-2 shadow-sm active:scale-95 min-h-[44px]"
+              title="Abrir painel completo de cotas Antigravity"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-success/15 text-success flex items-center justify-center shrink-0">
+                  <Activity className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold text-base-content truncate">
+                    Cotas Antigravity
+                  </div>
+                  <div className="text-[10px] text-base-content/60 font-mono truncate">
+                    {quotaStats?.gemini
+                      ? `5h: ${quotaStats.gemini.fiveHour.remaining}% • 7d: ${quotaStats.gemini.weekly.remaining}%`
+                      : 'Ver limites de uso'}
+                  </div>
+                </div>
+              </div>
+              <span className="badge badge-xs badge-ghost font-mono shrink-0">Detalhes</span>
+            </button>
+          </div>
+        )}
 
         {/* Gerenciador de Conta no Rodapé da Sidebar (Acesso rápido no Mobile) */}
         {onOpenAuth && (
