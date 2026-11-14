@@ -101,6 +101,7 @@ class ClaudeAuthService {
     try {
       const dataDir = process.env.PERSISTENT_DATA_DIR || '/DATA/.claude';
       const configDir = getClaudeConfigDir();
+      // Isolamento estrito de testes unitários para não afetar /DATA/.claude
       const isDefaultConfig = configDir === '/root/.claude';
       const dataExists = await fs.stat('/DATA').then(() => true).catch(() => false);
       if (dataExists && isDefaultConfig) {
@@ -629,6 +630,9 @@ class ClaudeAuthService {
     };
   }
 
+  /**
+   * Encerramento determinístico de processos filhos com SIGKILL em cleanupSession
+   */
   private cleanupSession() {
     if (this.sessionTimeout) {
       clearTimeout(this.sessionTimeout);
