@@ -5,6 +5,16 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.40.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.39.0...v1.40.0) (2026-11-14)
+
+### ✨ Features
+
+* **ui:** adicionar referência visual entre Antigravity e Claude Code no seletor de modelos (Refs [#170](https://github.com/ApenasGabs/KrakenBridge-Web/issues/170)) ([f50e797](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f50e7971fa3b3e270ce80d994c52b15329198e7b))
+
+### ♻️ Refactoring
+
+* **types:** eliminar explicit any e tipar modelos estritamente (Refs [#170](https://github.com/ApenasGabs/KrakenBridge-Web/issues/170)) ([c1d1873](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c1d1873bd619c4eca3d264e5162e17751bf7f174))
+
 ## [1.39.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.38.1...v1.39.0) (2026-11-13)
 
 ### ✨ Features
