@@ -5,6 +5,28 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.42.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.41.0...v1.42.0) (2026-11-14)
+
+### ✨ Features
+
+* **models:** suporte ao Gemini 4 Hydrogen e cascata inteligente para AGY e Claude (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([c153296](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c153296134c7bb64d75eb56f9283fabfa2a84781))
+
+### 🐛 Bug Fixes
+
+* **auth:** ampliar timeout da sessao oauth do claude para 30 minutos (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([04acc76](https://github.com/ApenasGabs/KrakenBridge-Web/commit/04acc76fc1ea4f8ac91a2a07df5181d2c4e4d470))
+* **auth:** atender apontamentos do Sentinel com isolamento de testes, seguranca 0o600 e fallback 5-5 (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([86edd7e](https://github.com/ApenasGabs/KrakenBridge-Web/commit/86edd7e80ebdb110a98145b7de9e44451a3445a5))
+* **auth:** persistencia duradoura do Claude Code com cofre auto-curativo e setup-token de 1 ano (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([e63cc3f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/e63cc3f25b5a1bc16033307d298c4a34167dba59))
+* **standards:** converter para arrow function e remover console.log em claudeAuthService (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([4cc2ef7](https://github.com/ApenasGabs/KrakenBridge-Web/commit/4cc2ef73411177013c3f3b7b8ff6aad4c64b7924))
+
+### 📚 Documentation
+
+* **governance:** registrar diretriz de temporizadores obrigatorios e prevencao de bloqueios (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([f03398f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f03398f8f01603defd73b3be28c93999dbe855c2))
+
+### 🧪 Tests
+
+* **paperclip:** validar integracao e credenciais do Claude no Paperclip (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([f75c962](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f75c962fa22fd3c805baa5bfffd71576653a97b2))
+* **review:** registrar conformidade de testes e code review (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([79cf6fa](https://github.com/ApenasGabs/KrakenBridge-Web/commit/79cf6fadd904ab7405761196dd4b1a19f4d80f88))
+
 ## [1.41.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.40.1...v1.41.0) (2026-11-14)
 
 ### ✨ Features
