@@ -1,6 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { claudeAuthService } from '../dist-server/services/claudeAuthService.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import { randomUUID } from 'node:crypto';
+
+// Isola o diretório de testes para não interferir nem apagar as credenciais reais de produção
+const tmpTestDir = path.join(os.tmpdir(), 'claude-auth-test-' + randomUUID());
+await fs.mkdir(tmpTestDir, { recursive: true });
+
+process.env.CLAUDE_CONFIG_DIR = tmpTestDir;
+process.env.CLAUDE_CREDENTIALS_FILE = path.join(tmpTestDir, '.credentials.json');
+process.env.CREDENTIALS_VAULT_FILE = path.join(tmpTestDir, '.credentials.json.vault');
+process.env.DATA_VAULT_FILE = path.join(tmpTestDir, 'data.vault');
+process.env.PAPERCLIP_CREDENTIALS_FILE = path.join(tmpTestDir, 'paperclip.json');
+
+import { claudeAuthService, isValidClaudeCredentials } from '../dist-server/services/claudeAuthService.js';
 import express from 'express';
 import { authRouter } from '../dist-server/routes/auth.js';
 
@@ -109,4 +124,59 @@ test('authRouter: endpoints /api/auth/status e /api/auth/claude/* devem responde
   } finally {
     server.close();
   }
+});
+
+test('claudeAuthService: isValidClaudeCredentials deve validar e rejeitar tokens vazios ou corrompidos', () => {
+  // Rejeita valores vazios ou inválidos
+  assert.equal(isValidClaudeCredentials(''), false);
+  assert.equal(isValidClaudeCredentials('invalid json'), false);
+  assert.equal(isValidClaudeCredentials('{"claudeAiOauth":{"accessToken":"","refreshToken":""}}'), false);
+  assert.equal(isValidClaudeCredentials('{"claudeAiOauth":{"accessToken":"   "}}'), false);
+
+  // Aceita tokens válidos
+  assert.equal(isValidClaudeCredentials('{"claudeAiOauth":{"accessToken":"sk-ant-oat01-validtoken1234567890"}}'), true);
+  assert.equal(isValidClaudeCredentials('{"claudeAiOauth":{"refreshToken":"validrefreshtoken1234567890"}}'), true);
+  assert.equal(isValidClaudeCredentials('{"accessToken":"sk-ant-oat01-directtoken1234567890"}'), true);
+});
+
+test('claudeAuthService: ensurePersistentStorage deve auto-curar .credentials.json a partir do cofre persistente', async () => {
+  const credsFile = path.join(tmpTestDir, '.credentials.json');
+  const vaultFile = path.join(tmpTestDir, '.credentials.json.vault');
+
+  const validVaultPayload = JSON.stringify({
+    claudeAiOauth: {
+      accessToken: 'sk-ant-oat01-mock-vault-heal-token-12345',
+      refreshToken: 'mock-refresh-token-12345',
+      expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000
+    }
+  });
+
+  // Grava cofre válido
+  await fs.mkdir(tmpTestDir, { recursive: true });
+  await fs.writeFile(vaultFile, validVaultPayload, { mode: 0o600 });
+
+  // Simula o arquivo .credentials.json tendo sido corrompido/limpo pelo CLI
+  const corruptedPayload = JSON.stringify({
+    claudeAiOauth: {
+      accessToken: '',
+      refreshToken: '',
+      expiresAt: 0
+    }
+  });
+  await fs.writeFile(credsFile, corruptedPayload, { mode: 0o600 });
+
+  // Executa auto-cura
+  await claudeAuthService.ensurePersistentStorage();
+
+  // Verifica se o arquivo foi restaurado com sucesso a partir do cofre
+  const restoredRaw = await fs.readFile(credsFile, 'utf8');
+  assert.ok(restoredRaw.includes('sk-ant-oat01-mock-vault-heal-token-12345'));
+  assert.equal(isValidClaudeCredentials(restoredRaw), true);
+
+  // Limpeza
+  await claudeAuthService.logout();
+});
+
+test('Limpeza do ambiente isolado de testes', async () => {
+  await fs.rm(tmpTestDir, { recursive: true, force: true }).catch(() => {});
 });

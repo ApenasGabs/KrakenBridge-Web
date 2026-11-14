@@ -14,6 +14,7 @@ import { workspaceManager } from '../services/workspaceManager.js';
 import { pushNotificationService } from '../services/pushNotificationService.js';
 import { coucouPhoneLinkService } from '../services/coucouPhoneLinkService.js';
 import { paperclipService } from '../services/paperclipService.js';
+import { claudeAuthService } from '../services/claudeAuthService.js';
 import {
   promptRefinerService,
   RefineValidationError,
@@ -119,6 +120,13 @@ export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
       }
       if (model) {
         args.push('--model', model);
+      }
+      // Cascata inteligente de fallback para Claude Code
+      const requested = model || 'claude-3-7-sonnet-20250219';
+      if (requested.includes('3-7') || requested.includes('opus') || requested.includes('5-5')) {
+        args.push('--fallback-model', 'claude-3-5-sonnet-20241022,claude-3-5-haiku-20241022');
+      } else if (requested.includes('3-5-sonnet')) {
+        args.push('--fallback-model', 'claude-3-5-haiku-20241022');
       }
       return args;
     },
@@ -406,6 +414,12 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     } catch {}
     activeSessions.delete(conversationId);
     if (prevSession.reqId) activeProcesses.delete(prevSession.reqId);
+  }
+
+  if (agent === 'claude') {
+    await claudeAuthService.ensurePersistentStorage().catch((err) => {
+      console.warn('[KrakenBridge] Aviso ao assegurar persistência do Claude:', err?.message || err);
+    });
   }
 
   const executionStartTime = Date.now();
@@ -799,6 +813,10 @@ chatRouter.post('/', async (req: Request, res: Response) => {
 
     if ((code !== 0 && code !== null) || stopReason) {
       safeWrite(`data: ${JSON.stringify({ event: 'agent_response', text_delta: accumulatedText })}\n\n`);
+    }
+
+    if (agent === 'claude') {
+      claudeAuthService.backupCredentials().catch(() => {});
     }
 
     safeWrite(`data: ${JSON.stringify({ event: 'done', code, stop_reason: stopReason, conversation_id: conversationId })}\n\n`);

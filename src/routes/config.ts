@@ -68,6 +68,8 @@ export async function getLivingAgyModels(): Promise<ModelItem[]> {
     }
   } catch {}
   return [
+    { id: 'gemini-4-hydrogen-high', name: 'Gemini 4 Hydrogen (High)' },
+    { id: 'gemini-4-hydrogen-medium', name: 'Gemini 4 Hydrogen (Medium)' },
     { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)' },
     { id: 'gemini-4-argon-medium', name: 'Gemini 4 Argon (Medium)' },
     { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)' }
@@ -117,6 +119,10 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
 
       // Modelos bootstrap mínimos caso primeira execução e offline
       resolve([
+        { id: 'gemini-4-hydrogen-high', name: 'Gemini 4 Hydrogen (High)', agent: 'antigravity' },
+        { id: 'gemini-4-hydrogen-xhigh', name: 'Gemini 4 Hydrogen (XHigh)', agent: 'antigravity' },
+        { id: 'gemini-4-hydrogen-medium', name: 'Gemini 4 Hydrogen (Medium)', agent: 'antigravity' },
+        { id: 'gemini-4-hydrogen-low', name: 'Gemini 4 Hydrogen (Low)', agent: 'antigravity' },
         { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)', agent: 'antigravity' },
         { id: 'gemini-4-argon-medium', name: 'Gemini 4 Argon (Medium)', agent: 'antigravity' },
         { id: 'gemini-4-argon-low', name: 'Gemini 4 Argon (Low)', agent: 'antigravity' },
@@ -135,6 +141,7 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
         }
       } catch {}
       resolve([
+        { id: 'gemini-4-hydrogen-high', name: 'Gemini 4 Hydrogen (High)', agent: 'antigravity' },
         { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)', agent: 'antigravity' },
         { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)', agent: 'antigravity' }
       ]);
