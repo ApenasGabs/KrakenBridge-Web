@@ -13,6 +13,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { forcePurgePwaCacheAndReload } from '../../utils/pwaManager';
 
 interface SystemUpdateModalProps {
   isOpen: boolean;
@@ -353,14 +354,27 @@ export const SystemUpdateModal: React.FC<SystemUpdateModalProps> = ({ isOpen, on
 
         {/* Rodapé / Ações */}
         <div className="modal-action mt-4 pt-3 border-t border-base-300/60 flex items-center justify-between">
-          <button 
-            data-testid="system-update-modal-cancel"
-            onClick={onClose} 
-            disabled={updating}
-            className="btn btn-sm btn-ghost"
-          >
-            Fechar
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              data-testid="system-update-modal-cancel"
+              onClick={onClose} 
+              disabled={updating}
+              className="btn btn-sm btn-ghost"
+            >
+              Fechar
+            </button>
+
+            <button
+              type="button"
+              data-testid="purge-pwa-cache-btn"
+              onClick={() => forcePurgePwaCacheAndReload()}
+              className="btn btn-sm btn-outline btn-ghost text-xs text-base-content/70 hover:text-primary gap-1"
+              title="Limpa caches do Service Worker e força recarga imediata da aplicação"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Limpar Cache PWA</span>
+            </button>
+          </div>
 
           <button
             data-testid="apply-version-btn"

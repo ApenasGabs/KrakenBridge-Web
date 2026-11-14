@@ -77,7 +77,7 @@ describe('PWA Headers, Manifest & Standard Icons (Issue #129)', () => {
       applyPwaResponseHeaders(res, '/app/dist/manifest.webmanifest');
 
       expect(headers['Content-Type']).toBe('application/manifest+json; charset=UTF-8');
-      expect(headers['Cache-Control']).toBe('no-cache');
+      expect(headers['Cache-Control']).toBe('no-cache, no-store, must-revalidate');
     });
 
     it('deve aplicar cabeçalhos de PWA ao interceptar /sw.js ou /chat/sw.js no createSpaAssetMiddleware', () => {
@@ -114,7 +114,7 @@ describe('PWA Headers, Manifest & Standard Icons (Issue #129)', () => {
       });
 
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/html; charset=UTF-8');
-      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache');
+      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache, no-store, must-revalidate');
     });
   });
 
@@ -190,7 +190,7 @@ describe('PWA Headers, Manifest & Standard Icons (Issue #129)', () => {
       middleware(req, res, next);
 
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/manifest+json; charset=UTF-8');
-      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache');
+      expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache, no-store, must-revalidate');
       expect(next).not.toHaveBeenCalled();
 
       const parsed = JSON.parse(sentBody);

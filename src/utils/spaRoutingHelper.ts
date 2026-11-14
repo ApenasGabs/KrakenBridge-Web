@@ -107,10 +107,14 @@ export function applyPwaResponseHeaders(
   if (baseName === 'sw.js' || baseName === 'registerSW.js') {
     res.setHeader('Service-Worker-Allowed', '/');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
   } else if (baseName === 'manifest.webmanifest') {
     res.setHeader('Content-Type', 'application/manifest+json; charset=UTF-8');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
   }
 }
 
@@ -182,7 +186,9 @@ export function createIndexHtmlSender(distDir: string) {
 
       const finalHtml = injectBaseHref(html, baseHref);
       res.setHeader('Content-Type', 'text/html; charset=UTF-8');
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.send(finalHtml);
     });
   };
