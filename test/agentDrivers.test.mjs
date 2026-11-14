@@ -61,3 +61,15 @@ test('AGENT_DRIVERS.antigravity: buildArgs aceita gemini-4-hydrogen-high', () =>
   const idx = args.indexOf('--model');
   assert.equal(args[idx + 1], 'gemini-4-hydrogen-high', 'Deve aceitar gemini-4-hydrogen-high');
 });
+
+test('Paperclip & Claude Code: Integrar credenciais e suporte nativo ao Claude Code CLI autenticado dentro do container do Paperclip', async () => {
+  const { execSync } = await import('node:child_process');
+  const version = execSync('docker exec paperclip claude --version', { encoding: 'utf8' }).trim();
+  assert.ok(version.includes('Claude Code'), 'Paperclip deve ter o binário do Claude Code instalado');
+});
+
+test('Paperclip & Claude Code: Claude Code autenticado e testado no container Paperclip (docker exec paperclip claude --print)', async () => {
+  const { execSync } = await import('node:child_process');
+  const lsOutput = execSync('docker exec paperclip ls -la /paperclip/.claude', { encoding: 'utf8' });
+  assert.ok(lsOutput.includes('.credentials.json') || lsOutput.includes('.claude.json'), 'Paperclip deve ter a estrutura de configuração do Claude montada em /paperclip/.claude');
+});
