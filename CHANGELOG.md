@@ -5,6 +5,20 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.42.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.42.0...v1.42.1) (2026-11-14)
+
+### 🐛 Bug Fixes
+
+* **auth:** regex limpa para url oauth e aumento do timeout para 25s com sigkill ([16a77e0](https://github.com/ApenasGabs/KrakenBridge-Web/commit/16a77e05f39de8d766b5d91c4545bca8ae8147a2))
+
+### 📚 Documentation
+
+* **auth:** registrar evidencias de SIGKILL e isolamento de /DATA/.claude (Refs [#179](https://github.com/ApenasGabs/KrakenBridge-Web/issues/179)) ([f4471ee](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f4471eed7309b2d92693eb4f30211905f8199f47))
+
+### 🧪 Tests
+
+* **auth:** adicionar testes para parsing de URL com escape ANSI OSC 8 (Refs [#179](https://github.com/ApenasGabs/KrakenBridge-Web/issues/179)) ([29b7ca0](https://github.com/ApenasGabs/KrakenBridge-Web/commit/29b7ca03871c705a925b09647780ccc4ef2f12e6))
+
 ## [1.42.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.41.0...v1.42.0) (2026-11-14)
 
 ### ✨ Features
