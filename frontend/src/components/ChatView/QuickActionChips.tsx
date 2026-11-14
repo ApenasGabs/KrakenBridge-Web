@@ -95,7 +95,10 @@ export const QuickActionChips: React.FC<QuickActionChipsProps> = ({
       className={`w-full max-w-4xl mx-auto px-4 py-1.5 transition-all animate-fadeIn ${className}`}
       data-testid="quick-action-chips"
     >
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 scroll-smooth">
+      <div 
+        className="flex items-center gap-2 overflow-x-auto scrollbar-none no-scrollbar py-1 scroll-smooth"
+        data-allow-x-scroll
+      >
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-base-content/50 shrink-0 select-none mr-0.5">
           <Sparkles className="w-3.5 h-3.5 text-primary" />
           <span className="hidden sm:inline">Ações rápidas:</span>
