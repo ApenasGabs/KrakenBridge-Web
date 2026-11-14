@@ -25,6 +25,7 @@ import { mcpService } from './services/mcpService.js';
 import { skillScoutService } from './services/skillScoutService.js';
 import { gitGuardrailsService } from './services/gitGuardrailsService.js';
 import { coucouPhoneLinkService } from './services/coucouPhoneLinkService.js';
+import { claudeAuthService } from './services/claudeAuthService.js';
 import {
   createSpaAssetMiddleware,
   createIndexHtmlSender,
@@ -276,6 +277,11 @@ app.listen(PORT, '0.0.0.0', () => {
   // Inicializar servidor Coucou Phone Link TLS/WebSocket para smartphone
   coucouPhoneLinkService.start().catch((err) => {
     console.warn('[KrakenBridge] Aviso ao iniciar Coucou Phone Link:', err?.message || err);
+  });
+
+  // Assegurar armazenamento persistente e auto-cura do cofre do Claude Code
+  claudeAuthService.ensurePersistentStorage().catch((err) => {
+    console.warn('[KrakenBridge] Aviso ao assegurar persistência do Claude:', err?.message || err);
   });
 
   // Auto-bootstrap Out-of-the-Box da stack de telemetria e contenção de cgroups

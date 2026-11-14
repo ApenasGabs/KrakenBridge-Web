@@ -14,6 +14,7 @@ import { workspaceManager } from '../services/workspaceManager.js';
 import { pushNotificationService } from '../services/pushNotificationService.js';
 import { coucouPhoneLinkService } from '../services/coucouPhoneLinkService.js';
 import { paperclipService } from '../services/paperclipService.js';
+import { claudeAuthService } from '../services/claudeAuthService.js';
 import {
   promptRefinerService,
   RefineValidationError,
@@ -415,6 +416,12 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     if (prevSession.reqId) activeProcesses.delete(prevSession.reqId);
   }
 
+  if (agent === 'claude') {
+    await claudeAuthService.ensurePersistentStorage().catch((err) => {
+      console.warn('[KrakenBridge] Aviso ao assegurar persistência do Claude:', err?.message || err);
+    });
+  }
+
   const executionStartTime = Date.now();
   const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || 'unknown';
   const userAgent = req.get('user-agent') || 'unknown';
@@ -806,6 +813,10 @@ chatRouter.post('/', async (req: Request, res: Response) => {
 
     if ((code !== 0 && code !== null) || stopReason) {
       safeWrite(`data: ${JSON.stringify({ event: 'agent_response', text_delta: accumulatedText })}\n\n`);
+    }
+
+    if (agent === 'claude') {
+      claudeAuthService.backupCredentials().catch(() => {});
     }
 
     safeWrite(`data: ${JSON.stringify({ event: 'done', code, stop_reason: stopReason, conversation_id: conversationId })}\n\n`);

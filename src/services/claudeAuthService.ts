@@ -8,6 +8,9 @@ const execFileAsync = promisify(execFile);
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
 const CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR || '/root/.claude';
 const CREDENTIALS_FILE = path.join(CLAUDE_CONFIG_DIR, '.credentials.json');
+const CREDENTIALS_VAULT_FILE = path.join(CLAUDE_CONFIG_DIR, '.credentials.json.vault');
+const DATA_VAULT_FILE = '/DATA/.claude/.credentials.json.vault';
+const PAPERCLIP_CREDENTIALS_FILE = '/DATA/AppData/paperclip/data/.claude/.credentials.json';
 
 export interface ClaudeAuthStatus {
   authenticated: boolean;
@@ -48,14 +51,138 @@ interface PendingClaudeSession {
   stderrBuffer: string;
 }
 
+/**
+ * Valida se um payload de credenciais possui tokens reais não vazios
+ */
+export function isValidClaudeCredentials(raw: string): boolean {
+  if (!raw || !raw.trim()) return false;
+  try {
+    const parsed = JSON.parse(raw);
+    const oauth = parsed.claudeAiOauth;
+    if (oauth) {
+      const hasAccess = typeof oauth.accessToken === 'string' && oauth.accessToken.trim().length > 10;
+      const hasRefresh = typeof oauth.refreshToken === 'string' && oauth.refreshToken.trim().length > 10;
+      return hasAccess || hasRefresh;
+    }
+    if (typeof parsed.accessToken === 'string' && parsed.accessToken.trim().length > 10) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 class ClaudeAuthService {
   private pendingSession: PendingClaudeSession | null = null;
   private sessionTimeout: NodeJS.Timeout | null = null;
 
   /**
+   * Garante a persistência duradoura em /DATA/.claude e auto-cura contra remoção acidental
+   */
+  async ensurePersistentStorage(): Promise<void> {
+    try {
+      const dataDir = '/DATA/.claude';
+      const dataExists = await fs.stat('/DATA').then(() => true).catch(() => false);
+      if (dataExists) {
+        await fs.mkdir(dataDir, { recursive: true });
+
+        // Symlink /root/.claude -> /DATA/.claude
+        const rootClaudeLstat = await fs.lstat('/root/.claude').catch(() => null);
+        if (!rootClaudeLstat) {
+          await fs.symlink(dataDir, '/root/.claude').catch(() => {});
+        } else if (!rootClaudeLstat.isSymbolicLink()) {
+          const files = await fs.readdir('/root/.claude').catch(() => []);
+          for (const f of files) {
+            await fs.copyFile(path.join('/root/.claude', f), path.join(dataDir, f)).catch(() => {});
+          }
+          await fs.rm('/root/.claude', { recursive: true, force: true }).catch(() => {});
+          await fs.symlink(dataDir, '/root/.claude').catch(() => {});
+        }
+
+        // Symlink /root/.claude.json -> /DATA/.claude.json
+        const rootJsonLstat = await fs.lstat('/root/.claude.json').catch(() => null);
+        if (!rootJsonLstat) {
+          await fs.writeFile('/DATA/.claude.json', '{}', { flag: 'a' }).catch(() => {});
+          await fs.symlink('/DATA/.claude.json', '/root/.claude.json').catch(() => {});
+        } else if (!rootJsonLstat.isSymbolicLink()) {
+          await fs.copyFile('/root/.claude.json', '/DATA/.claude.json').catch(() => {});
+          await fs.rm('/root/.claude.json', { force: true }).catch(() => {});
+          await fs.symlink('/DATA/.claude.json', '/root/.claude.json').catch(() => {});
+        }
+      }
+
+      // Auto-cura do Vault de credenciais com validação estrita
+      const credsRaw = await fs.readFile(CREDENTIALS_FILE, 'utf8').catch(() => '');
+      const vaultRaw = await fs.readFile(CREDENTIALS_VAULT_FILE, 'utf8').catch(() => '');
+      const dataVaultRaw = await fs.readFile(DATA_VAULT_FILE, 'utf8').catch(() => '');
+      const paperclipRaw = await fs.readFile(PAPERCLIP_CREDENTIALS_FILE, 'utf8').catch(() => '');
+
+      const isCredsValid = isValidClaudeCredentials(credsRaw);
+      const isVaultValid = isValidClaudeCredentials(vaultRaw);
+      const isDataVaultValid = isValidClaudeCredentials(dataVaultRaw);
+      const isPaperclipValid = isValidClaudeCredentials(paperclipRaw);
+
+      if (isCredsValid) {
+        // Credenciais atuais em disco são saudáveis: atualiza o cofre de backup
+        await this.backupCredentials();
+      } else if (isVaultValid) {
+        console.log('[ClaudeAuthService] Restaurando .credentials.json a partir do cofre persistente (auto-cura)...');
+        await fs.writeFile(CREDENTIALS_FILE, vaultRaw, { mode: 0o600 });
+        await this.syncToPaperclip(vaultRaw);
+      } else if (isDataVaultValid) {
+        console.log('[ClaudeAuthService] Restaurando .credentials.json a partir de /DATA/.claude/.credentials.json.vault...');
+        await fs.writeFile(CREDENTIALS_FILE, dataVaultRaw, { mode: 0o600 });
+        await fs.writeFile(CREDENTIALS_VAULT_FILE, dataVaultRaw, { mode: 0o600 });
+        await this.syncToPaperclip(dataVaultRaw);
+      } else if (isPaperclipValid) {
+        console.log('[ClaudeAuthService] Sincronizando credenciais do Claude a partir do Paperclip...');
+        await fs.writeFile(CREDENTIALS_FILE, paperclipRaw, { mode: 0o600 });
+        await fs.writeFile(CREDENTIALS_VAULT_FILE, paperclipRaw, { mode: 0o600 });
+      } else if (process.env.CLAUDE_CODE_OAUTH_TOKEN && process.env.CLAUDE_CODE_OAUTH_TOKEN.trim().startsWith('sk-ant-oat01-')) {
+        console.log('[ClaudeAuthService] Gerando .credentials.json a partir de CLAUDE_CODE_OAUTH_TOKEN do ambiente...');
+        const token = process.env.CLAUDE_CODE_OAUTH_TOKEN.trim();
+        const payload = JSON.stringify({
+          claudeAiOauth: {
+            accessToken: token,
+            refreshToken: '',
+            expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000
+          }
+        }, null, 2);
+        await fs.writeFile(CREDENTIALS_FILE, payload, { mode: 0o600 });
+        await fs.writeFile(CREDENTIALS_VAULT_FILE, payload, { mode: 0o600 });
+        await this.syncToPaperclip(payload);
+      }
+    } catch (err) {
+      console.warn('[ClaudeAuthService] Aviso ao inicializar armazenamento persistente do Claude:', (err as Error).message);
+    }
+  }
+
+  async backupCredentials(): Promise<void> {
+    try {
+      const raw = await fs.readFile(CREDENTIALS_FILE, 'utf8').catch(() => '');
+      if (isValidClaudeCredentials(raw)) {
+        await fs.writeFile(CREDENTIALS_VAULT_FILE, raw, { mode: 0o600 }).catch(() => {});
+        await fs.writeFile(DATA_VAULT_FILE, raw, { mode: 0o600 }).catch(() => {});
+        await this.syncToPaperclip(raw);
+      }
+    } catch {}
+  }
+
+  async syncToPaperclip(rawContent: string): Promise<void> {
+    try {
+      if (!isValidClaudeCredentials(rawContent)) return;
+      const pcDir = path.dirname(PAPERCLIP_CREDENTIALS_FILE);
+      await fs.mkdir(pcDir, { recursive: true }).catch(() => {});
+      await fs.writeFile(PAPERCLIP_CREDENTIALS_FILE, rawContent, { mode: 0o666 }).catch(() => {});
+      await fs.chmod(PAPERCLIP_CREDENTIALS_FILE, 0o666).catch(() => {});
+    } catch {}
+  }
+
+  /**
    * Obtém o status de autenticação do Claude Code
    */
   async getStatus(): Promise<ClaudeAuthStatus> {
+    await this.ensurePersistentStorage();
+
     const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
     const hasOAuthTokenEnv = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
 
@@ -141,8 +268,9 @@ class ClaudeAuthService {
 
   /**
    * Inicia o fluxo de login interativo capturando a URL de autorização OAuth
+   * Por padrão usa `claude setup-token` para gerar tokens com 1 ano de validade.
    */
-  async startAuth(force = false): Promise<ClaudeStartAuthResult> {
+  async startAuth(force = false, mode: 'setup-token' | 'login' = 'setup-token'): Promise<ClaudeStartAuthResult> {
     const currentStatus = await this.getStatus();
     if (currentStatus.authenticated && !force) {
       return {
@@ -159,13 +287,15 @@ class ClaudeAuthService {
 
     return new Promise((resolve) => {
       let resolved = false;
+      const cmdArgs = mode === 'login' ? ['auth', 'login'] : ['setup-token'];
 
-      const cp = spawn('claude', ['auth', 'login'], {
+      const cp = spawn('claude', cmdArgs, {
         env: {
           ...process.env,
           DISPLAY: '',
           HOME: process.env.HOME || '/root',
-          CLAUDE_CONFIG_DIR
+          CLAUDE_CONFIG_DIR,
+          COLUMNS: '1000'
         }
       });
 
@@ -189,21 +319,35 @@ class ClaudeAuthService {
         session.stdoutBuffer += text;
 
         // Procura por URL de autorização emitida pelo Claude Code CLI
-        const urlMatch = text.match(/https:\/\/[^\s]+/);
-        if (urlMatch && !session.authUrl) {
-          session.authUrl = urlMatch[0];
-          this.pendingSession = session;
+        if (!session.authUrl) {
+          const buf = session.stdoutBuffer;
+          const urlIdx = buf.indexOf('https://');
+          if (urlIdx !== -1) {
+            const pasteIdx = buf.indexOf('Paste code here', urlIdx);
+            if (pasteIdx !== -1) {
+              session.authUrl = buf.slice(urlIdx, pasteIdx).replace(/\s+/g, '');
+            } else {
+              const urlMatch = buf.match(/https:\/\/(?:claude\.com\/cai\/oauth\/authorize|auth\.anthropic\.com)[^\s>)]*/);
+              if (urlMatch) {
+                session.authUrl = urlMatch[0];
+              }
+            }
+          }
 
-          // Timeout de 10 minutos para o usuário colar o código
-          this.sessionTimeout = setTimeout(() => {
-            this.cleanupSession();
-          }, 10 * 60 * 1000);
+          if (session.authUrl) {
+            this.pendingSession = session;
 
-          finishResolve({
-            status: 'waiting_for_code',
-            authUrl: session.authUrl,
-            message: 'URL de autenticação gerada! Abra no navegador e copie o código.'
-          });
+            // Timeout de 10 minutos para o usuário colar o código
+            this.sessionTimeout = setTimeout(() => {
+              this.cleanupSession();
+            }, 10 * 60 * 1000);
+
+            finishResolve({
+              status: 'waiting_for_code',
+              authUrl: session.authUrl,
+              message: 'URL de autenticação (token de 1 ano) gerada! Abra no navegador e copie o código.'
+            });
+          }
         }
       });
 
@@ -278,15 +422,31 @@ class ClaudeAuthService {
           };
         }
 
-        await fs.writeFile(CREDENTIALS_FILE, JSON.stringify(tokenPayload, null, 2), 'utf8');
-        process.env.CLAUDE_CODE_OAUTH_TOKEN = typeof tokenPayload === 'string' ? tokenPayload : JSON.stringify(tokenPayload);
+        const rawJson = JSON.stringify(tokenPayload, null, 2);
+        await fs.writeFile(CREDENTIALS_FILE, rawJson, { encoding: 'utf8', mode: 0o600 });
+        await this.backupCredentials();
+
+        if (typeof code === 'string' && code.startsWith('sk-ant-oat01-')) {
+          process.env.CLAUDE_CODE_OAUTH_TOKEN = code;
+          try {
+            const envPath = path.join(WORKSPACE_DIR, '.env');
+            let envContent = await fs.readFile(envPath, 'utf8').catch(() => '');
+            const rx = /^CLAUDE_CODE_OAUTH_TOKEN=.*$/m;
+            if (rx.test(envContent)) {
+              envContent = envContent.replace(rx, `CLAUDE_CODE_OAUTH_TOKEN=${code}`);
+            } else {
+              envContent += `\nCLAUDE_CODE_OAUTH_TOKEN=${code}\n`;
+            }
+            await fs.writeFile(envPath, envContent.trim() + '\n', { mode: 0o600 });
+          } catch {}
+        }
 
         const updated = await this.getStatus();
         return {
           success: true,
           status: 'success',
           email: updated.email,
-          message: 'Setup Token do Claude Code salvo e ativado com sucesso!'
+          message: 'Setup Token duradouro (1 ano) do Claude Code salvo e ativado no cofre com sucesso!'
         };
       } catch (err) {
         return {
@@ -312,7 +472,7 @@ class ClaudeAuthService {
         } else {
           envContent += `\nANTHROPIC_API_KEY=${code}\n`;
         }
-        await fs.writeFile(envPath, envContent, 'utf8');
+        await fs.writeFile(envPath, envContent.trim() + '\n', { encoding: 'utf8', mode: 0o600 });
 
         return {
           success: true,
@@ -345,13 +505,33 @@ class ClaudeAuthService {
           this.cleanupSession();
 
           if (success) {
+            // Verifica se o setup-token emitiu um token explícito na saída
+            const tokenMatch = responseOutput.match(/sk-ant-oat01-[a-zA-Z0-9_-]+/);
+            if (tokenMatch) {
+              const extractedToken = tokenMatch[0];
+              process.env.CLAUDE_CODE_OAUTH_TOKEN = extractedToken;
+              try {
+                const envPath = path.join(WORKSPACE_DIR, '.env');
+                let envContent = await fs.readFile(envPath, 'utf8').catch(() => '');
+                const rx = /^CLAUDE_CODE_OAUTH_TOKEN=.*$/m;
+                if (rx.test(envContent)) {
+                  envContent = envContent.replace(rx, `CLAUDE_CODE_OAUTH_TOKEN=${extractedToken}`);
+                } else {
+                  envContent += `\nCLAUDE_CODE_OAUTH_TOKEN=${extractedToken}\n`;
+                }
+                await fs.writeFile(envPath, envContent.trim() + '\n', { mode: 0o600 });
+              } catch {}
+            }
+
+            // Garante backup imediato no cofre persistente
+            await this.backupCredentials();
             const updatedStatus = await this.getStatus();
             resolve({
               success: true,
               status: 'success',
               email: updatedStatus.email,
               name: updatedStatus.name,
-              message: 'Conta Claude conectada e ativada com sucesso!'
+              message: 'Conta Claude conectada e credenciais salvas no cofre com sucesso!'
             });
           } else {
             resolve({
@@ -365,8 +545,14 @@ class ClaudeAuthService {
         cp.stdout?.on('data', (d) => {
           const str = d.toString();
           responseOutput += str;
-          if (str.toLowerCase().includes('logged in') || str.toLowerCase().includes('success') || str.toLowerCase().includes('welcome')) {
-            setTimeout(() => complete(true), 500);
+          if (
+            str.toLowerCase().includes('logged in') ||
+            str.toLowerCase().includes('success') ||
+            str.toLowerCase().includes('welcome') ||
+            str.toLowerCase().includes('your oauth token') ||
+            str.toLowerCase().includes('token setup complete')
+          ) {
+            setTimeout(() => complete(true), 1000);
           }
         });
 
@@ -398,7 +584,7 @@ class ClaudeAuthService {
           complete(false, (err as Error).message);
         }
 
-        // Timeout de resposta de 15 segundos
+        // Timeout de resposta de 20 segundos
         setTimeout(async () => {
           if (!finished) {
             const st = await this.getStatus();
@@ -408,7 +594,7 @@ class ClaudeAuthService {
               complete(false, 'Tempo limite esgotado ao aguardar validação do código pelo Claude CLI.');
             }
           }
-        }, 15000);
+        }, 20000);
       });
     }
 
@@ -420,7 +606,7 @@ class ClaudeAuthService {
   }
 
   /**
-   * Desconecta o Claude Code (logout via CLI e remoção de credenciais)
+   * Desconecta o Claude Code (logout via CLI e remoção de credenciais de todos os cofres)
    */
   async logout(): Promise<{ success: boolean; message: string }> {
     this.cleanupSession();
@@ -438,6 +624,8 @@ class ClaudeAuthService {
 
     try {
       await fs.unlink(CREDENTIALS_FILE).catch(() => {});
+      await fs.unlink(CREDENTIALS_VAULT_FILE).catch(() => {});
+      await fs.unlink(DATA_VAULT_FILE).catch(() => {});
     } catch {}
 
     delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
@@ -446,9 +634,11 @@ class ClaudeAuthService {
     try {
       const envPath = path.join(WORKSPACE_DIR, '.env');
       let envContent = await fs.readFile(envPath, 'utf8').catch(() => '');
-      if (envContent.includes('ANTHROPIC_API_KEY=')) {
-        envContent = envContent.replace(/^ANTHROPIC_API_KEY=.*$/m, '');
-        await fs.writeFile(envPath, envContent, 'utf8');
+      if (envContent.includes('ANTHROPIC_API_KEY=') || envContent.includes('CLAUDE_CODE_OAUTH_TOKEN=')) {
+        envContent = envContent
+          .replace(/^ANTHROPIC_API_KEY=.*$/m, '')
+          .replace(/^CLAUDE_CODE_OAUTH_TOKEN=.*$/m, '');
+        await fs.writeFile(envPath, envContent.trim() + '\n', { mode: 0o600 });
       }
     } catch {}
 
