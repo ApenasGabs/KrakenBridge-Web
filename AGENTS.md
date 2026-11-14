@@ -27,4 +27,8 @@
    - **Chamada Obrigatória**: Executar `node /workspace/.agents/scripts/spec-code-review.mjs --target <dir> --task <id>` (ou `npx @apenasgabs/agent-standards review --base origin/main`).
    - **Transparência no Chat**: Avisar no chat que a auditoria está sendo feita, listar os apontamentos de Spec e Standards e detalhar o que será corrigido.
    - **Resolução de Apontamentos**: Resolver todos os apontamentos procedentes antes de solicitar aprovação.
-6. **Portão de Aprovação Manual (Human-in-the-Loop)**: Aguardar aprovação manual do usuário no GitHub antes de mergear na `main` ou disparar Pod Drain.
+6. **Acompanhamento Obrigatório da Pipeline de CI/CD (GitHub Actions / CI Gate)**:
+   - **Monitoramento Ativo**: O agente DEVE acompanhar ativamente a execução da pipeline de CI/CD (`gh pr checks <id>` ou equivalente) após abrir ou atualizar qualquer PR.
+   - **Diagnóstico e Resolução Automática**: Se algum check falhar (testes E2E, Playwright, lint, build), o agente DEVE baixar e inspecionar os logs de falha (`gh run view <id> --log-failed`), corrigir o código imediatamente, subir novo commit e reacompanhar até todos os checks ficarem verdes (`SUCCESS`).
+   - **Proibição de Hand-off com CI Falhado**: NUNCA submeter o PR para aprovação manual com a pipeline pendente ou em falha.
+7. **Portão de Aprovação Manual (Human-in-the-Loop)**: Aguardar aprovação manual do usuário no GitHub antes de mergear na `main` ou disparar Pod Drain.
