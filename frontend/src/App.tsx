@@ -10,7 +10,8 @@ import type {
   QueuedMessage,
   AccountInfo,
   EvolutionStatus,
-  LocalSubagent
+  LocalSubagent,
+  ModelOption
 } from './types';
 import { api } from './services/api';
 import { Sidebar } from './components/Sidebar/Sidebar';
@@ -118,7 +119,7 @@ export const App: React.FC = () => {
   const [authStatus, setAuthStatus] = useState<AuthStatus | null>(null);
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const [projects, setProjects] = useState<ProjectWorkspace[]>([]);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [availableModels, setAvailableModels] = useState<(string | ModelOption)[]>([]);
   const [codeServerPort, setCodeServerPort] = useState(8089);
   const [workspaceDir, setWorkspaceDir] = useState('/workspace');
 
@@ -305,19 +306,38 @@ export const App: React.FC = () => {
       if (configData.workspaceDir) setWorkspaceDir(configData.workspaceDir);
       if (projectsData.projects) setProjects(projectsData.projects);
       
-      const agyList: string[] = [];
+      const combinedModels: ModelOption[] = [];
       if (modelsData && modelsData.antigravity && Array.isArray(modelsData.antigravity)) {
-        agyList.push(...modelsData.antigravity.map((m: { id: string }) => m.id));
-      } else if (Array.isArray(modelsData.models)) {
-        agyList.push(...modelsData.models);
+        combinedModels.push(...modelsData.antigravity.map((m: any) => ({
+          id: m.id,
+          name: m.name || m.id,
+          agent: 'antigravity'
+        })));
+      }
+      if (modelsData && modelsData.claude && Array.isArray(modelsData.claude)) {
+        combinedModels.push(...modelsData.claude.map((m: any) => ({
+          id: m.id,
+          name: m.name || m.id,
+          agent: 'claude'
+        })));
+      } else if (Array.isArray(modelsData?.models)) {
+        combinedModels.push(...modelsData.models.map((m: any) => 
+          typeof m === 'string' ? { id: m, name: m, agent: 'antigravity' } : { ...m, agent: m.agent || 'antigravity' }
+        ));
       }
 
-      if (agyList.length > 0) {
-        setAvailableModels(agyList);
-        setOptions(prev => ({
-          ...prev,
-          model: agyList.includes(prev.model) ? prev.model : agyList[0]
-        }));
+      if (combinedModels.length > 0) {
+        setAvailableModels(combinedModels);
+        setOptions(prev => {
+          const matched = combinedModels.find(m => m.id === prev.model && (!prev.agent || m.agent === prev.agent))
+            || combinedModels.find(m => m.id === prev.model)
+            || combinedModels[0];
+          return {
+            ...prev,
+            model: matched.id,
+            agent: matched.agent || prev.agent || 'antigravity'
+          };
+        });
       }
 
       // Inicia imediatamente o carregamento da conversa especificada na rota
@@ -1272,8 +1292,9 @@ export const App: React.FC = () => {
             evolutionStatus={evolutionStatus}
             onSelectSuggestion={(sug) => setPrompt(sug)}
             currentModel={options.model}
+            currentAgent={options.agent}
             availableModels={availableModels}
-            onModelChange={(model) => handleUpdateOptions({ ...options, model })}
+            onModelChange={(model, agent) => handleUpdateOptions({ ...options, model, agent: agent || options.agent })}
             onOpenMcpModal={() => setIsMcpModalOpen(true)}
             messageQueue={currentConversationQueue}
             onRemoveQueueItem={handleRemoveQueueItem}

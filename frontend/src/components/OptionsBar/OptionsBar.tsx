@@ -1,5 +1,5 @@
 import type { AccountInfo, ChatOptions, ModelOption } from '../../types';
-import { Cpu, Zap, Shield, ShieldAlert, Sparkles, Activity, MessageSquare, User } from 'lucide-react';
+import { Cpu, Zap, Shield, ShieldAlert, Sparkles, Activity, MessageSquare, User, Terminal } from 'lucide-react';
 
 interface OptionsBarProps {
   options: ChatOptions;
@@ -18,19 +18,45 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const isClaudeModel = (m: { id: string; name?: string; agent?: string }) => {
+    if (m.agent === 'claude') return true;
+    if (m.agent === 'antigravity') return false;
+    const lower = m.id.toLowerCase();
+    return lower.startsWith('claude-3-') || lower.includes('sonnet-2025') || lower.includes('sonnet-2024') || lower.includes('opus-2024');
+  };
+
   const defaultModels: ModelOption[] = [
-    { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)' },
-    { id: 'gemini-3.8-flash-medium', name: 'Gemini 3.8 Flash (Medium)' },
-    { id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash (High)' },
-    { id: 'gemini-3.1-pro-high', name: 'Gemini 3.1 Pro (High)' },
-    { id: 'claude-opus-5-5-high', name: 'Claude Opus 5.5 (High)' },
-    { id: 'claude-sonnet-5-5-high', name: 'Claude Sonnet 5.5 (High)' },
-    { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B (Medium)' }
+    // Google Antigravity (AGY)
+    { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)', agent: 'antigravity' },
+    { id: 'gemini-3.8-flash-medium', name: 'Gemini 3.8 Flash (Medium)', agent: 'antigravity' },
+    { id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash (High)', agent: 'antigravity' },
+    { id: 'gemini-3.1-pro-high', name: 'Gemini 3.1 Pro (High)', agent: 'antigravity' },
+    { id: 'claude-opus-5-5-high', name: 'Claude Opus 5.5 High', agent: 'antigravity' },
+    { id: 'claude-sonnet-5-5-high', name: 'Claude Sonnet 5.5 High', agent: 'antigravity' },
+    { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B Medium', agent: 'antigravity' },
+    // Claude Code CLI
+    { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', agent: 'claude' },
+    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', agent: 'claude' },
+    { id: 'claude-opus-5-5', name: 'Claude Opus 5.5 (CLI)', agent: 'claude' },
+    { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5 (CLI)', agent: 'claude' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', agent: 'claude' }
   ];
 
   const modelsList: ModelOption[] = availableModels.length > 0
-    ? availableModels.map(m => typeof m === 'string' ? { id: m, name: m } : m)
+    ? availableModels.map(m => {
+        if (typeof m === 'string') {
+          return { id: m, name: m, agent: isClaudeModel({ id: m }) ? 'claude' : 'antigravity' };
+        }
+        return {
+          ...m,
+          name: m.name || m.id,
+          agent: m.agent || (isClaudeModel(m) ? 'claude' : 'antigravity')
+        };
+      })
     : defaultModels;
+
+  const antigravityModels = modelsList.filter(m => !isClaudeModel(m));
+  const claudeModels = modelsList.filter(m => isClaudeModel(m));
 
   const update = (partial: Partial<ChatOptions>) => {
     onChange({ ...options, ...partial });
@@ -39,6 +65,27 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
   return (
     <div className="bg-base-200/80 border-b border-base-300 px-4 py-2.5 transition-all text-xs" data-testid="options-bar">
       <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4">
+        {/* Motor de Execução (AGY vs Claude Code) */}
+        <div className="flex items-center gap-2">
+          <label className="font-semibold flex items-center gap-1.5 text-base-content/70">
+            {options.agent === 'claude' ? (
+              <Terminal className="w-3.5 h-3.5 text-amber-400" />
+            ) : (
+              <Zap className="w-3.5 h-3.5 text-sky-400" />
+            )}
+            Motor:
+          </label>
+          <select
+            data-testid="options-agent-select"
+            value={options.agent || 'antigravity'}
+            onChange={(e) => update({ agent: e.target.value })}
+            className="select select-bordered select-xs bg-base-100 font-mono"
+          >
+            <option value="antigravity">⚡ Antigravity (AGY)</option>
+            <option value="claude">💻 Claude Code CLI</option>
+          </select>
+        </div>
+
         {/* Seleção de Modelo */}
         <div className="flex items-center gap-2">
           <label className="font-semibold flex items-center gap-1.5 text-base-content/70">
@@ -48,12 +95,33 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
           <select
             data-testid="options-model-select"
             value={options.model}
-            onChange={(e) => update({ model: e.target.value })}
+            onChange={(e) => {
+              const selectedId = e.target.value;
+              const found = modelsList.find(m => m.id === selectedId);
+              const targetAgent = found?.agent || (isClaudeModel({ id: selectedId }) ? 'claude' : (options.agent || 'antigravity'));
+              update({ model: selectedId, agent: targetAgent });
+            }}
             className="select select-bordered select-xs bg-base-100 font-mono"
           >
-            {modelsList.map(m => (
-              <option key={m.id} value={m.id}>{m.name || m.id}</option>
-            ))}
+            {antigravityModels.length > 0 && (
+              <optgroup label="⚡ Google Antigravity (AGY)">
+                {antigravityModels.map(m => (
+                  <option key={m.id} value={m.id}>{m.name || m.id}</option>
+                ))}
+              </optgroup>
+            )}
+            {claudeModels.length > 0 && (
+              <optgroup label="💻 Claude Code CLI">
+                {claudeModels.map(m => (
+                  <option key={m.id} value={m.id}>{m.name || m.id}</option>
+                ))}
+              </optgroup>
+            )}
+            {antigravityModels.length === 0 && claudeModels.length === 0 && (
+              modelsList.map(m => (
+                <option key={m.id} value={m.id}>{m.name || m.id}</option>
+              ))
+            )}
           </select>
         </div>
 
