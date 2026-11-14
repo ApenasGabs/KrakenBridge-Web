@@ -57,12 +57,23 @@ export const PodDrainReloadBubble: React.FC<PodDrainReloadBubbleProps> = ({
               onReconnected();
             }
 
-            // Oculta o balão após 3.5s mostrando a mensagem de sucesso
-            setTimeout(() => {
-              if (isMounted) {
-                setIsVisible(false);
+            // Após 2.5s mostrando a mensagem de sucesso e restauração de dados,
+            // expurga caches de navegação/vite e recarrega a página para aplicar a nova versão
+            setTimeout(async () => {
+              try {
+                if (typeof window !== 'undefined' && 'caches' in window) {
+                  const keys = await caches.keys();
+                  await Promise.all(
+                    keys
+                      .filter((k) => k.includes('navigation') || k.includes('vite') || k.includes('precache'))
+                      .map((k) => caches.delete(k))
+                  );
+                }
+              } catch {}
+              if (typeof window !== 'undefined') {
+                window.location.reload();
               }
-            }, 3500);
+            }, 2500);
           }
         }
       } catch {
@@ -168,10 +179,28 @@ export const PodDrainReloadBubble: React.FC<PodDrainReloadBubbleProps> = ({
               />
               <span>
                 {isReconnected
-                  ? 'Sessão restabelecida com sucesso'
+                  ? 'Sessão restabelecida com sucesso. Aplicando nova versão...'
                   : 'Aguardando inicialização do servidor...'}
               </span>
             </div>
+
+            {isReconnected && (
+              <div className="mt-2.5 pt-2 border-t border-success/30 flex items-center justify-between gap-2">
+                <span className="text-[11px] text-success font-medium">
+                  Atualizando PWA...
+                </span>
+                <button
+                  type="button"
+                  data-testid="pwa-reload-now-btn"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') window.location.reload();
+                  }}
+                  className="btn btn-xs btn-success text-success-content font-semibold"
+                >
+                  Recarregar Agora
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

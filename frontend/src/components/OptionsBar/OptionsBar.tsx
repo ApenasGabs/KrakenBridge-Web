@@ -106,14 +106,18 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             {antigravityModels.length > 0 && (
               <optgroup label="⚡ Google Antigravity (AGY)">
                 {antigravityModels.map(m => (
-                  <option key={m.id} value={m.id}>{m.name || m.id}</option>
+                  <option key={m.id} value={m.id}>
+                    [AGY] {m.name || m.id}
+                  </option>
                 ))}
               </optgroup>
             )}
             {claudeModels.length > 0 && (
               <optgroup label="💻 Claude Code CLI">
                 {claudeModels.map(m => (
-                  <option key={m.id} value={m.id}>{m.name || m.id}</option>
+                  <option key={m.id} value={m.id}>
+                    [Claude CLI] {m.name || m.id}
+                  </option>
                 ))}
               </optgroup>
             )}

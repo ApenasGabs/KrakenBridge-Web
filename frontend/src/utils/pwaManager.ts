@@ -83,14 +83,64 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
       wb.messageSkipWaiting();
     });
 
+    // Quando um novo service worker assume o controle após atualização, recarrega a janela automaticamente
+    wb.addEventListener('controlling', (event) => {
+      if (event.isUpdate) {
+        console.log('[PWA] Nova versão do Service Worker ativada. Recarregando aplicação...');
+        window.location.reload();
+      }
+    });
+
     const reg = await wb.register();
     if (reg) {
       console.log('[PWA] Workbox Service Worker registrado com escopo:', reg.scope);
+
+      // Checa atualizações quando o app ganha foco / visibilidade (ao voltar da tela inicial ou desbloquear celular)
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            reg.update().catch((err) => {
+              console.warn('[PWA] Falha ao verificar update do SW no visibilitychange:', err);
+            });
+          }
+        });
+      }
+
+      // Checa atualizações a cada 10 minutos em segundo plano
+      setInterval(() => {
+        reg.update().catch(() => {});
+      }, 10 * 60 * 1000);
     }
     return reg ?? null;
   } catch (err) {
     console.warn('[PWA] Falha ao registrar Service Worker via Workbox:', err);
     return null;
+  }
+}
+
+/**
+ * Expurga todos os caches salvos no CacheStorage e força a recarga limpa da aplicação.
+ * Útil para quando o PWA renderizar estilos antigos ou travar em assets em cache.
+ */
+export async function forcePurgePwaCacheAndReload(): Promise<void> {
+  try {
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      console.log('[PWA] Todos os caches do CacheStorage foram expurgados com sucesso.');
+    }
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.update().catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.warn('[PWA] Erro ao expurgar caches:', err);
+  } finally {
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
   }
 }
 
