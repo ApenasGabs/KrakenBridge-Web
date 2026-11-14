@@ -32,3 +32,7 @@
    - **Diagnóstico e Resolução Automática**: Se algum check falhar (testes E2E, Playwright, lint, build), o agente DEVE baixar e inspecionar os logs de falha (`gh run view <id> --log-failed`), corrigir o código imediatamente, subir novo commit e reacompanhar até todos os checks ficarem verdes (`SUCCESS`).
    - **Proibição de Hand-off com CI Falhado**: NUNCA submeter o PR para aprovação manual com a pipeline pendente ou em falha.
 7. **Portão de Aprovação Manual (Human-in-the-Loop)**: Aguardar aprovação manual do usuário no GitHub antes de mergear na `main` ou disparar Pod Drain.
+8. **Execução Delimitada por Temporizadores e Prevenção de Bloqueios (Watchdogs & Timeouts)**:
+   - **Comandos Bounded**: Todo comando executado no terminal deve ter timeout explícito (`timeout <N>s` ou temporizador de controle), eliminando riscos de travamento silencioso.
+   - **Proibição de Bloqueio em Background**: NUNCA deixe processos em background aguardando `stdin` indefinidamente através do harness de ferramentas do agente entre turnos de conversa.
+   - **Decomposição One-Shot**: Fluxos que requerem dados externos do usuário devem ser decompostos: exibir a instrução/link de forma assíncrona e, no recebimento dos dados, disparar uma execução atômica, rápida e delimitada via pipe ou API REST dedicada.
