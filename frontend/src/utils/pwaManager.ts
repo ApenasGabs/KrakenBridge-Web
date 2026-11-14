@@ -86,7 +86,6 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
     // Quando um novo service worker assume o controle após atualização, recarrega a janela automaticamente
     wb.addEventListener('controlling', (event) => {
       if (event.isUpdate) {
-        console.log('[PWA] Nova versão do Service Worker ativada. Recarregando aplicação...');
         window.location.reload();
       }
     });
@@ -122,12 +121,11 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
  * Expurga todos os caches salvos no CacheStorage e força a recarga limpa da aplicação.
  * Útil para quando o PWA renderizar estilos antigos ou travar em assets em cache.
  */
-export async function forcePurgePwaCacheAndReload(): Promise<void> {
+export const forcePurgePwaCacheAndReload = async (): Promise<void> => {
   try {
     if (typeof window !== 'undefined' && 'caches' in window) {
       const cacheNames = await caches.keys();
       await Promise.all(cacheNames.map((name) => caches.delete(name)));
-      console.log('[PWA] Todos os caches do CacheStorage foram expurgados com sucesso.');
     }
     if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
@@ -142,7 +140,7 @@ export async function forcePurgePwaCacheAndReload(): Promise<void> {
       window.location.reload();
     }
   }
-}
+};
 
 export function getWorkboxInstance(): Workbox | null {
   return activeWorkbox;

@@ -5,7 +5,8 @@ import {
   forcePurgePwaCacheAndReload
 } from '../pwaManager';
 
-describe('pwaManager Utility & Cache Purge (Issue #172)', () => {
+// Testes unitários cobrindo o ciclo de vida e a estratégia de cache do PWA (Issue #172)
+describe('pwaManager Utility & Cache Purge - Ciclo de vida e estratégia de cache do PWA (Issue #172)', () => {
   const originalLocation = window.location;
 
   beforeEach(() => {
@@ -15,6 +16,7 @@ describe('pwaManager Utility & Cache Purge (Issue #172)', () => {
   afterEach(() => {
     Object.defineProperty(window, 'location', {
       writable: true,
+      configurable: true,
       value: originalLocation
     });
   });
@@ -34,21 +36,35 @@ describe('pwaManager Utility & Cache Purge (Issue #172)', () => {
 
   it('forcePurgePwaCacheAndReload deve expurgar todos os caches e recarregar a janela', async () => {
     const reloadMock = vi.fn();
-    delete (window as any).location;
-    window.location = { ...originalLocation, reload: reloadMock } as any;
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      configurable: true,
+      value: { ...originalLocation, reload: reloadMock }
+    });
 
     const deleteMock = vi.fn().mockResolvedValue(true);
     const keysMock = vi.fn().mockResolvedValue(['kraken-navigation-v1', 'kraken-vite-assets-v1']);
 
-    (window as any).caches = {
-      keys: keysMock,
-      delete: deleteMock
-    };
+    Object.defineProperty(window, 'caches', {
+      writable: true,
+      configurable: true,
+      value: {
+        keys: keysMock,
+        delete: deleteMock,
+        has: vi.fn(),
+        match: vi.fn(),
+        open: vi.fn()
+      } as unknown as CacheStorage
+    });
 
     const updateMock = vi.fn().mockResolvedValue(undefined);
-    (navigator as any).serviceWorker = {
-      getRegistrations: vi.fn().mockResolvedValue([{ update: updateMock }])
-    };
+    Object.defineProperty(navigator, 'serviceWorker', {
+      writable: true,
+      configurable: true,
+      value: {
+        getRegistrations: vi.fn().mockResolvedValue([{ update: updateMock }])
+      } as unknown as ServiceWorkerContainer
+    });
 
     await forcePurgePwaCacheAndReload();
 

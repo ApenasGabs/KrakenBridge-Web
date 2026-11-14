@@ -364,6 +364,7 @@ export const SystemUpdateModal: React.FC<SystemUpdateModalProps> = ({ isOpen, on
               Fechar
             </button>
 
+            {/* Utilitário de purga de cache com botão na interface para recuperação instantânea pelo usuário */}
             <button
               type="button"
               data-testid="purge-pwa-cache-btn"
