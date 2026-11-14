@@ -183,5 +183,6 @@ describe('PodDrainReloadBubble Component', () => {
     expect(api.checkHealth).toHaveBeenCalled();
     expect(onReconnected).toHaveBeenCalled();
     expect(screen.getByText(/Kraken Restabelecido!/i)).toBeInTheDocument();
+    expect(screen.getByTestId('pwa-reload-now-btn')).toBeInTheDocument();
   });
 });

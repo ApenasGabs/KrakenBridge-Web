@@ -50,6 +50,9 @@ describe('OptionsBar Component - Engine & Model Separation (Issue #170)', () => 
 
     const claudeGroup = screen.getByRole('group', { name: '💻 Claude Code CLI' });
     expect(claudeGroup).toBeInTheDocument();
+
+    expect(screen.getAllByText(/\[AGY\]/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/\[Claude CLI\]/).length).toBeGreaterThan(0);
   });
 
   it('deve atualizar automaticamente o motor para "claude" ao selecionar um modelo do Claude Code CLI', () => {
