@@ -95,7 +95,7 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
         for (const line of lines) {
           const parts = line.split('\t');
           if (parts.length >= 2 && parts[0].trim()) {
-            list.push({ id: parts[0].trim(), name: parts[1].trim(), agent: 'antigravity' } as any);
+            list.push({ id: parts[0].trim(), name: parts[1].trim(), agent: 'antigravity' });
           }
         }
         if (list.length > 0) {
@@ -125,7 +125,7 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
         { id: 'claude-opus-5-5-high', name: 'Claude Opus 5.5 (High)', agent: 'antigravity' },
         { id: 'claude-sonnet-5-5-high', name: 'Claude Sonnet 5.5 (High)', agent: 'antigravity' },
         { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B (Medium)', agent: 'antigravity' }
-      ] as any);
+      ]);
     });
     child.on('error', async () => {
       try {
@@ -137,7 +137,7 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
       resolve([
         { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)', agent: 'antigravity' },
         { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)', agent: 'antigravity' }
-      ] as any);
+      ]);
     });
     setTimeout(() => { try { child.kill(); } catch (e) {}; resolve([]); }, 4000);
   });

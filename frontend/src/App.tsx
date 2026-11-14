@@ -308,20 +308,20 @@ export const App: React.FC = () => {
       
       const combinedModels: ModelOption[] = [];
       if (modelsData && modelsData.antigravity && Array.isArray(modelsData.antigravity)) {
-        combinedModels.push(...modelsData.antigravity.map((m: any) => ({
+        combinedModels.push(...modelsData.antigravity.map((m: ModelOption) => ({
           id: m.id,
           name: m.name || m.id,
           agent: 'antigravity'
         })));
       }
       if (modelsData && modelsData.claude && Array.isArray(modelsData.claude)) {
-        combinedModels.push(...modelsData.claude.map((m: any) => ({
+        combinedModels.push(...modelsData.claude.map((m: ModelOption) => ({
           id: m.id,
           name: m.name || m.id,
           agent: 'claude'
         })));
       } else if (Array.isArray(modelsData?.models)) {
-        combinedModels.push(...modelsData.models.map((m: any) => 
+        combinedModels.push(...modelsData.models.map((m: string | ModelOption) => 
           typeof m === 'string' ? { id: m, name: m, agent: 'antigravity' } : { ...m, agent: m.agent || 'antigravity' }
         ));
       }
