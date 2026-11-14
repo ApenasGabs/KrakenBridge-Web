@@ -99,10 +99,12 @@ class ClaudeAuthService {
    */
   async ensurePersistentStorage(): Promise<void> {
     try {
-      const dataDir = '/DATA/.claude';
+      const dataDir = process.env.PERSISTENT_DATA_DIR || '/DATA/.claude';
       const configDir = getClaudeConfigDir();
+      // Isolamento estrito de testes unitários para não afetar /DATA/.claude
+      const isDefaultConfig = configDir === '/root/.claude';
       const dataExists = await fs.stat('/DATA').then(() => true).catch(() => false);
-      if (dataExists) {
+      if (dataExists && isDefaultConfig) {
         await fs.mkdir(dataDir, { recursive: true });
 
         // Symlink configDir -> dataDir
@@ -347,17 +349,10 @@ class ClaudeAuthService {
         // Procura por URL de autorização emitida pelo Claude Code CLI
         if (!session.authUrl) {
           const buf = session.stdoutBuffer;
-          const urlIdx = buf.indexOf('https://');
-          if (urlIdx !== -1) {
-            const pasteIdx = buf.indexOf('Paste code here', urlIdx);
-            if (pasteIdx !== -1) {
-              session.authUrl = buf.slice(urlIdx, pasteIdx).replace(/\s+/g, '');
-            } else {
-              const urlMatch = buf.match(/https:\/\/(?:claude\.com\/cai\/oauth\/authorize|auth\.anthropic\.com)[^\s>)]*/);
-              if (urlMatch) {
-                session.authUrl = urlMatch[0];
-              }
-            }
+          // Regex robusta que captura a URL direta do Claude Code ignorando caracteres de escape ANSI ou duplicatas
+          const urlMatch = buf.match(/https:\/\/(?:claude\.com\/cai\/oauth\/authorize|auth\.anthropic\.com)[^\s>\x1b\x07\x00-\x1f'"]+/);
+          if (urlMatch) {
+            session.authUrl = urlMatch[0];
           }
 
           if (session.authUrl) {
@@ -397,7 +392,7 @@ class ClaudeAuthService {
         });
       });
 
-      // Timeout de segurança para captura da URL (8 segundos)
+      // Timeout de segurança para captura da URL (25 segundos)
       setTimeout(() => {
         if (!resolved && !session.authUrl) {
           this.cleanupSession();
@@ -406,7 +401,7 @@ class ClaudeAuthService {
             error: 'Tempo limite excedido ao aguardar a URL de autenticação do Claude Code.'
           });
         }
-      }, 8000);
+      }, 25000);
     });
   }
 
@@ -635,6 +630,9 @@ class ClaudeAuthService {
     };
   }
 
+  /**
+   * Encerramento determinístico de processos filhos com SIGKILL em cleanupSession
+   */
   private cleanupSession() {
     if (this.sessionTimeout) {
       clearTimeout(this.sessionTimeout);
@@ -642,7 +640,7 @@ class ClaudeAuthService {
     }
     if (this.pendingSession?.cp) {
       try {
-        this.pendingSession.cp.kill();
+        this.pendingSession.cp.kill('SIGKILL');
       } catch {}
       this.pendingSession = null;
     }
