@@ -177,6 +177,16 @@ test('claudeAuthService: ensurePersistentStorage deve auto-curar .credentials.js
   await claudeAuthService.logout();
 });
 
+test('claudeAuthService: parsing de URL de autenticacao deve suportar escape ANSI OSC 8 sem corromper a URL', () => {
+  const sampleWithAnsi = 'Welcome to Claude Code v2.1.325\n\n Browser didn\'t open? Use the url below to sign in (c to copy)\n\n\u001b]8;id=a2aoov;https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=user%3Ainference&code_challenge=test_challenge&code_challenge_method=S256&state=test_state\u0007https://claude.com/cai/oauth/authorize?code=true&client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=user%3Ainference&code_challenge=test_challenge&code_challenge_method=S256&state=test_state\u001b]8;;\u0007\n\n Paste code here if prompted >';
+
+  const match = sampleWithAnsi.match(/https:\/\/(?:claude\.com\/cai\/oauth\/authorize|auth\.anthropic\.com)[^\s>\x1b\x07\x00-\x1f'"]+/);
+  assert.ok(match, 'Regex deve capturar a URL');
+  assert.equal(match[0].includes('\u0007'), false, 'URL nao pode conter caractere de controle BEL');
+  assert.equal(match[0].includes('\u001b'), false, 'URL nao pode conter escape ANSI');
+  assert.equal(match[0].endsWith('test_state'), true, 'URL deve terminar limpa com o parametro state');
+});
+
 test('Limpeza do ambiente isolado de testes', async () => {
   await fs.rm(tmpTestDir, { recursive: true, force: true }).catch(() => {});
 });
