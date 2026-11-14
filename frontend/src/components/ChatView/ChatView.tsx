@@ -21,8 +21,9 @@ interface ChatViewProps {
   evolutionStatus?: EvolutionStatus | null;
   onSelectSuggestion?: (prompt: string) => void;
   currentModel?: string;
+  currentAgent?: string;
   availableModels?: (string | ModelOption)[];
-  onModelChange?: (model: string) => void;
+  onModelChange?: (model: string, agent?: string) => void;
   onOpenMcpModal?: () => void;
   // Fila de mensagens
   messageQueue?: QueuedMessage[];
@@ -57,6 +58,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   evolutionStatus = null,
   onSelectSuggestion,
   currentModel,
+  currentAgent,
   availableModels,
   onModelChange,
   onOpenMcpModal,
@@ -434,6 +436,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         isDraining={isDraining}
         evolutionStatus={evolutionStatus}
         currentModel={currentModel}
+        currentAgent={currentAgent}
         availableModels={availableModels}
         onModelChange={onModelChange}
         onOpenMcpModal={onOpenMcpModal}
