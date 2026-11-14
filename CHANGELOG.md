@@ -5,6 +5,20 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.41.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.40.1...v1.41.0) (2026-11-14)
+
+### ✨ Features
+
+* **chat:** quick action chips de resposta e correcao sandbox claude code (Refs [#174](https://github.com/ApenasGabs/KrakenBridge-Web/issues/174)) ([d797108](https://github.com/ApenasGabs/KrakenBridge-Web/commit/d79710838b108b58a7cc23fe3e5b878b18cdf82a))
+
+### 🐛 Bug Fixes
+
+* **e2e:** data-allow-x-scroll no QuickActionChips e protocolo de monitoramento de CI/CD (Refs [#174](https://github.com/ApenasGabs/KrakenBridge-Web/issues/174)) ([c6b4dda](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c6b4dda3f4aa284009f0faf1725cb312f39beace))
+
+### 🧪 Tests
+
+* **chat:** alinhamento semantico de testes e documentacao de requisitos (Refs [#174](https://github.com/ApenasGabs/KrakenBridge-Web/issues/174)) ([7c20901](https://github.com/ApenasGabs/KrakenBridge-Web/commit/7c20901bbd278c27d9505778318d078a3b2a637f))
+
 ## [1.40.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.40.0...v1.40.1) (2026-11-14)
 
 ### 🐛 Bug Fixes
