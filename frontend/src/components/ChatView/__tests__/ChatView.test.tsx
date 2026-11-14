@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { ChatView } from '../ChatView';
 import type { ChatMessage } from '../../../types';
@@ -39,8 +39,16 @@ describe('ChatView Component - Manual Scroll & Resilient Auto-Scroll (Issue #127
     },
   ];
 
+  let originalScrollTo: typeof HTMLDivElement.prototype.scrollTo;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    originalScrollTo = HTMLDivElement.prototype.scrollTo;
+    HTMLDivElement.prototype.scrollTo = vi.fn();
+  });
+
+  afterEach(() => {
+    HTMLDivElement.prototype.scrollTo = originalScrollTo;
   });
 
   it('deve realizar scrollTo para o final ao renderizar mensagens inicialmente', () => {
@@ -208,5 +216,50 @@ describe('ChatView Component - Manual Scroll & Resilient Auto-Scroll (Issue #127
     } finally {
       HTMLDivElement.prototype.scrollTo = originalScrollTo;
     }
+  });
+
+  describe('Quick Action Chips Integration (Issue #174)', () => {
+    it('deve renderizar os chips de ação rápida quando a última mensagem for do assistente e isLoading for false', () => {
+      const handleQuickAction = vi.fn();
+      render(
+        <ChatView
+          {...defaultProps}
+          messages={sampleMessages}
+          isLoading={false}
+          onQuickAction={handleQuickAction}
+        />
+      );
+
+      const chips = screen.getByTestId('quick-action-chips');
+      expect(chips).toBeInTheDocument();
+      expect(screen.getByTestId('quick-action-proceed')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId('quick-action-proceed'));
+      expect(handleQuickAction).toHaveBeenCalledWith('Sim, pode prosseguir com as alterações.');
+    });
+
+    it('NÃO deve renderizar os chips de ação rápida durante o streaming (isLoading === true)', () => {
+      render(
+        <ChatView
+          {...defaultProps}
+          messages={sampleMessages}
+          isLoading={true}
+        />
+      );
+
+      expect(screen.queryByTestId('quick-action-chips')).not.toBeInTheDocument();
+    });
+
+    it('NÃO deve renderizar os chips de ação rápida se a lista de mensagens estiver vazia', () => {
+      render(
+        <ChatView
+          {...defaultProps}
+          messages={[]}
+          isLoading={false}
+        />
+      );
+
+      expect(screen.queryByTestId('quick-action-chips')).not.toBeInTheDocument();
+    });
   });
 });

@@ -71,7 +71,7 @@ export function killProcessTree(pid: number, signal: NodeJS.Signals = 'SIGTERM')
 
 
 // Construtor flexível de argumentos para os drivers CLI dos agentes
-const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
+export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
   antigravity: {
     cmd: 'agy',
     buildArgs: ({ prompt, agyConvId, continueSession, model, effort, mode, sandbox, skipPermissions }) => {
@@ -126,7 +126,8 @@ const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
       const e: Record<string, string | undefined> = {
         ...env,
         HOME: env.HOME || '/root',
-        CLAUDE_CONFIG_DIR: env.CLAUDE_CONFIG_DIR || '/root/.claude'
+        CLAUDE_CONFIG_DIR: env.CLAUDE_CONFIG_DIR || '/root/.claude',
+        IS_SANDBOX: '1'
       };
       if (env.ANTHROPIC_API_KEY) e.ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
       if (env.CLAUDE_CODE_OAUTH_TOKEN) e.CLAUDE_CODE_OAUTH_TOKEN = env.CLAUDE_CODE_OAUTH_TOKEN;

@@ -1291,6 +1291,13 @@ export const App: React.FC = () => {
             isDraining={evolutionStatus?.isDraining || evolutionStatus?.status === 'draining'}
             evolutionStatus={evolutionStatus}
             onSelectSuggestion={(sug) => setPrompt(sug)}
+            // Permitir que o clique no chip preencha/envie a mensagem automaticamente
+            onQuickAction={(actionPrompt) => {
+              if (!isOnlineRef.current) return;
+              if (isLoading) return;
+              setPrompt('');
+              executeTurn(actionPrompt);
+            }}
             currentModel={options.model}
             currentAgent={options.agent}
             availableModels={availableModels}
