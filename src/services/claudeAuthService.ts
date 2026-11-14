@@ -363,10 +363,10 @@ class ClaudeAuthService {
           if (session.authUrl) {
             this.pendingSession = session;
 
-            // Timeout de 10 minutos para o usuário colar o código
+            // Timeout de 30 minutos para o usuário colar o código
             this.sessionTimeout = setTimeout(() => {
               this.cleanupSession();
-            }, 10 * 60 * 1000);
+            }, 30 * 60 * 1000);
 
             finishResolve({
               status: 'waiting_for_code',
