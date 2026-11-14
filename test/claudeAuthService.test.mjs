@@ -2,6 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
+import { randomUUID } from 'node:crypto';
+
+// Isola o diretório de testes para não interferir nem apagar as credenciais reais de produção
+const tmpTestDir = path.join(os.tmpdir(), 'claude-auth-test-' + randomUUID());
+await fs.mkdir(tmpTestDir, { recursive: true });
+
+process.env.CLAUDE_CONFIG_DIR = tmpTestDir;
+process.env.CLAUDE_CREDENTIALS_FILE = path.join(tmpTestDir, '.credentials.json');
+process.env.CREDENTIALS_VAULT_FILE = path.join(tmpTestDir, '.credentials.json.vault');
+process.env.DATA_VAULT_FILE = path.join(tmpTestDir, 'data.vault');
+process.env.PAPERCLIP_CREDENTIALS_FILE = path.join(tmpTestDir, 'paperclip.json');
+
 import { claudeAuthService, isValidClaudeCredentials } from '../dist-server/services/claudeAuthService.js';
 import express from 'express';
 import { authRouter } from '../dist-server/routes/auth.js';
@@ -127,9 +140,8 @@ test('claudeAuthService: isValidClaudeCredentials deve validar e rejeitar tokens
 });
 
 test('claudeAuthService: ensurePersistentStorage deve auto-curar .credentials.json a partir do cofre persistente', async () => {
-  const configDir = process.env.CLAUDE_CONFIG_DIR || '/root/.claude';
-  const credsFile = path.join(configDir, '.credentials.json');
-  const vaultFile = path.join(configDir, '.credentials.json.vault');
+  const credsFile = path.join(tmpTestDir, '.credentials.json');
+  const vaultFile = path.join(tmpTestDir, '.credentials.json.vault');
 
   const validVaultPayload = JSON.stringify({
     claudeAiOauth: {
@@ -140,7 +152,7 @@ test('claudeAuthService: ensurePersistentStorage deve auto-curar .credentials.js
   });
 
   // Grava cofre válido
-  await fs.mkdir(configDir, { recursive: true });
+  await fs.mkdir(tmpTestDir, { recursive: true });
   await fs.writeFile(vaultFile, validVaultPayload, { mode: 0o600 });
 
   // Simula o arquivo .credentials.json tendo sido corrompido/limpo pelo CLI
@@ -163,4 +175,8 @@ test('claudeAuthService: ensurePersistentStorage deve auto-curar .credentials.js
 
   // Limpeza
   await claudeAuthService.logout();
+});
+
+test('Limpeza do ambiente isolado de testes', async () => {
+  await fs.rm(tmpTestDir, { recursive: true, force: true }).catch(() => {});
 });
