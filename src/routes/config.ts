@@ -95,7 +95,7 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
         for (const line of lines) {
           const parts = line.split('\t');
           if (parts.length >= 2 && parts[0].trim()) {
-            list.push({ id: parts[0].trim(), name: parts[1].trim() });
+            list.push({ id: parts[0].trim(), name: parts[1].trim(), agent: 'antigravity' });
           }
         }
         if (list.length > 0) {
@@ -117,14 +117,14 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
 
       // Modelos bootstrap mínimos caso primeira execução e offline
       resolve([
-        { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)' },
-        { id: 'gemini-4-argon-medium', name: 'Gemini 4 Argon (Medium)' },
-        { id: 'gemini-4-argon-low', name: 'Gemini 4 Argon (Low)' },
-        { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)' },
-        { id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash (High)' },
-        { id: 'claude-opus-5-5-high', name: 'Claude Opus 5.5 (High)' },
-        { id: 'claude-sonnet-5-5-high', name: 'Claude Sonnet 5.5 (High)' },
-        { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B (Medium)' }
+        { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)', agent: 'antigravity' },
+        { id: 'gemini-4-argon-medium', name: 'Gemini 4 Argon (Medium)', agent: 'antigravity' },
+        { id: 'gemini-4-argon-low', name: 'Gemini 4 Argon (Low)', agent: 'antigravity' },
+        { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)', agent: 'antigravity' },
+        { id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash (High)', agent: 'antigravity' },
+        { id: 'claude-opus-5-5-high', name: 'Claude Opus 5.5 (High)', agent: 'antigravity' },
+        { id: 'claude-sonnet-5-5-high', name: 'Claude Sonnet 5.5 (High)', agent: 'antigravity' },
+        { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B (Medium)', agent: 'antigravity' }
       ]);
     });
     child.on('error', async () => {
@@ -135,25 +135,28 @@ configRouter.get('/models', async (_req: Request, res: Response) => {
         }
       } catch {}
       resolve([
-        { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)' },
-        { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)' }
+        { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)', agent: 'antigravity' },
+        { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)', agent: 'antigravity' }
       ]);
     });
     setTimeout(() => { try { child.kill(); } catch (e) {}; resolve([]); }, 4000);
   });
 
   cachedModels = {
-    antigravity: agyModels,
+    antigravity: agyModels.map(m => ({ ...m, agent: 'antigravity' })),
     claude: [
-      { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet (Recomendado)' },
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' }
+      { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet (Recomendado)', agent: 'claude' },
+      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', agent: 'claude' },
+      { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', agent: 'claude' },
+      { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', agent: 'claude' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', agent: 'claude' },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', agent: 'claude' }
     ],
     aider: [
-      { id: 'gpt-4o', name: 'OpenAI GPT-4o' },
-      { id: 'o3-mini', name: 'OpenAI o3-mini' },
-      { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
-      { id: 'deepseek-chat', name: 'DeepSeek V3' }
+      { id: 'gpt-4o', name: 'OpenAI GPT-4o', agent: 'aider' },
+      { id: 'o3-mini', name: 'OpenAI o3-mini', agent: 'aider' },
+      { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', agent: 'aider' },
+      { id: 'deepseek-chat', name: 'DeepSeek V3', agent: 'aider' }
     ]
   };
 

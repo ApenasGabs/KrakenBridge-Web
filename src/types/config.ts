@@ -32,6 +32,7 @@ export interface ProjectItem {
 export interface ModelItem {
   id: string;
   name: string;
+  agent?: string;
 }
 
 export interface ModelsMap {

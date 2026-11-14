@@ -154,11 +154,64 @@ describe('ChatInput - Smart Quota Routing & Model Selection UI (Issue #112)', ()
 
     await waitFor(() => {
       expect(api.routeByModel).toHaveBeenCalledWith('claude-opus-5-5-high', 5);
-      expect(onModelChangeMock).toHaveBeenCalledWith('claude-opus-5-5-high');
+      expect(onModelChangeMock).toHaveBeenCalledWith('claude-opus-5-5-high', 'antigravity');
     });
 
     // Banner de transição de conta exibido na tela
     const notice = await screen.findByTestId('quota-routing-notice');
     expect(notice).toHaveTextContent('Conta Secundária (95% disponível)');
+  });
+
+  it('deve exibir o badge do motor ativo (AGY vs Claude) no botão e as tags de motor no popover', async () => {
+    const onModelChangeMock = vi.fn();
+    const { rerender } = render(
+      <ChatInput
+        prompt=""
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onStop={vi.fn()}
+        isLoading={false}
+        currentModel="gemini-3.8-flash-high"
+        currentAgent="antigravity"
+        onModelChange={onModelChangeMock}
+      />
+    );
+
+    // Badge AGY visível no botão inicial
+    const engineBadge = screen.getByTestId('current-engine-badge');
+    expect(engineBadge).toHaveTextContent('AGY');
+
+    // Abre o popover
+    fireEvent.click(screen.getByTitle('Clique para trocar o modelo diretamente aqui'));
+
+    // Cabeçalhos de seção
+    expect(screen.getByText('Google Antigravity (AGY)')).toBeInTheDocument();
+    expect(screen.getByText('Claude Code CLI')).toBeInTheDocument();
+
+    // Tags de motor
+    expect(screen.getByTestId('model-engine-tag-gemini-3.8-flash-high')).toHaveTextContent('AGY');
+    expect(screen.getByTestId('model-engine-tag-claude-3-7-sonnet-20250219')).toHaveTextContent('Claude');
+
+    // Clica no Claude 3.7 Sonnet (Claude Code CLI)
+    const claudeCliBtn = screen.getByText('Claude 3.7 Sonnet');
+    fireEvent.click(claudeCliBtn);
+
+    expect(onModelChangeMock).toHaveBeenCalledWith('claude-3-7-sonnet-20250219', 'claude');
+
+    // Re-renderiza com currentAgent="claude"
+    rerender(
+      <ChatInput
+        prompt=""
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onStop={vi.fn()}
+        isLoading={false}
+        currentModel="claude-3-7-sonnet-20250219"
+        currentAgent="claude"
+        onModelChange={onModelChangeMock}
+      />
+    );
+
+    expect(screen.getByTestId('current-engine-badge')).toHaveTextContent('Claude');
   });
 });

@@ -37,7 +37,8 @@ import {
   Pencil,
   X,
   ShieldAlert,
-  WifiOff
+  WifiOff,
+  Terminal
 } from 'lucide-react';
 
 const MIN_REFINE_CHARS = 10;
@@ -73,8 +74,9 @@ interface ChatInputProps {
   isDraining?: boolean;
   evolutionStatus?: EvolutionStatus | null;
   currentModel?: string;
+  currentAgent?: string;
   availableModels?: (string | ModelOption)[];
-  onModelChange?: (model: string) => void;
+  onModelChange?: (model: string, agent?: string) => void;
   onOpenMcpModal?: () => void;
   queuedCount?: number;
   chatMode?: 'agent' | 'chat';
@@ -250,6 +252,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   isDraining = false,
   evolutionStatus = null,
   currentModel = 'gemini-3.8-flash-high',
+  currentAgent = 'antigravity',
   availableModels = [],
   onModelChange,
   onOpenMcpModal,
@@ -314,9 +317,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     }
   }, [routingNotice]);
 
-  const handleSelectModelWithRouting = async (modelId: string) => {
-    if (!autoRouteEnabled) {
-      onModelChange?.(modelId);
+  const handleSelectModelWithRouting = async (modelId: string, modelAgent?: string) => {
+    const targetAgent = modelAgent || (modelId.startsWith('claude-3-') ? 'claude' : currentAgent);
+
+    if (!autoRouteEnabled || targetAgent === 'claude') {
+      onModelChange?.(modelId, targetAgent);
       setIsModelMenuOpen(false);
       return;
     }
@@ -327,7 +332,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         message: `⚠️ Atenção: Cota esgotada em todas as contas (< 5%) para ${formatModelName(modelId)}.`,
         type: 'warning'
       });
-      onModelChange?.(modelId);
+      onModelChange?.(modelId, targetAgent);
       setIsModelMenuOpen(false);
       return;
     }
@@ -335,7 +340,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     try {
       setIsRoutingModel(true);
       const res = await api.routeByModel(modelId, 5);
-      onModelChange?.(modelId);
+      onModelChange?.(modelId, targetAgent);
       setIsModelMenuOpen(false);
 
       if (res.switched) {
@@ -352,7 +357,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       fetchQuotaOverview(true);
     } catch (err) {
       console.warn('[ChatInput] Falha no roteamento automático por modelo:', err);
-      onModelChange?.(modelId);
+      onModelChange?.(modelId, targetAgent);
       setIsModelMenuOpen(false);
     } finally {
       setIsRoutingModel(false);
@@ -526,20 +531,52 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [slashFilter, setSlashFilter] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Lista padronizada de modelos
+  // Helper para inferir o motor de execução (antigravity vs claude)
+  const resolveModelAgent = (modelId: string, explicitAgent?: string): 'claude' | 'antigravity' => {
+    if (explicitAgent === 'claude' || explicitAgent === 'antigravity') {
+      return explicitAgent;
+    }
+    const lower = modelId.toLowerCase();
+    if (lower.startsWith('claude-3-') || lower.includes('sonnet-2025') || lower.includes('sonnet-2024') || lower.includes('opus-2024')) {
+      return 'claude';
+    }
+    return 'antigravity';
+  };
+
+  // Lista padronizada de modelos com indicação de motor
   const defaultModels: ModelOption[] = [
-    { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash High' },
-    { id: 'gemini-3.8-flash-medium', name: 'Gemini 3.8 Flash Medium' },
-    { id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash High' },
-    { id: 'gemini-3.1-pro-high', name: 'Gemini 3.1 Pro High' },
-    { id: 'claude-opus-5-5-high', name: 'Claude Opus 5.5 High' },
-    { id: 'claude-sonnet-5-5-high', name: 'Claude Sonnet 5.5 High' },
-    { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B Medium' }
+    // Google Antigravity (AGY)
+    { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)', agent: 'antigravity' },
+    { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash High', agent: 'antigravity' },
+    { id: 'gemini-3.8-flash-medium', name: 'Gemini 3.8 Flash Medium', agent: 'antigravity' },
+    { id: 'gemini-3.7-flash-high', name: 'Gemini 3.7 Flash High', agent: 'antigravity' },
+    { id: 'gemini-3.1-pro-high', name: 'Gemini 3.1 Pro High', agent: 'antigravity' },
+    { id: 'claude-opus-5-5-high', name: 'Claude Opus 5.5 High', agent: 'antigravity' },
+    { id: 'claude-sonnet-5-5-high', name: 'Claude Sonnet 5.5 High', agent: 'antigravity' },
+    { id: 'gpt-oss-120b-medium', name: 'GPT-OSS 120B Medium', agent: 'antigravity' },
+    // Claude Code CLI
+    { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', agent: 'claude' },
+    { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', agent: 'claude' },
+    { id: 'claude-opus-5-5', name: 'Claude Opus 5.5 (CLI)', agent: 'claude' },
+    { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5 (CLI)', agent: 'claude' },
+    { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', agent: 'claude' }
   ];
 
   const modelsList: ModelOption[] = availableModels.length > 0
-    ? availableModels.map(m => typeof m === 'string' ? { id: m, name: formatModelName(m) } : m)
+    ? availableModels.map(m => {
+        if (typeof m === 'string') {
+          return { id: m, name: formatModelName(m), agent: resolveModelAgent(m) };
+        }
+        return {
+          ...m,
+          name: m.name || formatModelName(m.id),
+          agent: resolveModelAgent(m.id, m.agent)
+        };
+      })
     : defaultModels;
+
+  const antigravityModels = modelsList.filter(m => resolveModelAgent(m.id, m.agent) !== 'claude');
+  const claudeModels = modelsList.filter(m => resolveModelAgent(m.id, m.agent) === 'claude');
 
   // Filtragem dos comandos para o IntelliSense
   const filteredCommands = SLASH_COMMANDS.filter(cmd => 
@@ -1065,9 +1102,28 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                  className="flex items-center gap-1 min-h-[32px] px-2 sm:px-2.5 py-1 rounded-lg text-sky-400 hover:text-sky-300 hover:bg-base-300/50 text-xs font-medium transition-all group select-none shrink-0"
+                  className="flex items-center gap-1.5 min-h-[32px] px-2 sm:px-2.5 py-1 rounded-lg text-sky-400 hover:text-sky-300 hover:bg-base-300/50 text-xs font-medium transition-all group select-none shrink-0"
                   title="Clique para trocar o modelo diretamente aqui"
                 >
+                  {currentAgent === 'claude' ? (
+                    <span 
+                      data-testid="current-engine-badge"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0"
+                      title="Motor Claude Code CLI ativo"
+                    >
+                      <Terminal className="w-2.5 h-2.5" />
+                      Claude
+                    </span>
+                  ) : (
+                    <span 
+                      data-testid="current-engine-badge"
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30 shrink-0"
+                      title="Motor Google Antigravity (AGY) ativo"
+                    >
+                      <Zap className="w-2.5 h-2.5" />
+                      AGY
+                    </span>
+                  )}
                   <span>
                     <span className="hidden sm:inline">{formatModelName(currentModel)}</span>
                     <span className="sm:hidden">{formatShortModelName(currentModel)}</span>
@@ -1151,67 +1207,159 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     )}
                   </div>
 
-                  <div className="space-y-0.5">
-                    {modelsList.map((m) => {
-                      const isSelected = m.id === currentModel;
-                      const quotaInfo = quotaOverview?.modelQuotaMap?.[m.id];
-                      
-                      const remaining = autoRouteEnabled
-                        ? (quotaInfo?.bestPoolRemaining ?? quotaInfo?.currentAccountRemaining ?? null)
-                        : (quotaInfo?.currentAccountRemaining ?? null);
-                      
-                      const isBlocked = !!quotaInfo?.isBlocked;
-                      const targetAccountName = quotaInfo?.bestAccountName;
+                  {/* Seção 1: Google Antigravity (AGY) */}
+                  {antigravityModels.length > 0 && (
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-1.5 px-2 pt-1 pb-0.5 text-[10px] font-bold tracking-wider text-sky-400 uppercase">
+                        <Zap className="w-3 h-3 text-sky-400 shrink-0" />
+                        <span>Google Antigravity (AGY)</span>
+                      </div>
+                      {antigravityModels.map((m) => {
+                        const isSelected = m.id === currentModel;
+                        const quotaInfo = quotaOverview?.modelQuotaMap?.[m.id];
+                        
+                        const remaining = autoRouteEnabled
+                          ? (quotaInfo?.bestPoolRemaining ?? quotaInfo?.currentAccountRemaining ?? null)
+                          : (quotaInfo?.currentAccountRemaining ?? null);
+                        
+                        const isBlocked = !!quotaInfo?.isBlocked;
+                        const targetAccountName = quotaInfo?.bestAccountName;
 
-                      // Cores da tag de cota
-                      let badgeColor = 'text-neutral-500 bg-neutral-800/60';
-                      if (remaining !== null) {
-                        if (remaining > 50) badgeColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-                        else if (remaining >= 20) badgeColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-                        else if (remaining > 5) badgeColor = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
-                        else badgeColor = 'text-neutral-400 bg-neutral-800/80 border-neutral-700 line-through';
-                      }
+                        // Cores da tag de cota
+                        let badgeColor = 'text-neutral-500 bg-neutral-800/60';
+                        if (remaining !== null) {
+                          if (remaining > 50) badgeColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+                          else if (remaining >= 20) badgeColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+                          else if (remaining > 5) badgeColor = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+                          else badgeColor = 'text-neutral-400 bg-neutral-800/80 border-neutral-700 line-through';
+                        }
 
-                      return (
-                        <button
-                          key={m.id}
-                          type="button"
-                          disabled={isRoutingModel}
-                          onClick={() => handleSelectModelWithRouting(m.id)}
-                          title={
-                            isBlocked
-                              ? 'Cota esgotada em todas as contas cadastradas (< 5%)'
-                              : autoRouteEnabled && targetAccountName
-                                ? `Cota disponível: ${remaining ?? 0}% • Alterna para ${targetAccountName}`
-                                : `Cota na conta ativa: ${remaining ?? 0}%`
-                          }
-                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                            isSelected 
-                              ? 'bg-sky-500/10 text-sky-400 font-semibold' 
-                              : isBlocked
-                                ? 'text-base-content/40 hover:bg-base-200/60'
-                                : 'text-base-content/80 hover:bg-base-200 hover:text-base-content'
-                          }`}
-                        >
-                          <span className={`truncate mr-1.5 ${isBlocked ? 'line-through text-base-content/40' : ''}`}>
-                            {m.name || formatModelName(m.id)}
-                          </span>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {remaining !== null && (
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            disabled={isRoutingModel}
+                            onClick={() => handleSelectModelWithRouting(m.id, m.agent)}
+                            title={
+                              isBlocked
+                                ? 'Cota esgotada em todas as contas cadastradas (< 5%)'
+                                : autoRouteEnabled && targetAccountName
+                                  ? `Cota disponível: ${remaining ?? 0}% • Alterna para ${targetAccountName}`
+                                  : `Cota na conta ativa: ${remaining ?? 0}%`
+                            }
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                              isSelected 
+                                ? 'bg-sky-500/10 text-sky-400 font-semibold' 
+                                : isBlocked
+                                  ? 'text-base-content/40 hover:bg-base-200/60'
+                                  : 'text-base-content/80 hover:bg-base-200 hover:text-base-content'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0 mr-1.5">
                               <span 
-                                data-testid={`model-quota-badge-${m.id}`}
-                                className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${badgeColor}`}
+                                data-testid={`model-engine-tag-${m.id}`}
+                                className="text-[9px] font-bold px-1 py-0.2 rounded border shrink-0 bg-sky-500/15 text-sky-300 border-sky-500/30"
                               >
-                                {isBlocked ? '< 5%' : `${remaining}%`}
+                                AGY
                               </span>
-                            )}
-                            {isSelected && <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                              <span className={`truncate ${isBlocked ? 'line-through text-base-content/40' : ''}`}>
+                                {m.name || formatModelName(m.id)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {remaining !== null && (
+                                <span 
+                                  data-testid={`model-quota-badge-${m.id}`}
+                                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${badgeColor}`}
+                                >
+                                  {isBlocked ? '< 5%' : `${remaining}%`}
+                                </span>
+                              )}
+                              {isSelected && <Check className="w-3.5 h-3.5 text-sky-400 shrink-0" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Seção 2: Claude Code CLI */}
+                  {claudeModels.length > 0 && (
+                    <div className="space-y-0.5 mt-2 pt-1 border-t border-base-200/80">
+                      <div className="flex items-center gap-1.5 px-2 pt-1 pb-0.5 text-[10px] font-bold tracking-wider text-amber-400 uppercase">
+                        <Terminal className="w-3 h-3 text-amber-400 shrink-0" />
+                        <span>Claude Code CLI</span>
+                      </div>
+                      {claudeModels.map((m) => {
+                        const isSelected = m.id === currentModel;
+                        const quotaInfo = quotaOverview?.modelQuotaMap?.[m.id];
+                        
+                        const remaining = autoRouteEnabled
+                          ? (quotaInfo?.bestPoolRemaining ?? quotaInfo?.currentAccountRemaining ?? null)
+                          : (quotaInfo?.currentAccountRemaining ?? null);
+                        
+                        const isBlocked = !!quotaInfo?.isBlocked;
+                        const targetAccountName = quotaInfo?.bestAccountName;
+
+                        // Cores da tag de cota
+                        let badgeColor = 'text-neutral-500 bg-neutral-800/60';
+                        if (remaining !== null) {
+                          if (remaining > 50) badgeColor = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+                          else if (remaining >= 20) badgeColor = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+                          else if (remaining > 5) badgeColor = 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+                          else badgeColor = 'text-neutral-400 bg-neutral-800/80 border-neutral-700 line-through';
+                        }
+
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            disabled={isRoutingModel}
+                            onClick={() => handleSelectModelWithRouting(m.id, m.agent)}
+                            title={
+                              isBlocked
+                                ? 'Cota esgotada em todas as contas cadastradas (< 5%)'
+                                : autoRouteEnabled && targetAccountName
+                                  ? `Cota disponível: ${remaining ?? 0}% • Alterna para ${targetAccountName}`
+                                  : `Cota na conta ativa: ${remaining ?? 0}%`
+                            }
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                              isSelected 
+                                ? 'bg-amber-500/10 text-amber-400 font-semibold' 
+                                : isBlocked
+                                  ? 'text-base-content/40 hover:bg-base-200/60'
+                                  : 'text-base-content/80 hover:bg-base-200 hover:text-base-content'
+                            }`}
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0 mr-1.5">
+                              <span 
+                                data-testid={`model-engine-tag-${m.id}`}
+                                className="text-[9px] font-bold px-1 py-0.2 rounded border shrink-0 bg-amber-500/15 text-amber-300 border-amber-500/30"
+                              >
+                                Claude
+                              </span>
+                              <span className={`truncate ${isBlocked ? 'line-through text-base-content/40' : ''}`}>
+                                {m.name || formatModelName(m.id)}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {remaining !== null && (
+                                <span 
+                                  data-testid={`model-quota-badge-${m.id}`}
+                                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${badgeColor}`}
+                                >
+                                  {isBlocked ? '< 5%' : `${remaining}%`}
+                                </span>
+                              )}
+                              {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Rodapé informativo do seletor */}
                   <div className="mt-1 pt-1.5 border-t border-base-200/60 px-2 py-0.5 text-[10px] text-base-content/50 flex items-center justify-between">
