@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { ChatMessage, ModelOption, ProjectWorkspace, QueuedMessage, EvolutionStatus } from '../../types';
 import { MessageItem } from './MessageItem';
 import { ChatInput } from './ChatInput';
+import { QuickActionChips } from './QuickActionChips';
 import { MessageQueueBanner } from './MessageQueueBanner';
 import { SpinnerVerbsModal } from './SpinnerVerbsModal';
 import { ArtifactDrawer } from './ArtifactDrawer';
@@ -20,6 +21,7 @@ interface ChatViewProps {
   isDraining?: boolean;
   evolutionStatus?: EvolutionStatus | null;
   onSelectSuggestion?: (prompt: string) => void;
+  onQuickAction?: (prompt: string) => void;
   currentModel?: string;
   currentAgent?: string;
   availableModels?: (string | ModelOption)[];
@@ -57,6 +59,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   isDraining = false,
   evolutionStatus = null,
   onSelectSuggestion,
+  onQuickAction,
   currentModel,
   currentAgent,
   availableModels,
@@ -422,6 +425,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
         <div className="px-4 pb-2">
           <PodDrainBanner status={evolutionStatus} />
         </div>
+      )}
+
+      {/* Chips de Ação Rápida no Chat (visíveis quando o assistente respondeu e aguarda o usuário) */}
+      {messages.length > 0 && !isLoading && messages[messages.length - 1]?.role === 'assistant' && (
+        <QuickActionChips
+          disabled={!isOnline || isDraining}
+          onSelectAction={(actionPrompt) => {
+            if (onQuickAction) {
+              onQuickAction(actionPrompt);
+            } else if (onSelectSuggestion) {
+              onSelectSuggestion(actionPrompt);
+            } else {
+              onPromptChange(actionPrompt);
+            }
+          }}
+        />
       )}
 
       {/* Input de Envio de Mensagem com Seletor de Modelo, MCPs, Refinar e Microfone */}
