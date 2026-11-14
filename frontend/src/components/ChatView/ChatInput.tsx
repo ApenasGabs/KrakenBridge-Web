@@ -546,6 +546,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   // Lista padronizada de modelos com indicação de motor
   const defaultModels: ModelOption[] = [
     // Google Antigravity (AGY)
+    { id: 'gemini-4-hydrogen-high', name: 'Gemini 4 Hydrogen (High)', agent: 'antigravity' },
+    { id: 'gemini-4-hydrogen-medium', name: 'Gemini 4 Hydrogen Medium', agent: 'antigravity' },
+    { id: 'gemini-4-hydrogen-low', name: 'Gemini 4 Hydrogen Low', agent: 'antigravity' },
     { id: 'gemini-4-argon-high', name: 'Gemini 4 Argon (High)', agent: 'antigravity' },
     { id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash High', agent: 'antigravity' },
     { id: 'gemini-3.8-flash-medium', name: 'Gemini 3.8 Flash Medium', agent: 'antigravity' },

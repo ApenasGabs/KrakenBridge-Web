@@ -6,11 +6,30 @@ import { promisify } from 'util';
 const execFileAsync = promisify(execFile);
 
 const WORKSPACE_DIR = process.env.WORKSPACE_DIR || '/workspace';
-const CLAUDE_CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR || '/root/.claude';
-const CREDENTIALS_FILE = path.join(CLAUDE_CONFIG_DIR, '.credentials.json');
-const CREDENTIALS_VAULT_FILE = path.join(CLAUDE_CONFIG_DIR, '.credentials.json.vault');
-const DATA_VAULT_FILE = '/DATA/.claude/.credentials.json.vault';
-const PAPERCLIP_CREDENTIALS_FILE = '/DATA/AppData/paperclip/data/.claude/.credentials.json';
+export const getClaudeConfigDir = () => process.env.CLAUDE_CONFIG_DIR || '/root/.claude';
+export const getCredentialsFile = () => process.env.CLAUDE_CREDENTIALS_FILE || path.join(getClaudeConfigDir(), '.credentials.json');
+export const getCredentialsVaultFile = () => process.env.CREDENTIALS_VAULT_FILE || path.join(getClaudeConfigDir(), '.credentials.json.vault');
+export const getDataVaultFile = () => process.env.DATA_VAULT_FILE || '/DATA/.claude/.credentials.json.vault';
+export const getPaperclipCredentialsFile = () => process.env.PAPERCLIP_CREDENTIALS_FILE || '/DATA/AppData/paperclip/data/.claude/.credentials.json';
+
+const updateEnvFile = async (key: string, value?: string | null): Promise<void> => {
+  try {
+    const envPath = path.join(WORKSPACE_DIR, '.env');
+    let envContent = await fs.readFile(envPath, 'utf8').catch(() => '');
+    const rx = new RegExp(`^${key}=.*$`, 'm');
+    if (value && value.trim()) {
+      const cleanVal = value.trim();
+      if (rx.test(envContent)) {
+        envContent = envContent.replace(rx, `${key}=${cleanVal}`);
+      } else {
+        envContent += `\n${key}=${cleanVal}\n`;
+      }
+    } else {
+      envContent = envContent.replace(rx, '');
+    }
+    await fs.writeFile(envPath, envContent.trim() + '\n', { mode: 0o600 });
+  } catch {}
+};
 
 export interface ClaudeAuthStatus {
   authenticated: boolean;
@@ -81,21 +100,20 @@ class ClaudeAuthService {
   async ensurePersistentStorage(): Promise<void> {
     try {
       const dataDir = '/DATA/.claude';
+      const configDir = getClaudeConfigDir();
       const dataExists = await fs.stat('/DATA').then(() => true).catch(() => false);
       if (dataExists) {
         await fs.mkdir(dataDir, { recursive: true });
 
-        // Symlink /root/.claude -> /DATA/.claude
-        const rootClaudeLstat = await fs.lstat('/root/.claude').catch(() => null);
+        // Symlink configDir -> dataDir
+        const rootClaudeLstat = await fs.lstat(configDir).catch(() => null);
         if (!rootClaudeLstat) {
-          await fs.symlink(dataDir, '/root/.claude').catch(() => {});
+          await fs.symlink(dataDir, configDir).catch(() => {});
         } else if (!rootClaudeLstat.isSymbolicLink()) {
-          const files = await fs.readdir('/root/.claude').catch(() => []);
-          for (const f of files) {
-            await fs.copyFile(path.join('/root/.claude', f), path.join(dataDir, f)).catch(() => {});
-          }
-          await fs.rm('/root/.claude', { recursive: true, force: true }).catch(() => {});
-          await fs.symlink(dataDir, '/root/.claude').catch(() => {});
+          // Copia recursivamente preservando subdiretórios (projects, plugins, statsig)
+          await fs.cp(configDir, dataDir, { recursive: true, force: true }).catch(() => {});
+          await fs.rm(configDir, { recursive: true, force: true }).catch(() => {});
+          await fs.symlink(dataDir, configDir).catch(() => {});
         }
 
         // Symlink /root/.claude.json -> /DATA/.claude.json
@@ -110,11 +128,16 @@ class ClaudeAuthService {
         }
       }
 
+      const credsFile = getCredentialsFile();
+      const vaultFile = getCredentialsVaultFile();
+      const dataVaultFile = getDataVaultFile();
+      const paperclipFile = getPaperclipCredentialsFile();
+
       // Auto-cura do Vault de credenciais com validação estrita
-      const credsRaw = await fs.readFile(CREDENTIALS_FILE, 'utf8').catch(() => '');
-      const vaultRaw = await fs.readFile(CREDENTIALS_VAULT_FILE, 'utf8').catch(() => '');
-      const dataVaultRaw = await fs.readFile(DATA_VAULT_FILE, 'utf8').catch(() => '');
-      const paperclipRaw = await fs.readFile(PAPERCLIP_CREDENTIALS_FILE, 'utf8').catch(() => '');
+      const credsRaw = await fs.readFile(credsFile, 'utf8').catch(() => '');
+      const vaultRaw = await fs.readFile(vaultFile, 'utf8').catch(() => '');
+      const dataVaultRaw = await fs.readFile(dataVaultFile, 'utf8').catch(() => '');
+      const paperclipRaw = await fs.readFile(paperclipFile, 'utf8').catch(() => '');
 
       const isCredsValid = isValidClaudeCredentials(credsRaw);
       const isVaultValid = isValidClaudeCredentials(vaultRaw);
@@ -125,15 +148,15 @@ class ClaudeAuthService {
         // Credenciais atuais em disco são saudáveis: atualiza o cofre de backup
         await this.backupCredentials();
       } else if (isVaultValid) {
-        await fs.writeFile(CREDENTIALS_FILE, vaultRaw, { mode: 0o600 });
+        await fs.writeFile(credsFile, vaultRaw, { mode: 0o600 });
         await this.syncToPaperclip(vaultRaw);
       } else if (isDataVaultValid) {
-        await fs.writeFile(CREDENTIALS_FILE, dataVaultRaw, { mode: 0o600 });
-        await fs.writeFile(CREDENTIALS_VAULT_FILE, dataVaultRaw, { mode: 0o600 });
+        await fs.writeFile(credsFile, dataVaultRaw, { mode: 0o600 });
+        await fs.writeFile(vaultFile, dataVaultRaw, { mode: 0o600 });
         await this.syncToPaperclip(dataVaultRaw);
       } else if (isPaperclipValid) {
-        await fs.writeFile(CREDENTIALS_FILE, paperclipRaw, { mode: 0o600 });
-        await fs.writeFile(CREDENTIALS_VAULT_FILE, paperclipRaw, { mode: 0o600 });
+        await fs.writeFile(credsFile, paperclipRaw, { mode: 0o600 });
+        await fs.writeFile(vaultFile, paperclipRaw, { mode: 0o600 });
       } else if (process.env.CLAUDE_CODE_OAUTH_TOKEN && process.env.CLAUDE_CODE_OAUTH_TOKEN.trim().startsWith('sk-ant-oat01-')) {
         const token = process.env.CLAUDE_CODE_OAUTH_TOKEN.trim();
         const payload = JSON.stringify({
@@ -143,8 +166,8 @@ class ClaudeAuthService {
             expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000
           }
         }, null, 2);
-        await fs.writeFile(CREDENTIALS_FILE, payload, { mode: 0o600 });
-        await fs.writeFile(CREDENTIALS_VAULT_FILE, payload, { mode: 0o600 });
+        await fs.writeFile(credsFile, payload, { mode: 0o600 });
+        await fs.writeFile(vaultFile, payload, { mode: 0o600 });
         await this.syncToPaperclip(payload);
       }
     } catch (err) {
@@ -154,10 +177,11 @@ class ClaudeAuthService {
 
   async backupCredentials(): Promise<void> {
     try {
-      const raw = await fs.readFile(CREDENTIALS_FILE, 'utf8').catch(() => '');
+      const credsFile = getCredentialsFile();
+      const raw = await fs.readFile(credsFile, 'utf8').catch(() => '');
       if (isValidClaudeCredentials(raw)) {
-        await fs.writeFile(CREDENTIALS_VAULT_FILE, raw, { mode: 0o600 }).catch(() => {});
-        await fs.writeFile(DATA_VAULT_FILE, raw, { mode: 0o600 }).catch(() => {});
+        await fs.writeFile(getCredentialsVaultFile(), raw, { mode: 0o600 }).catch(() => {});
+        await fs.writeFile(getDataVaultFile(), raw, { mode: 0o600 }).catch(() => {});
         await this.syncToPaperclip(raw);
       }
     } catch {}
@@ -166,10 +190,14 @@ class ClaudeAuthService {
   async syncToPaperclip(rawContent: string): Promise<void> {
     try {
       if (!isValidClaudeCredentials(rawContent)) return;
-      const pcDir = path.dirname(PAPERCLIP_CREDENTIALS_FILE);
+      const pcFile = getPaperclipCredentialsFile();
+      const pcDir = path.dirname(pcFile);
       await fs.mkdir(pcDir, { recursive: true }).catch(() => {});
-      await fs.writeFile(PAPERCLIP_CREDENTIALS_FILE, rawContent, { mode: 0o666 }).catch(() => {});
-      await fs.chmod(PAPERCLIP_CREDENTIALS_FILE, 0o666).catch(() => {});
+      await fs.writeFile(pcFile, rawContent, { mode: 0o600 }).catch(() => {});
+      await fs.chmod(pcFile, 0o600).catch(() => {});
+      if (typeof process.getuid === 'function' && process.getuid() === 0) {
+        await fs.chown(pcFile, 1000, 1000).catch(() => {});
+      }
     } catch {}
   }
 
@@ -181,6 +209,7 @@ class ClaudeAuthService {
 
     const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
     const hasOAuthTokenEnv = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    const configDir = getClaudeConfigDir();
 
     // 1. Tenta verificar status diretamente via CLI do Claude
     try {
@@ -188,7 +217,7 @@ class ClaudeAuthService {
         env: {
           ...process.env,
           HOME: process.env.HOME || '/root',
-          CLAUDE_CONFIG_DIR
+          CLAUDE_CONFIG_DIR: configDir
         },
         timeout: 5000
       }).catch((err: { stdout?: string; stderr?: string }) => ({ stdout: err.stdout || '', stderr: err.stderr || '' }));
@@ -215,18 +244,19 @@ class ClaudeAuthService {
               hasToken: isCliLoggedIn || hasOAuthTokenEnv,
               hasKey: hasApiKey,
               loginExpiresAt: parsed.loginExpiresAt || null,
-              configDirectory: parsed.configDirectory || CLAUDE_CONFIG_DIR
+              configDirectory: parsed.configDirectory || configDir
             };
           }
         } catch {}
       }
     } catch {}
 
-    // 2. Fallback: verificar arquivo de credenciais ~/.claude/.credentials.json
+    // 2. Fallback: verificar arquivo de credenciais
     try {
-      const exists = await fs.stat(CREDENTIALS_FILE).catch(() => null);
+      const credsFile = getCredentialsFile();
+      const exists = await fs.stat(credsFile).catch(() => null);
       if (exists) {
-        const raw = await fs.readFile(CREDENTIALS_FILE, 'utf8');
+        const raw = await fs.readFile(credsFile, 'utf8');
         const parsed = JSON.parse(raw);
         if (parsed.claudeAiOauth && (parsed.claudeAiOauth.accessToken || parsed.claudeAiOauth.refreshToken)) {
           return {
@@ -235,7 +265,7 @@ class ClaudeAuthService {
             hasToken: true,
             hasKey: hasApiKey,
             loginExpiresAt: parsed.claudeAiOauth.expiresAt ? new Date(parsed.claudeAiOauth.expiresAt).toISOString() : null,
-            configDirectory: CLAUDE_CONFIG_DIR
+            configDirectory: configDir
           };
         }
       }
@@ -249,7 +279,7 @@ class ClaudeAuthService {
         authMethod: 'apikey',
         hasToken: false,
         hasKey: true,
-        configDirectory: CLAUDE_CONFIG_DIR
+        configDirectory: configDir
       };
     }
 
@@ -258,7 +288,7 @@ class ClaudeAuthService {
       authMethod: 'none',
       hasToken: false,
       hasKey: false,
-      configDirectory: CLAUDE_CONFIG_DIR
+      configDirectory: configDir
     };
   }
 
@@ -290,7 +320,7 @@ class ClaudeAuthService {
           ...process.env,
           DISPLAY: '',
           HOME: process.env.HOME || '/root',
-          CLAUDE_CONFIG_DIR,
+          CLAUDE_CONFIG_DIR: getClaudeConfigDir(),
           COLUMNS: '1000'
         }
       });
@@ -403,10 +433,17 @@ class ClaudeAuthService {
     if (code.startsWith('sk-ant-oat01-') || code.includes('"claudeAiOauth"')) {
       this.cleanupSession();
       try {
-        await fs.mkdir(CLAUDE_CONFIG_DIR, { recursive: true });
+        await fs.mkdir(getClaudeConfigDir(), { recursive: true });
         let tokenPayload: unknown;
 
         if (code.startsWith('{')) {
+          if (!isValidClaudeCredentials(code)) {
+            return {
+              success: false,
+              status: 'error',
+              error: 'JSON de credenciais inválido ou sem tokens reconhecidos.'
+            };
+          }
           tokenPayload = JSON.parse(code);
         } else {
           tokenPayload = {
@@ -419,22 +456,12 @@ class ClaudeAuthService {
         }
 
         const rawJson = JSON.stringify(tokenPayload, null, 2);
-        await fs.writeFile(CREDENTIALS_FILE, rawJson, { encoding: 'utf8', mode: 0o600 });
+        await fs.writeFile(getCredentialsFile(), rawJson, { encoding: 'utf8', mode: 0o600 });
         await this.backupCredentials();
 
         if (typeof code === 'string' && code.startsWith('sk-ant-oat01-')) {
           process.env.CLAUDE_CODE_OAUTH_TOKEN = code;
-          try {
-            const envPath = path.join(WORKSPACE_DIR, '.env');
-            let envContent = await fs.readFile(envPath, 'utf8').catch(() => '');
-            const rx = /^CLAUDE_CODE_OAUTH_TOKEN=.*$/m;
-            if (rx.test(envContent)) {
-              envContent = envContent.replace(rx, `CLAUDE_CODE_OAUTH_TOKEN=${code}`);
-            } else {
-              envContent += `\nCLAUDE_CODE_OAUTH_TOKEN=${code}\n`;
-            }
-            await fs.writeFile(envPath, envContent.trim() + '\n', { mode: 0o600 });
-          } catch {}
+          await updateEnvFile('CLAUDE_CODE_OAUTH_TOKEN', code);
         }
 
         const updated = await this.getStatus();
@@ -457,33 +484,14 @@ class ClaudeAuthService {
     if (code.startsWith('sk-ant-api03-') || code.startsWith('sk-ant-')) {
       this.cleanupSession();
       process.env.ANTHROPIC_API_KEY = code;
-      try {
-        const envPath = path.join(WORKSPACE_DIR, '.env');
-        let envContent = '';
-        try { envContent = await fs.readFile(envPath, 'utf8'); } catch {}
+      await updateEnvFile('ANTHROPIC_API_KEY', code);
 
-        const rx = /^ANTHROPIC_API_KEY=.*$/m;
-        if (rx.test(envContent)) {
-          envContent = envContent.replace(rx, `ANTHROPIC_API_KEY=${code}`);
-        } else {
-          envContent += `\nANTHROPIC_API_KEY=${code}\n`;
-        }
-        await fs.writeFile(envPath, envContent.trim() + '\n', { encoding: 'utf8', mode: 0o600 });
-
-        return {
-          success: true,
-          status: 'success',
-          email: 'Anthropic API Key',
-          message: 'Anthropic API Key configurada com sucesso!'
-        };
-      } catch (err) {
-        return {
-          success: true,
-          status: 'success',
-          email: 'Anthropic API Key',
-          message: 'Anthropic API Key ativa em memória nesta sessão!'
-        };
-      }
+      return {
+        success: true,
+        status: 'success',
+        email: 'Anthropic API Key',
+        message: 'Anthropic API Key configurada com sucesso!'
+      };
     }
 
     // Caso 3: Existe uma sessão ativa do CLI aguardando o código de autorização OAuth via stdin
@@ -506,17 +514,7 @@ class ClaudeAuthService {
             if (tokenMatch) {
               const extractedToken = tokenMatch[0];
               process.env.CLAUDE_CODE_OAUTH_TOKEN = extractedToken;
-              try {
-                const envPath = path.join(WORKSPACE_DIR, '.env');
-                let envContent = await fs.readFile(envPath, 'utf8').catch(() => '');
-                const rx = /^CLAUDE_CODE_OAUTH_TOKEN=.*$/m;
-                if (rx.test(envContent)) {
-                  envContent = envContent.replace(rx, `CLAUDE_CODE_OAUTH_TOKEN=${extractedToken}`);
-                } else {
-                  envContent += `\nCLAUDE_CODE_OAUTH_TOKEN=${extractedToken}\n`;
-                }
-                await fs.writeFile(envPath, envContent.trim() + '\n', { mode: 0o600 });
-              } catch {}
+              await updateEnvFile('CLAUDE_CODE_OAUTH_TOKEN', extractedToken);
             }
 
             // Garante backup imediato no cofre persistente
@@ -612,31 +610,24 @@ class ClaudeAuthService {
         env: {
           ...process.env,
           HOME: process.env.HOME || '/root',
-          CLAUDE_CONFIG_DIR
+          CLAUDE_CONFIG_DIR: getClaudeConfigDir()
         },
         timeout: 5000
       }).catch(() => {});
     } catch {}
 
     try {
-      await fs.unlink(CREDENTIALS_FILE).catch(() => {});
-      await fs.unlink(CREDENTIALS_VAULT_FILE).catch(() => {});
-      await fs.unlink(DATA_VAULT_FILE).catch(() => {});
+      await fs.unlink(getCredentialsFile()).catch(() => {});
+      await fs.unlink(getCredentialsVaultFile()).catch(() => {});
+      await fs.unlink(getDataVaultFile()).catch(() => {});
+      await fs.unlink(getPaperclipCredentialsFile()).catch(() => {});
     } catch {}
 
     delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
     delete process.env.ANTHROPIC_API_KEY;
 
-    try {
-      const envPath = path.join(WORKSPACE_DIR, '.env');
-      let envContent = await fs.readFile(envPath, 'utf8').catch(() => '');
-      if (envContent.includes('ANTHROPIC_API_KEY=') || envContent.includes('CLAUDE_CODE_OAUTH_TOKEN=')) {
-        envContent = envContent
-          .replace(/^ANTHROPIC_API_KEY=.*$/m, '')
-          .replace(/^CLAUDE_CODE_OAUTH_TOKEN=.*$/m, '');
-        await fs.writeFile(envPath, envContent.trim() + '\n', { mode: 0o600 });
-      }
-    } catch {}
+    await updateEnvFile('ANTHROPIC_API_KEY', null);
+    await updateEnvFile('CLAUDE_CODE_OAUTH_TOKEN', null);
 
     return {
       success: true,
