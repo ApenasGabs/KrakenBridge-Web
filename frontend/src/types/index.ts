@@ -171,6 +171,7 @@ export interface EvolutionStatus {
 export interface ModelOption {
   id: string;
   name: string;
+  agent?: 'antigravity' | 'claude' | 'aider' | string;
 }
 
 export interface ModelsConfig {
