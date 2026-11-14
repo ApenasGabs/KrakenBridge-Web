@@ -5,6 +5,13 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.40.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.40.0...v1.40.1) (2026-11-14)
+
+### 🐛 Bug Fixes
+
+* **pwa:** auto-recarga, invalidação de cache e auto-atualização do Service Worker após releases (Refs [#172](https://github.com/ApenasGabs/KrakenBridge-Web/issues/172)) ([c915d80](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c915d80e195f05b37b831baa23dac55a85ff71fa))
+* **review:** resolver apontamentos de standards e spec do code review (Refs [#172](https://github.com/ApenasGabs/KrakenBridge-Web/issues/172)) ([514f17b](https://github.com/ApenasGabs/KrakenBridge-Web/commit/514f17b4bc9f0a384f25c6ab73164a3358eb4a0a))
+
 ## [1.40.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.39.0...v1.40.0) (2026-11-14)
 
 ### ✨ Features
