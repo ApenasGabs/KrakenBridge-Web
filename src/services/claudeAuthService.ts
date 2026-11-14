@@ -54,7 +54,7 @@ interface PendingClaudeSession {
 /**
  * Valida se um payload de credenciais possui tokens reais não vazios
  */
-export function isValidClaudeCredentials(raw: string): boolean {
+export const isValidClaudeCredentials = (raw: string): boolean => {
   if (!raw || !raw.trim()) return false;
   try {
     const parsed = JSON.parse(raw);
@@ -69,7 +69,7 @@ export function isValidClaudeCredentials(raw: string): boolean {
   } catch {
     return false;
   }
-}
+};
 
 class ClaudeAuthService {
   private pendingSession: PendingClaudeSession | null = null;
@@ -125,20 +125,16 @@ class ClaudeAuthService {
         // Credenciais atuais em disco são saudáveis: atualiza o cofre de backup
         await this.backupCredentials();
       } else if (isVaultValid) {
-        console.log('[ClaudeAuthService] Restaurando .credentials.json a partir do cofre persistente (auto-cura)...');
         await fs.writeFile(CREDENTIALS_FILE, vaultRaw, { mode: 0o600 });
         await this.syncToPaperclip(vaultRaw);
       } else if (isDataVaultValid) {
-        console.log('[ClaudeAuthService] Restaurando .credentials.json a partir de /DATA/.claude/.credentials.json.vault...');
         await fs.writeFile(CREDENTIALS_FILE, dataVaultRaw, { mode: 0o600 });
         await fs.writeFile(CREDENTIALS_VAULT_FILE, dataVaultRaw, { mode: 0o600 });
         await this.syncToPaperclip(dataVaultRaw);
       } else if (isPaperclipValid) {
-        console.log('[ClaudeAuthService] Sincronizando credenciais do Claude a partir do Paperclip...');
         await fs.writeFile(CREDENTIALS_FILE, paperclipRaw, { mode: 0o600 });
         await fs.writeFile(CREDENTIALS_VAULT_FILE, paperclipRaw, { mode: 0o600 });
       } else if (process.env.CLAUDE_CODE_OAUTH_TOKEN && process.env.CLAUDE_CODE_OAUTH_TOKEN.trim().startsWith('sk-ant-oat01-')) {
-        console.log('[ClaudeAuthService] Gerando .credentials.json a partir de CLAUDE_CODE_OAUTH_TOKEN do ambiente...');
         const token = process.env.CLAUDE_CODE_OAUTH_TOKEN.trim();
         const payload = JSON.stringify({
           claudeAiOauth: {
