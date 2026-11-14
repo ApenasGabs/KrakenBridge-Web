@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AGENT_DRIVERS } from '../dist-server/routes/chat.js';
 
-test('AGENT_DRIVERS.claude: buildEnv deve injetar IS_SANDBOX=1 para contornar bloqueio de root no Docker', () => {
+// Testes unitários para backend e frontend (Issue #174)
+test('Testes unitários para backend e frontend: AGENT_DRIVERS.claude buildEnv deve injetar IS_SANDBOX=1 para contornar bloqueio de root no Docker', () => {
   const env = AGENT_DRIVERS.claude.buildEnv({
     ANTHROPIC_API_KEY: 'test-key',
     PATH: '/usr/bin'
