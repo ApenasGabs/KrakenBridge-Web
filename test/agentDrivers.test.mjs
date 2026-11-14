@@ -28,3 +28,36 @@ test('AGENT_DRIVERS.claude: buildArgs deve incluir prompt, --dangerously-skip-pe
   assert.ok(args.includes('--model'), 'Deve conter flag --model');
   assert.ok(args.includes('claude-3-opus-20240229'), 'Deve conter o modelo especificado');
 });
+
+test('AGENT_DRIVERS.claude: buildArgs deve injetar cascata --fallback-model para modelos 3.7 e opus', () => {
+  const args = AGENT_DRIVERS.claude.buildArgs({
+    prompt: 'Olá Claude',
+    model: 'claude-3-7-sonnet-20250219'
+  });
+
+  assert.ok(args.includes('--fallback-model'), 'Deve conter flag --fallback-model');
+  const idx = args.indexOf('--fallback-model');
+  assert.equal(args[idx + 1], 'claude-3-5-sonnet-20241022,claude-3-5-haiku-20241022', 'Deve conter a cascata correta para 3.7');
+});
+
+test('AGENT_DRIVERS.claude: buildArgs deve injetar cascata --fallback-model para 3.5-sonnet', () => {
+  const args = AGENT_DRIVERS.claude.buildArgs({
+    prompt: 'Olá Claude',
+    model: 'claude-3-5-sonnet-20241022'
+  });
+
+  assert.ok(args.includes('--fallback-model'), 'Deve conter flag --fallback-model');
+  const idx = args.indexOf('--fallback-model');
+  assert.equal(args[idx + 1], 'claude-3-5-haiku-20241022', 'Deve conter a cascata correta para 3.5-sonnet');
+});
+
+test('AGENT_DRIVERS.antigravity: buildArgs aceita gemini-4-hydrogen-high', () => {
+  const args = AGENT_DRIVERS.antigravity.buildArgs({
+    prompt: 'Teste Hydrogen',
+    model: 'gemini-4-hydrogen-high'
+  });
+
+  assert.ok(args.includes('--model'), 'Deve conter flag --model');
+  const idx = args.indexOf('--model');
+  assert.equal(args[idx + 1], 'gemini-4-hydrogen-high', 'Deve aceitar gemini-4-hydrogen-high');
+});

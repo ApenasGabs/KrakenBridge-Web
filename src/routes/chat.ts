@@ -120,6 +120,13 @@ export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
       if (model) {
         args.push('--model', model);
       }
+      // Cascata inteligente de fallback para Claude Code
+      const requested = model || 'claude-3-7-sonnet-20250219';
+      if (requested.includes('3-7') || requested.includes('opus')) {
+        args.push('--fallback-model', 'claude-3-5-sonnet-20241022,claude-3-5-haiku-20241022');
+      } else if (requested.includes('3-5-sonnet')) {
+        args.push('--fallback-model', 'claude-3-5-haiku-20241022');
+      }
       return args;
     },
     buildEnv: (env) => {

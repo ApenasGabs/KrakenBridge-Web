@@ -826,11 +826,16 @@ class QuotaService {
 
     // Mapeamento dos modelos conhecidos para suas cotas
     const knownModels = [
+      'gemini-4-hydrogen-high',
+      'gemini-4-hydrogen-xhigh',
+      'gemini-4-hydrogen-medium',
+      'gemini-4-hydrogen-low',
       'gemini-3.8-flash-high',
       'gemini-3.8-flash-medium',
       'gemini-3.7-flash-high',
       'gemini-3.1-pro-high',
       'gemini-4-argon-high',
+      'gemini-4-argon-medium',
       'claude-opus-5-5-high',
       'claude-opus-5-5-medium',
       'claude-sonnet-5-5-high',
