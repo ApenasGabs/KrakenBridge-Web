@@ -46,6 +46,16 @@ quotaRouter.get('/accounts', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/quota/accounts/refresh - Força atualização do cache de todas as contas (AGY + Claude Code)
+quotaRouter.post('/accounts/refresh', async (_req: Request, res: Response) => {
+  try {
+    const overview = await quotaService.getMultiAccountQuotaOverview(true);
+    res.json({ ok: true, overview });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // POST /api/quota/route-by-model - Roteia automaticamente para a conta com melhor cota do modelo
 quotaRouter.post('/route-by-model', async (req: Request, res: Response) => {
   try {

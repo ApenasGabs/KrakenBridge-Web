@@ -62,11 +62,18 @@ export interface AccountModelQuotaSummary {
   message?: string | null;
 }
 
+export type QuotaEngine = 'agy' | 'claude';
+export type QuotaCacheStatus = 'ok' | 'stale' | 'error' | 'rate_limited';
+
 export interface AccountQuotaProfile {
+  engine?: QuotaEngine;
   email: string;
   name: string;
   picture: string | null;
   isActive: boolean;
+  planTier?: string | null;
+  cacheStatus?: QuotaCacheStatus;
+  errorMessage?: string | null;
   groups: QuotaGroup[];
   modelSummary: {
     gemini: AccountModelQuotaSummary;
@@ -76,9 +83,17 @@ export interface AccountQuotaProfile {
   lastUpdated: string;
 }
 
+export interface QuotaCacheMeta {
+  lastRefreshedAt: string | null;
+  nextRefreshAt: string | null;
+  refreshIntervalMs: number;
+  isRefreshing: boolean;
+}
+
 export interface MultiAccountQuotaOverview {
   activeEmail: string | null;
   accounts: AccountQuotaProfile[];
+  cacheMeta?: QuotaCacheMeta;
   bestAccountsByFamily: {
     gemini: { email: string; remaining: number; name: string } | null;
     claudeGpt: { email: string; remaining: number; name: string } | null;
