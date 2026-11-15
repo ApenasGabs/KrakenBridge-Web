@@ -76,7 +76,7 @@ function runHook(mode, payload, configDir) {
   return r.stdout ? JSON.parse(r.stdout) : null;
 }
 
-test('ponta a ponta: reproduz o cenário do PR #12 e bloqueia cada bypass', () => {
+test('Fluxo Estrito de Code Review e Tolerância Zero a Bypasses: reproduz o cenário do PR #12 e bloqueia cada bypass', () => {
   const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-cfg-'));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-repo-'));
   const session = { session_id: 'sess-184', cwd: repo };
@@ -116,7 +116,7 @@ test('ponta a ponta: reproduz o cenário do PR #12 e bloqueia cada bypass', () =
   assert.match(up.hookSpecificOutput.additionalContext, /Narração antes de agir/);
 });
 
-test('provisionamento preserva config do usuário, é idempotente e não destrói JSON inválido', async () => {
+test('Auto-Alinhamento do Claude com suas Próprias Diretrizes: provisionamento em CLAUDE_CONFIG_DIR preserva config do usuário, é idempotente e não destrói JSON inválido', async () => {
   const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-prov-'));
   const prev = process.env.CLAUDE_CONFIG_DIR;
   process.env.CLAUDE_CONFIG_DIR = cfg;

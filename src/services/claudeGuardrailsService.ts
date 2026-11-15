@@ -19,21 +19,21 @@ export const CLAUDE_MD_END = '<!-- KRAKEN-GUARDRAILS:END -->';
 
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-function templatesDir(): string {
+const templatesDir = (): string => {
   const candidates = [
     path.resolve(MODULE_DIR, '../templates/claude-guardrails'),
     path.resolve('src/templates/claude-guardrails'),
     path.resolve('dist-server/templates/claude-guardrails')
   ];
   return candidates.find((c) => fsSync.existsSync(path.join(c, GUARD_SCRIPT_NAME))) || candidates[0];
-}
+};
 
 type HookCommand = { type: 'command'; command: string; timeout?: number };
 type HookGroup = { matcher?: string; hooks: HookCommand[] };
 type HooksConfig = Record<string, HookGroup[]>;
 
 /** Gera a configuração de hooks do Kraken Guard para o script informado. */
-export function buildGuardHooks(scriptPath: string): HooksConfig {
+export const buildGuardHooks = (scriptPath: string): HooksConfig => {
   const cmd = (mode: string): HookCommand => ({ type: 'command', command: `node "${scriptPath}" ${mode}`, timeout: 10 });
   return {
     UserPromptSubmit: [{ hooks: [cmd('user-prompt')] }],
@@ -41,10 +41,10 @@ export function buildGuardHooks(scriptPath: string): HooksConfig {
     PostToolUse: [{ matcher: 'Bash', hooks: [cmd('post-tool')] }],
     Stop: [{ hooks: [cmd('stop')] }]
   };
-}
+};
 
 /** Mescla os hooks do guard em um settings.json existente, substituindo só entradas antigas do guard. */
-export function mergeGuardHooks(settings: Record<string, any>, scriptPath: string): Record<string, any> {
+export const mergeGuardHooks = (settings: Record<string, any>, scriptPath: string): Record<string, any> => {
   const next = { ...settings };
   const hooks: HooksConfig = { ...(settings.hooks && typeof settings.hooks === 'object' ? settings.hooks : {}) };
   const isGuard = (g: HookGroup) => Array.isArray(g?.hooks) && g.hooks.some((h) => typeof h?.command === 'string' && h.command.includes(GUARD_SCRIPT_NAME));
@@ -54,10 +54,10 @@ export function mergeGuardHooks(settings: Record<string, any>, scriptPath: strin
   }
   next.hooks = hooks;
   return next;
-}
+};
 
 /** Insere ou substitui o bloco gerenciado no CLAUDE.md, preservando o resto do arquivo. */
-export function upsertManagedBlock(current: string, block: string): string {
+export const upsertManagedBlock = (current: string, block: string): string => {
   const managed = `${CLAUDE_MD_BEGIN}\n${block.trim()}\n${CLAUDE_MD_END}`;
   const start = current.indexOf(CLAUDE_MD_BEGIN);
   const end = current.indexOf(CLAUDE_MD_END);
@@ -65,15 +65,15 @@ export function upsertManagedBlock(current: string, block: string): string {
     return current.slice(0, start) + managed + current.slice(end + CLAUDE_MD_END.length);
   }
   return current.trim() ? `${current.replace(/\s*$/, '')}\n\n${managed}\n` : `${managed}\n`;
-}
+};
 
-async function writeIfChanged(file: string, content: string, mode: number): Promise<boolean> {
+const writeIfChanged = async (file: string, content: string, mode: number): Promise<boolean> => {
   try {
     if ((await fs.readFile(file, 'utf8')) === content) return false;
   } catch {}
   await fs.writeFile(file, content, { encoding: 'utf8', mode });
   return true;
-}
+};
 
 class ClaudeGuardrailsService {
   configDir(): string {
@@ -90,7 +90,7 @@ class ClaudeGuardrailsService {
 
     // 1. Script dos hooks
     const script = await fs.readFile(path.join(tpl, GUARD_SCRIPT_NAME), 'utf8');
-    const changedScript = await writeIfChanged(scriptPath, script, 0o755);
+    await writeIfChanged(scriptPath, script, 0o755);
 
     // 2. settings.json — nunca sobrescreve um arquivo com JSON inválido
     const settingsPath = path.join(cfg, 'settings.json');
@@ -104,9 +104,8 @@ class ClaudeGuardrailsService {
         console.error(`[ClaudeGuardrails] ${settingsPath} tem JSON inválido; hooks NÃO registrados para não destruir a config:`, (err as Error).message);
       }
     }
-    let changedSettings = false;
     if (settingsOk) {
-      changedSettings = await writeIfChanged(settingsPath, JSON.stringify(mergeGuardHooks(settings, scriptPath), null, 2) + '\n', 0o644);
+      await writeIfChanged(settingsPath, JSON.stringify(mergeGuardHooks(settings, scriptPath), null, 2) + '\n', 0o644);
     }
 
     // 3. CLAUDE.md global (bloco gerenciado)
@@ -116,11 +115,8 @@ class ClaudeGuardrailsService {
     try {
       current = await fs.readFile(claudeMdPath, 'utf8');
     } catch {}
-    const changedMd = await writeIfChanged(claudeMdPath, upsertManagedBlock(current, block), 0o644);
+    await writeIfChanged(claudeMdPath, upsertManagedBlock(current, block), 0o644);
 
-    if (changedScript || changedSettings || changedMd) {
-      console.log(`[ClaudeGuardrails] Guardrails do Claude Code provisionados em ${cfg} (script=${changedScript}, settings=${changedSettings}, CLAUDE.md=${changedMd}).`);
-    }
     return settingsOk;
   }
 }

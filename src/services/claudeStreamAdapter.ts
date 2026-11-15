@@ -41,7 +41,7 @@ type ClaudeStreamLine = {
 const MAX_TOOL_OUTPUT_CHARS = 20_000;
 
 /** Converte o input de uma ferramenta do Claude Code nos parâmetros que a UI já sabe exibir. */
-export function mapClaudeToolInput(name: string, input: Record<string, unknown> = {}): Record<string, unknown> {
+export const mapClaudeToolInput = (name: string, input: Record<string, unknown> = {}): Record<string, unknown> => {
   const params: Record<string, unknown> = { ...input };
   const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
 
@@ -63,9 +63,9 @@ export function mapClaudeToolInput(name: string, input: Record<string, unknown> 
     params.ToolName = tool.join('__');
   }
   return params;
-}
+};
 
-function stringifyToolResult(content: unknown): string {
+const stringifyToolResult = (content: unknown): string => {
   let out: string;
   if (typeof content === 'string') {
     out = content;
@@ -80,20 +80,20 @@ function stringifyToolResult(content: unknown): string {
     out = JSON.stringify(content);
   }
   return out.length > MAX_TOOL_OUTPUT_CHARS ? `${out.slice(0, MAX_TOOL_OUTPUT_CHARS)}\n…[saída truncada]` : out;
-}
+};
 
 /** Retorna true se a linha JSON tem o formato do stream-json do Claude Code. */
-export function isClaudeStreamLine(parsed: unknown): parsed is ClaudeStreamLine {
+export const isClaudeStreamLine = (parsed: unknown): parsed is ClaudeStreamLine => {
   if (!parsed || typeof parsed !== 'object') return false;
   const t = (parsed as { type?: unknown }).type;
   return t === 'system' || t === 'assistant' || t === 'user' || t === 'result';
-}
+};
 
 /**
  * Cria um tradutor com estado (mapeia tool_use_id -> step_index e acompanha se
  * houve narração desde a última ferramenta).
  */
-export function createClaudeStreamTranslator() {
+export const createClaudeStreamTranslator = () => {
   const stepIndexByToolId = new Map<string, number>();
   const toolNameById = new Map<string, string>();
   let nextStepIndex = 0;
@@ -171,4 +171,4 @@ export function createClaudeStreamTranslator() {
     // (não salvar session_id como agyConvId para não quebrar trocas de agente).
     return out;
   };
-}
+};

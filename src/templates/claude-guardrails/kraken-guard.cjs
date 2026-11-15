@@ -30,42 +30,42 @@ const RULES_REMINDER = [
 
 // ---------- utilidades ----------
 
-function configDir() {
+const configDir = () => {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
-}
+};
 
-function stateFile(sessionId) {
+const stateFile = (sessionId) => {
   const safe = String(sessionId || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
   return path.join(configDir(), 'kraken-guardrails', 'state', `${safe}.json`);
-}
+};
 
-function loadState(sessionId) {
+const loadState = (sessionId) => {
   try {
     return JSON.parse(fs.readFileSync(stateFile(sessionId), 'utf8'));
   } catch {
     return null;
   }
-}
+};
 
-function saveState(sessionId, state) {
+const saveState = (sessionId, state) => {
   const f = stateFile(sessionId);
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.writeFileSync(f, JSON.stringify(state, null, 2));
-}
+};
 
 /** Divide um comando shell em segmentos separados por ; && || e quebras de linha. */
-function segments(command) {
+const segments = (command) => {
   return String(command || '').split(/;|&&|\|\||\n/);
-}
+};
 
 // ---------- decisões puras (exportadas para testes) ----------
 
-function isReviewCommand(command) {
+const isReviewCommand = (command) => {
   return REVIEW_CMD_RE.test(String(command || ''));
-}
+};
 
 /** True se a execução do revisor tem a saída filtrada ou descartada. */
-function isMaskedReviewCommand(command) {
+const isMaskedReviewCommand = (command) => {
   for (const seg of segments(command)) {
     if (!REVIEW_CMD_RE.test(seg)) continue;
     const tail = seg.slice(seg.search(REVIEW_CMD_RE));
@@ -77,10 +77,10 @@ function isMaskedReviewCommand(command) {
     if (/>/.test(withoutStderr)) return true;
   }
   return false;
-}
+};
 
 /** True se o comando move, apaga, sobrescreve ou reverte o REVIEW_REPORT.md. */
-function isReportTamperCommand(command) {
+const isReportTamperCommand = (command) => {
   return segments(command).some((seg) => {
     if (!seg.includes(REPORT_NAME)) return false;
     return (
@@ -90,23 +90,23 @@ function isReportTamperCommand(command) {
       new RegExp(`>\\s*[^\\s|]*${REPORT_NAME.replace('.', '\\.')}`).test(seg)
     );
   });
-}
+};
 
-function isPrFeedbackCommand(command) {
+const isPrFeedbackCommand = (command) => {
   return /\bgh\s+(pr\s+(comment|review|merge)\b|api\b[^\n]*(comments|reviews|merge))/.test(String(command || ''));
-}
+};
 
 /** Extrai o status do relatório: 'reprovado' | 'aprovado' | 'desconhecido'. */
-function parseReportStatus(content) {
+const parseReportStatus = (content) => {
   const text = String(content || '');
   const statusLine = text.split('\n').find((l) => /status/i.test(l)) || text.slice(0, 2000);
   if (/reprovad|requer ajustes|🔴/i.test(statusLine)) return 'reprovado';
   if (/aprovad|🟢|✅/i.test(statusLine)) return 'aprovado';
   return 'desconhecido';
-}
+};
 
 /** Decide o PreToolUse. Retorna { deny: string } ou null. */
-function decidePreTool(input, state) {
+const decidePreTool = (input, state) => {
   const tool = input.tool_name;
   const ti = input.tool_input || {};
 
@@ -131,10 +131,10 @@ function decidePreTool(input, state) {
     return { deny: 'KRAKEN GUARD: o revisor agent-standards REPROVOU esta entrega e os apontamentos ainda não foram apresentados ao usuário. Liste no chat os itens do Eixo Spec e do Eixo Standards, corrija-os ou obtenha confirmação explícita do usuário antes de comentar, revisar ou mergear o PR (nada de classificar falso positivo sozinha).' };
   }
   return null;
-}
+};
 
 /** Decide o Stop. Retorna { block: string } ou null. */
-function decideStop(input, state) {
+const decideStop = (input, state) => {
   if (!state || !state.reviewRan || state.presented) return null;
   if ((state.stopBlocks || 0) >= MAX_STOP_BLOCKS) return null; // evita laço infinito
   const msg = String(input.last_assistant_message || '');
@@ -148,9 +148,9 @@ function decideStop(input, state) {
   return {
     block: `KRAKEN GUARD: o revisor agent-standards rodou neste turno${state.reportPath ? ` (relatório: ${state.reportPath})` : ''}, mas sua resposta final ainda não expõe: ${missing.join('; ')}. Antes de encerrar, apresente no chat cada apontamento, diga quais serão corrigidos e quais você considera falso positivo (com justificativa) e peça a confirmação do usuário.`
   };
-}
+};
 
-function findReport(input) {
+const findReport = (input) => {
   const cmd = String((input.tool_input || {}).command || '');
   const candidates = [];
   const target = cmd.match(/--target[ =]+("[^"]+"|'[^']+'|\S+)/);
@@ -167,11 +167,11 @@ function findReport(input) {
     } catch {}
   }
   return best ? best.path : null;
-}
+};
 
 // ---------- handlers ----------
 
-function handle(mode, input) {
+const handle = (mode, input) => {
   const sessionId = input.session_id;
   const state = loadState(sessionId);
 
@@ -216,7 +216,7 @@ function handle(mode, input) {
   }
 
   return null;
-}
+};
 
 module.exports = {
   isReviewCommand,
