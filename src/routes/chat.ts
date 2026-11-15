@@ -15,6 +15,8 @@ import { pushNotificationService } from '../services/pushNotificationService.js'
 import { coucouPhoneLinkService } from '../services/coucouPhoneLinkService.js';
 import { paperclipService } from '../services/paperclipService.js';
 import { claudeAuthService } from '../services/claudeAuthService.js';
+import { claudeGuardrailsService } from '../services/claudeGuardrailsService.js';
+import { createClaudeStreamTranslator, isClaudeStreamLine } from '../services/claudeStreamAdapter.js';
 import {
   promptRefinerService,
   RefineValidationError,
@@ -114,7 +116,9 @@ export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
   claude: {
     cmd: 'claude',
     buildArgs: ({ prompt, model, skipPermissions }) => {
-      const args = ['-p', prompt];
+      // stream-json (+ --verbose, exigido pelo CLI em modo -p) faz cada narração e
+      // ferramenta chegar em tempo real; em modo texto só o resultado final aparecia (#184).
+      const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose'];
       if (skipPermissions !== false) {
         args.push('--dangerously-skip-permissions');
       }
@@ -420,6 +424,10 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     await claudeAuthService.ensurePersistentStorage().catch((err) => {
       console.warn('[KrakenBridge] Aviso ao assegurar persistência do Claude:', err?.message || err);
     });
+    // Garante hooks de guardrail (narração + code review) antes de cada execução (#184)
+    await claudeGuardrailsService.ensureProvisioned().catch((err) => {
+      console.warn('[KrakenBridge] Aviso ao provisionar guardrails do Claude:', err?.message || err);
+    });
   }
 
   const executionStartTime = Date.now();
@@ -531,34 +539,43 @@ chatRouter.post('/', async (req: Request, res: Response) => {
 
   const rl = readline.createInterface({ input: child.stdout });
 
-  // Stream de eventos JSON emitidos pelo CLI do Agente
-  rl.on('line', (line: string) => {
-    const trimmed = line.trim();
-    if (!trimmed) return;
-    try {
-      const parsed = JSON.parse(trimmed) as {
-        event?: string;
-        conversation_id?: string;
-        step_update?: {
-          step_type?: string;
-          text_delta?: string;
-          thinking_delta?: string;
-          thinking?: string;
-          usage?: Record<string, any>;
-          tool_name?: string;
-          step_index?: number;
-          duration_seconds?: number;
-          state?: string;
-          tool_info?: {
-            parameters?: Record<string, any>;
-            output?: string;
-          };
-        };
-        result?: {
-          response?: string;
-          usage?: Record<string, any>;
-        };
+  type AgentStreamEvent = {
+    event?: string;
+    conversation_id?: string;
+    step_update?: {
+      step_type?: string;
+      text_delta?: string;
+      thinking_delta?: string;
+      thinking?: string;
+      usage?: Record<string, any>;
+      tool_name?: string;
+      step_index?: number;
+      duration_seconds?: number;
+      state?: string;
+      tool_info?: {
+        parameters?: Record<string, any>;
+        output?: string;
       };
+    };
+    result?: {
+      response?: string;
+      usage?: Record<string, any>;
+    };
+  };
+
+  // Issue #184: o Claude Code emite stream-json próprio; traduzimos para o schema do AGY
+  // para que narração e ferramentas apareçam em tempo real na UI.
+  const claudeTranslator = agent === 'claude' ? createClaudeStreamTranslator() : null;
+
+  // Trata um evento já normalizado (schema do AGY)
+  const handleAgentEvent = (parsed: AgentStreamEvent) => {
+    try {
+      if (parsed.event === 'guardrail_warning') {
+        const message = String((parsed as Record<string, unknown>).message || 'violação de guardrail');
+        console.warn(`[KrakenBridge][guardrail] conversa ${conversationId}:`, message);
+        // Torna a violação visível ao usuário em tempo real e no histórico (#184)
+        handleAgentEvent({ event: 'step_update', step_update: { step_type: 'agent_response', text_delta: `\n\n> ⚠️ **Kraken Guard:** ${message}\n\n` } });
+      }
 
       // Salva ID interno do agy para continuações futuras
       if (parsed.event === 'init' && parsed.conversation_id) {
@@ -658,12 +675,35 @@ chatRouter.post('/', async (req: Request, res: Response) => {
       }
 
       safeWrite(`data: ${JSON.stringify(parsed)}\n\n`);
+    } catch (err) {
+      console.warn('[KrakenBridge] Falha ao processar evento do agente:', (err as Error)?.message || err);
+    }
+  };
+
+  // Stream de eventos JSON emitidos pelo CLI do Agente
+  rl.on('line', (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(trimmed);
     } catch {
-      // Linhas não-JSON (saída terminal direta do Claude ou Aider)
+      raw = undefined;
+    }
+    if (!raw || typeof raw !== 'object') {
+      // Linhas não-JSON (saída terminal direta do Aider)
       accumulatedText += trimmed + '\n';
       scheduleSave();
       safeWrite(`data: ${JSON.stringify({ event: 'raw', text: trimmed })}\n\n`);
+      return;
     }
+    if (claudeTranslator && isClaudeStreamLine(raw)) {
+      for (const ev of claudeTranslator(raw)) {
+        handleAgentEvent(ev as AgentStreamEvent);
+      }
+      return;
+    }
+    handleAgentEvent(raw as AgentStreamEvent);
   });
 
   // Repassar logs do stderr e armazenar buffer para diagnóstico de encerramentos reais (cota, auth, OOM)

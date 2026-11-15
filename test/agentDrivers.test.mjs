@@ -27,6 +27,10 @@ test('AGENT_DRIVERS.claude: buildArgs deve incluir prompt, --dangerously-skip-pe
   assert.ok(args.includes('--dangerously-skip-permissions'), 'Deve conter flag de permissões');
   assert.ok(args.includes('--model'), 'Deve conter flag --model');
   assert.ok(args.includes('claude-3-opus-20240229'), 'Deve conter o modelo especificado');
+  // Issue #184: stream-json garante que narração e ferramentas apareçam em tempo real na UI
+  const fmt = args.indexOf('--output-format');
+  assert.equal(args[fmt + 1], 'stream-json', 'Deve usar --output-format stream-json');
+  assert.ok(args.includes('--verbose'), 'stream-json em modo -p exige --verbose');
 });
 
 test('AGENT_DRIVERS.claude: buildArgs deve injetar cascata --fallback-model para modelos 3.7 e opus', () => {

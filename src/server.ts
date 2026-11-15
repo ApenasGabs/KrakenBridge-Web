@@ -23,6 +23,7 @@ import { telemetryService } from './services/telemetryService.js';
 import { workspaceManager } from './services/workspaceManager.js';
 import { mcpService } from './services/mcpService.js';
 import { skillScoutService } from './services/skillScoutService.js';
+import { claudeGuardrailsService } from './services/claudeGuardrailsService.js';
 import { gitGuardrailsService } from './services/gitGuardrailsService.js';
 import { coucouPhoneLinkService } from './services/coucouPhoneLinkService.js';
 import { claudeAuthService } from './services/claudeAuthService.js';
@@ -267,6 +268,11 @@ app.listen(PORT, '0.0.0.0', () => {
   // Auto-provisionar o subsistema nativo Skill Scout e hooks do skills.sh
   skillScoutService.ensureSkillScoutProvisioned().catch((err) => {
     console.warn('[KrakenBridge] Aviso ao provisionar Skill Scout nativo:', err?.message || err);
+  });
+
+  // Auto-provisionar guardrails do Claude Code (hooks de narração/code review + CLAUDE.md) (#184)
+  claudeGuardrailsService.ensureProvisioned().catch((err) => {
+    console.warn('[KrakenBridge] Aviso ao provisionar guardrails do Claude:', err?.message || err);
   });
 
   // Auto-provisionar os Git Guardrails (PreToolUse e Git Pre-Push Hook) para impedir pushes na main
