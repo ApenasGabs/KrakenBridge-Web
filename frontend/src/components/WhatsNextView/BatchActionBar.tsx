@@ -37,7 +37,7 @@ export const BatchActionBar: React.FC<BatchActionBarProps> = ({
   if (totalSelected === 0) return null;
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[95%] max-w-2xl animate-in fade-in slide-in-from-bottom-5 duration-200">
+    <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 w-[95%] max-w-2xl animate-in fade-in slide-in-from-bottom-5 duration-200">
       <div className="bg-base-100/95 backdrop-blur-md border border-primary/30 shadow-2xl rounded-2xl p-2.5 sm:px-4 sm:py-3 flex flex-wrap items-center justify-between gap-2.5 text-base-content">
         {/* Esquerda: Contadores de Seleção */}
         <div className="flex items-center flex-wrap gap-2">

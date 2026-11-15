@@ -11,11 +11,13 @@ import type {
   AccountInfo,
   EvolutionStatus,
   LocalSubagent,
-  ModelOption
+  ModelOption,
+  QuotaStats
 } from './types';
 import { api } from './services/api';
 import { Sidebar } from './components/Sidebar/Sidebar';
 import { Header } from './components/Navbar/Header';
+import { BottomNav } from './components/Navbar/BottomNav';
 import { OptionsBar } from './components/OptionsBar/OptionsBar';
 import { ChatView } from './components/ChatView/ChatView';
 import { IdeView } from './components/IdeView/IdeView';
@@ -33,6 +35,7 @@ import { PodDrainBanner, PodDrainReloadBubble } from './components/PodDrain';
 import { OfflineBanner } from './components/OfflineBanner';
 import { AndroidStatusBar } from './components/AndroidStatusBar';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { useViewport } from './hooks/useViewport';
 import {
   saveConversationsListOffline,
   getConversationsListOffline,
@@ -103,11 +106,14 @@ export const App: React.FC = () => {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Layout & Abas (Sincronizado com a URL do navegador)
+  const { isMobile, isDesktop } = useViewport();
   const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office'>(initialRoute.tab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
   const [isOptionsOpen, setIsOptionsOpen] = useState(false);
+  const [isMobileQuotaOpen, setIsMobileQuotaOpen] = useState(false);
+  const [quotaStats, setQuotaStats] = useState<QuotaStats | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isMcpModalOpen, setIsMcpModalOpen] = useState(false);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
@@ -352,7 +358,8 @@ export const App: React.FC = () => {
         refreshAuthStatus(), 
         loadConversations(),
         api.getMcpServers().then(servers => setMcpCount(servers.length)).catch(() => {}),
-        api.getSystemVersion().then(v => { if (v?.success) setVersionInfo(v); }).catch(() => {})
+        api.getSystemVersion().then(v => { if (v?.success) setVersionInfo(v); }).catch(() => {}),
+        api.getQuotaStats().then(s => { if (s) setQuotaStats(s); }).catch(() => {})
       ]);
     } catch (err) {
       console.error('Erro na inicialização do app:', err);
@@ -1204,6 +1211,8 @@ export const App: React.FC = () => {
         onClose={() => setIsSidebarOpen(false)}
         authStatus={authStatus}
         onOpenAuth={() => setIsAuthModalOpen(true)}
+        quotaStats={quotaStats}
+        onOpenQuota={() => setIsMobileQuotaOpen(true)}
       />
 
       {/* Conteúdo Principal */}
@@ -1219,7 +1228,16 @@ export const App: React.FC = () => {
           onOpenAuth={() => setIsAuthModalOpen(true)}
           sessionUsage={sessionUsage}
           currentModel={options.model}
-          onToggleQuota={() => handleUpdateOptions({ ...options, showQuotaBubble: !options.showQuotaBubble })}
+          onToggleQuota={() => {
+            if (!isDesktop) {
+              setIsMobileQuotaOpen(prev => !prev);
+            } else {
+              handleUpdateOptions({ ...options, showQuotaBubble: !options.showQuotaBubble });
+            }
+          }}
+          quotaFiveHourPercent={quotaStats?.gemini?.fiveHour?.remaining ?? null}
+          codeServerPort={codeServerPort}
+          workspaceDir={workspaceDir}
           onOpenMcp={() => setIsMcpModalOpen(true)}
           mcpCount={mcpCount}
           onOpenNotifications={() => setIsNotificationsModalOpen(true)}
@@ -1235,6 +1253,7 @@ export const App: React.FC = () => {
           accounts={accounts}
           onChange={handleUpdateOptions}
           isOpen={isOptionsOpen}
+          onClose={() => setIsOptionsOpen(false)}
         />
 
         {/* Banner de Conectividade PWA (Offline / Reconectado) */}
@@ -1271,6 +1290,7 @@ export const App: React.FC = () => {
             isLoading={isLoading}
             activeConversationTitle={activeConversation?.title || null}
             onFocusChat={() => handleTabChange('chat')}
+            onOpenStatus={() => handleTabChange('status')}
           />
         ) : activeTab === 'whatsnext' ? (
           <WhatsNextView
@@ -1326,13 +1346,28 @@ export const App: React.FC = () => {
             workspaceDir={workspaceDir}
           />
         )}
+
+        {/* Navegação Inferior Fixa no Mobile (< 768px) */}
+        {isMobile && (
+          <BottomNav
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+          />
+        )}
       </div>
 
       {/* Balão Flutuante de Cotas Antigravity (Horária e Semanal) */}
       <QuotaBubble
-        isVisible={!!options.showQuotaBubble}
-        onClose={() => handleUpdateOptions({ ...options, showQuotaBubble: false })}
+        isVisible={!isDesktop ? isMobileQuotaOpen : !!options.showQuotaBubble}
+        onClose={() => {
+          if (!isDesktop) {
+            setIsMobileQuotaOpen(false);
+          } else {
+            handleUpdateOptions({ ...options, showQuotaBubble: false });
+          }
+        }}
         lastTurnTokens={sessionUsage.lastTurnTokens}
+        onStatsChange={setQuotaStats}
       />
 
       {/* Modal de Gerenciamento de MCPs */}

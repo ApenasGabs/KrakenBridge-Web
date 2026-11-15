@@ -19,9 +19,11 @@ import {
   Sparkles,
   GitBranch,
   Droplets,
-  Building2
+  Building2,
+  ExternalLink
 } from 'lucide-react';
 import { formatWaterLiters, useWaterMetrics } from '../../utils/waterConsumption';
+import { useViewport } from '../../hooks/useViewport';
 
 interface HeaderProps {
   activeTab: 'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office';
@@ -34,12 +36,15 @@ interface HeaderProps {
   sessionUsage: SessionUsage;
   currentModel: string;
   onToggleQuota?: () => void;
+  quotaFiveHourPercent?: number | null;
   onOpenMcp?: () => void;
   mcpCount?: number;
   onOpenNotifications?: () => void;
   onOpenUpdate?: () => void;
   hasUpdate?: boolean;
   systemVersion?: string;
+  codeServerPort?: number;
+  workspaceDir?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -53,15 +58,21 @@ export const Header: React.FC<HeaderProps> = ({
   sessionUsage,
   currentModel,
   onToggleQuota,
+  quotaFiveHourPercent,
   onOpenMcp,
   mcpCount,
   onOpenNotifications,
   onOpenUpdate,
   hasUpdate,
-  systemVersion
+  systemVersion,
+  codeServerPort = 8089,
+  workspaceDir = '/workspace'
 }) => {
   const [showWaterMetrics] = useWaterMetrics();
+  const { isMobile, isDesktop } = useViewport();
   const isAuthOk = authStatus?.authenticated || authStatus?.isKeyValid;
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  const ideUrl = `http://${hostname}:${codeServerPort}/?folder=${encodeURIComponent(workspaceDir)}`;
 
   return (
     <header className="navbar bg-base-100 border-b border-base-300 px-1 sm:px-3 min-h-14 gap-0.5 sm:gap-2 z-20">
@@ -89,8 +100,9 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Tabs Centrais: Status vs Office vs What's Next vs Chat vs IDE vs Memória */}
-        <div className="inline-flex items-center bg-base-200/80 rounded-lg p-0.5 ml-0.5 sm:ml-2 shrink-0">
+        {/* Tabs Centrais (Tablet & Desktop >= 768px; no Mobile < 768px a navegação fica na BottomNav) */}
+        {!isMobile && (
+          <div className="hidden md:inline-flex items-center bg-base-200/80 rounded-lg p-0.5 ml-0.5 sm:ml-2 shrink-0">
           <button
             data-testid="tab-status"
             onClick={() => onTabChange('status')}
@@ -173,12 +185,14 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden lg:inline">Memória</span>
           </button>
         </div>
+        )}
       </div>
 
       <div className="flex-1 min-w-0" />
 
-      {/* Lado Direito Desktop: Tokens + MCPs + Opções + Auth + Temas */}
-      <div className="hidden md:flex items-center gap-1 lg:gap-1.5 shrink-0">
+      {/* Lado Direito Desktop (>= 1024px): Tokens + MCPs + Opções + Auth + Temas */}
+      {isDesktop ? (
+      <div className="hidden lg:flex items-center gap-1 lg:gap-1.5 shrink-0">
         {/* Painel de Tokens / Água Desktop */}
         <div 
           data-testid="header-quota-btn"
@@ -282,8 +296,8 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden 2xl:inline">Opções</span>
         </button>
 
-        {/* Menu Suspenso de Ações Secundárias para Tablet (< 1024px) */}
-        <div className="dropdown dropdown-end lg:!hidden">
+        {/* Menu Suspenso de Ações Secundárias para Desktop estreito (1024px - 1279px) */}
+        <div className="dropdown dropdown-end xl:!hidden">
           <div 
             tabIndex={0} 
             role="button"
@@ -388,15 +402,23 @@ export const Header: React.FC<HeaderProps> = ({
           <ThemeSelector drawerId="theme-drawer" />
         </div>
       </div>
-
-      {/* Lado Direito Mobile: Tokens + Tema + Auth + Menu Dropdown [...] */}
-      <div className="flex md:hidden items-center gap-0.5 sm:gap-1 shrink-0">
-        {/* Tokens / Água Compacto no Mobile */}
+      ) : (
+      /* Lado Direito Mobile & Tablet (< 1024px): Chip Cotas/Tokens + Tema + Auth + Menu Dropdown [...] */
+      <div className="flex lg:hidden items-center gap-1 shrink-0">
+        {/* Chip Compacto de Cotas & Tokens / Água (evita sobreposição do balão no chat mobile) */}
         <button 
+          data-testid={isMobile ? 'header-quota-chip-mobile' : 'header-quota-btn'}
           onClick={onToggleQuota}
-          className="btn btn-ghost btn-xs px-1 sm:px-1.5 h-8 gap-0.5 sm:gap-1 font-mono text-[11px] rounded-lg"
-          title={showWaterMetrics ? "Ver cotas e telemetria de consumo hídrico" : "Ver cotas e telemetria de tokens"}
+          className="btn btn-ghost btn-xs px-1.5 sm:px-2 h-8 gap-1 font-mono text-[11px] rounded-lg border border-base-300/70 bg-base-200/70"
+          title={showWaterMetrics ? "Ver cotas e telemetria de consumo hídrico" : "Ver cotas Antigravity e telemetria de tokens"}
         >
+          {isMobile && quotaFiveHourPercent !== null && quotaFiveHourPercent !== undefined && (
+            <span className="inline-flex items-center gap-1 text-emerald-500 font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+              <span>{quotaFiveHourPercent}%</span>
+              <span className="text-base-content/30">|</span>
+            </span>
+          )}
           {showWaterMetrics ? (
             <Droplets className="w-3.5 h-3.5 text-info shrink-0" />
           ) : (
@@ -409,12 +431,12 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </button>
 
-        {/* Seletor de Tema compacto no Mobile */}
+        {/* Seletor de Tema compacto */}
         <ThemeSelector drawerId="theme-drawer-mobile" compact />
 
-        {/* Botão de Conta / Auth Direto no Mobile */}
+        {/* Botão de Conta / Auth Direto */}
         <button
-          data-testid="header-auth-btn-mobile"
+          data-testid={isMobile ? 'header-auth-btn-mobile' : 'header-auth-btn'}
           onClick={onOpenAuth}
           className={`btn btn-ghost btn-xs btn-square h-8 w-8 rounded-lg border transition-all ${
             isAuthOk 
@@ -527,9 +549,24 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>Temas da Interface</span>
               </label>
             </li>
+            {isMobile && (
+              <li>
+                <a
+                  href={ideUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => (document.activeElement as HTMLElement)?.blur()}
+                  className="flex items-center gap-2 py-2 text-primary"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  <span>Abrir VS Code em nova aba</span>
+                </a>
+              </li>
+            )}
           </ul>
         </div>
       </div>
+      )}
     </header>
   );
 };

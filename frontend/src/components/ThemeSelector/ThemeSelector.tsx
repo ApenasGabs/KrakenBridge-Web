@@ -124,7 +124,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
             }}
           >
             <Palette className="w-4 h-4 text-base-content/70 shrink-0" />
-            <span className={compact ? "sr-only sm:not-sr-only sm:inline" : ""}>Temas</span>
+            <span className={compact ? "sr-only" : ""}>Temas</span>
           </label>
         </div>
         <div className="drawer-side z-50">

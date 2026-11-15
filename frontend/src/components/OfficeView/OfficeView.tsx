@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { OfficeFloor } from './office/OfficeFloor';
 import { useStore, type Agent, type LocalKrakenChatState } from './store/officeStore';
 import { api } from '../../services/api';
+import { useViewport } from '../../hooks/useViewport';
 import type { PaperclipStateSnapshot, LocalSubagent, ConversationSession } from '../../types';
 import {
   Building2,
@@ -22,6 +23,7 @@ interface OfficeViewProps {
   localActiveTool?: string | null;
   localSubagents?: LocalSubagent[] | null;
   onFocusChat?: () => void;
+  onOpenStatus?: () => void;
   conversations?: ConversationSession[];
   isLoading?: boolean;
   activeConversationTitle?: string | null;
@@ -31,10 +33,12 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
   localActiveTool,
   localSubagents,
   onFocusChat,
+  onOpenStatus,
   conversations,
   isLoading,
   activeConversationTitle,
 }) => {
+  const { isMobile } = useViewport();
   const agents = useStore((s) => s.agents);
   const selectedId = useStore((s) => s.selectedId);
   const select = useStore((s) => s.select);
@@ -173,6 +177,50 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
         return <span className="badge badge-ghost badge-sm gap-1 text-base-content/60"><Coffee className="w-3 h-3" /> Ocioso / Café</span>;
     }
   };
+
+  if (isMobile) {
+    return (
+      <div
+        data-testid="office-mobile-fallback"
+        className="flex-1 flex flex-col items-center justify-center p-6 bg-base-100 text-center"
+      >
+        <div className="max-w-sm w-full p-6 rounded-2xl bg-base-200/60 border border-base-300 shadow-sm space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary mx-auto flex items-center justify-center">
+            <Building2 className="w-6 h-6" />
+          </div>
+          <div className="space-y-1.5">
+            <h2 className="text-base font-bold text-base-content">
+              The Floor (Office 2D)
+            </h2>
+            <p className="text-xs text-base-content/70 leading-relaxed">
+              O mapa 2D em PixiJS foi ocultado em telas menores (&lt; 768px) para preservar bateria e legibilidade. Acompanhe seus agentes na visão de Status.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            {onOpenStatus && (
+              <button
+                type="button"
+                onClick={onOpenStatus}
+                className="btn btn-primary w-full min-h-[44px] gap-2 text-xs font-semibold"
+              >
+                <Users className="w-4 h-4" />
+                <span>Ver Agentes no Status / Paperclip</span>
+              </button>
+            )}
+            {onFocusChat && (
+              <button
+                type="button"
+                onClick={onFocusChat}
+                className="btn btn-ghost w-full min-h-[44px] text-xs"
+              >
+                Voltar para o Chat
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 bg-base-200 overflow-hidden" data-testid="office-view">
