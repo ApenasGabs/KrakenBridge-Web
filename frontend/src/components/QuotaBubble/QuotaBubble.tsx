@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import type { QuotaStats, QuotaGroup } from '../../types';
+import type { QuotaStats, QuotaGroup, MultiAccountQuotaOverview } from '../../types';
 import { api } from '../../services/api';
 import { 
   Info, 
@@ -11,7 +11,8 @@ import {
   Check, 
   ChevronDown, 
   ChevronUp,
-  Droplets
+  Droplets,
+  Users
 } from 'lucide-react';
 import { formatWaterLiters, useWaterMetrics } from '../../utils/waterConsumption';
 import { useViewport } from '../../hooks/useViewport';
@@ -78,6 +79,8 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [showConfig, setShowConfig] = useState<boolean>(false);
   const [showTokensDetail, setShowTokensDetail] = useState<boolean>(false);
+  const [overview, setOverview] = useState<MultiAccountQuotaOverview | null>(null);
+  const [showAccountsDetail, setShowAccountsDetail] = useState<boolean>(true);
 
   // Estados locais para calibração rápida
   const [geminiWeekly, setGeminiWeekly] = useState<number>(57);
@@ -94,16 +97,25 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.getQuotaStats();
-      setStats(data);
-      onStatsChangeRef.current?.(data);
-      if (data?.gemini) {
-        setGeminiWeekly(data.gemini.weekly.remaining);
-        setGemini5h(data.gemini.fiveHour.remaining);
+      const [statsRes, overviewRes] = await Promise.allSettled([
+        api.getQuotaStats(),
+        api.getMultiAccountQuotaOverview(false)
+      ]);
+      if (statsRes.status === 'fulfilled') {
+        const data = statsRes.value;
+        setStats(data);
+        onStatsChangeRef.current?.(data);
+        if (data?.gemini) {
+          setGeminiWeekly(data.gemini.weekly.remaining);
+          setGemini5h(data.gemini.fiveHour.remaining);
+        }
+        if (data?.claudeGpt) {
+          setClaudeWeekly(data.claudeGpt.weekly.remaining);
+          setClaude5h(data.claudeGpt.fiveHour.remaining);
+        }
       }
-      if (data?.claudeGpt) {
-        setClaudeWeekly(data.claudeGpt.weekly.remaining);
-        setClaude5h(data.claudeGpt.fiveHour.remaining);
+      if (overviewRes.status === 'fulfilled') {
+        setOverview(overviewRes.value);
       }
     } catch (err) {
       console.warn('Erro ao carregar estatísticas de cota:', err);
@@ -115,18 +127,25 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
   const handleLiveRefresh = async () => {
     try {
       setLoading(true);
-      const res = await api.refreshQuota();
-      if (res?.stats) {
-        setStats(res.stats);
-        onStatsChangeRef.current?.(res.stats);
-        if (res.stats.gemini) {
-          setGeminiWeekly(res.stats.gemini.weekly.remaining);
-          setGemini5h(res.stats.gemini.fiveHour.remaining);
+      const [refreshRes, overviewRes] = await Promise.allSettled([
+        api.refreshQuota(),
+        api.getMultiAccountQuotaOverview(true)
+      ]);
+      if (refreshRes.status === 'fulfilled' && refreshRes.value?.stats) {
+        const nextStats = refreshRes.value.stats;
+        setStats(nextStats);
+        onStatsChangeRef.current?.(nextStats);
+        if (nextStats.gemini) {
+          setGeminiWeekly(nextStats.gemini.weekly.remaining);
+          setGemini5h(nextStats.gemini.fiveHour.remaining);
         }
-        if (res.stats.claudeGpt) {
-          setClaudeWeekly(res.stats.claudeGpt.weekly.remaining);
-          setClaude5h(res.stats.claudeGpt.fiveHour.remaining);
+        if (nextStats.claudeGpt) {
+          setClaudeWeekly(nextStats.claudeGpt.weekly.remaining);
+          setClaude5h(nextStats.claudeGpt.fiveHour.remaining);
         }
+      }
+      if (overviewRes.status === 'fulfilled') {
+        setOverview(overviewRes.value);
       }
     } catch (err) {
       console.warn('Falha ao atualizar cota ao vivo:', err);
@@ -462,6 +481,101 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Contas Logadas (AGY + Claude Code) com Cache Auto-Atualizável */}
+      {overview && overview.accounts.length > 0 && (
+        <div className="mt-3 pt-2.5 border-t border-neutral-800/60" data-testid="quota-multi-account-section">
+          <button
+            onClick={() => setShowAccountsDetail(!showAccountsDetail)}
+            className="w-full flex items-center justify-between text-[11px] text-neutral-300 hover:text-white transition-colors py-0.5"
+          >
+            <span className="flex items-center gap-1.5 font-medium">
+              <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Contas Logadas ({overview.accounts.length})</span>
+            </span>
+            {showAccountsDetail ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          {showAccountsDetail && (
+            <div className="mt-2 space-y-2 max-h-48 overflow-y-auto pr-1">
+              {overview.accounts.map((acc) => {
+                const isClaude = acc.engine === 'claude';
+                const claudeBuckets = acc.groups?.[0]?.buckets || [];
+                return (
+                  <div
+                    key={`${acc.engine || 'agy'}:${acc.email}`}
+                    className="p-2 rounded-lg bg-[#17191d] border border-neutral-800/80 text-[11px] space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide shrink-0 ${
+                            isClaude
+                              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                              : 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                          }`}
+                        >
+                          {isClaude ? 'Claude' : 'AGY'}
+                        </span>
+                        <span className="truncate text-neutral-200 font-medium" title={acc.email}>
+                          {acc.email}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {acc.planTier && (
+                          <span className="px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-300 text-[9px] uppercase">
+                            {acc.planTier}
+                          </span>
+                        )}
+                        {acc.isActive && (
+                          <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-semibold">
+                            Ativa
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {isClaude ? (
+                      claudeBuckets.length > 0 ? (
+                        <div className="flex items-center gap-3 text-[10px] text-neutral-400">
+                          {claudeBuckets.map((b) => (
+                            <span key={b.name}>
+                              {b.window === '5h' ? '5h' : '7d'}: <b className="text-neutral-200">{b.remaining}%</b>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-neutral-400 truncate">
+                          {acc.groups?.[0]?.description || 'Autenticado'}
+                        </div>
+                      )
+                    ) : (
+                      <div className="flex items-center gap-3 text-[10px] text-neutral-400">
+                        <span>Gemini: <b className="text-neutral-200">{acc.modelSummary.gemini.remaining}%</b></span>
+                        <span>Claude/GPT: <b className="text-neutral-200">{acc.modelSummary.claudeGpt.remaining}%</b></span>
+                        <span>Argon: <b className="text-neutral-200">{acc.modelSummary.geminiArgon.remaining}%</b></span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {overview.cacheMeta && (
+                <div className="flex items-center justify-between text-[10px] text-neutral-500 px-0.5 pt-0.5">
+                  <span>
+                    Cache: {overview.cacheMeta.lastRefreshedAt
+                      ? new Date(overview.cacheMeta.lastRefreshedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                      : 'inicializando'}
+                  </span>
+                  <span>
+                    Auto-refresh: {Math.round(overview.cacheMeta.refreshIntervalMs / 60000)}m
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Detalhes de Tokens / Água consumidos (Opcional colapsável) */}
       {stats?.tokens && stats.tokens.recentTurns.length > 0 && (

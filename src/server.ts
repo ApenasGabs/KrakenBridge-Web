@@ -27,6 +27,7 @@ import { claudeGuardrailsService } from './services/claudeGuardrailsService.js';
 import { gitGuardrailsService } from './services/gitGuardrailsService.js';
 import { coucouPhoneLinkService } from './services/coucouPhoneLinkService.js';
 import { claudeAuthService } from './services/claudeAuthService.js';
+import { quotaService } from './services/quotaService.js';
 import {
   createSpaAssetMiddleware,
   createIndexHtmlSender,
@@ -288,6 +289,11 @@ app.listen(PORT, '0.0.0.0', () => {
   // Assegurar armazenamento persistente e auto-cura do cofre do Claude Code
   claudeAuthService.ensurePersistentStorage().catch((err) => {
     console.warn('[KrakenBridge] Aviso ao assegurar persistência do Claude:', err?.message || err);
+  });
+
+  // Inicializar cache persistente de cotas multi-contas (AGY + Claude Code) e auto-refresh periódico
+  quotaService.init().catch((err) => {
+    console.warn('[KrakenBridge] Aviso ao inicializar cache de cotas:', err?.message || err);
   });
 
   // Auto-bootstrap Out-of-the-Box da stack de telemetria e contenção de cgroups
