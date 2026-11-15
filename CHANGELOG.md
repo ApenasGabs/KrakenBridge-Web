@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.43.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.43.0...v1.43.1) (2026-11-15)
+
+### 🐛 Bug Fixes
+
+* **agent-core:** guardrails mecânicos de narração e code review para o Claude Code (Closes [#184](https://github.com/ApenasGabs/KrakenBridge-Web/issues/184)) ([#185](https://github.com/ApenasGabs/KrakenBridge-Web/issues/185)) ([f3895cf](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f3895cf0c2dc8bdd00f0757758aed561d67b6d05))
+
 ## [1.43.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.42.2...v1.43.0) (2026-11-15)
 
 ### ✨ Features
