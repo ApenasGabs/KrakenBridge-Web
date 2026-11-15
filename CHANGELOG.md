@@ -5,6 +5,16 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.42.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.42.1...v1.42.2) (2026-11-15)
+
+### 🐛 Bug Fixes
+
+* **auth:** usar claude auth login para headless container e evitar orfaos com SIGKILL imediato (Refs [#182](https://github.com/ApenasGabs/KrakenBridge-Web/issues/182)) ([62840c4](https://github.com/ApenasGabs/KrakenBridge-Web/commit/62840c47b61abf0dd0e38e699f6369d2b3790830))
+
+### 🧪 Tests
+
+* **auth:** validar via suite de testes unitarios e testes E2E no Browserless do Dell (Refs [#182](https://github.com/ApenasGabs/KrakenBridge-Web/issues/182)) ([90a9d27](https://github.com/ApenasGabs/KrakenBridge-Web/commit/90a9d272e153fdb8f5da441059cd3ea4b89d2c26))
+
 ## [1.42.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.42.0...v1.42.1) (2026-11-14)
 
 ### 🐛 Bug Fixes
