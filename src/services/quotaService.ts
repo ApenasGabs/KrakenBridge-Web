@@ -6,18 +6,57 @@ import type {
   TokenUsageRecord, 
   QuotaGroup, 
   QuotaBucket,
+  QuotaEngine,
+  QuotaCacheStatus,
+  QuotaCacheMeta,
   MultiAccountQuotaOverview,
   AccountQuotaProfile,
   AccountModelQuotaSummary,
   RouteByModelResponse
 } from '../types/quota.js';
 import { accountService } from './accountService.js';
+import { claudeAuthService } from './claudeAuthService.js';
 
 const execPromise = util.promisify(exec);
 
 const DATA_DIR = process.env.DATA_DIR || path.resolve('data');
 const QUOTA_FILE = path.join(DATA_DIR, 'quota_history.json');
 const STATE_FILE = path.join(DATA_DIR, 'quota_state.json');
+const ACCOUNTS_CACHE_FILE = path.join(DATA_DIR, 'quota_accounts_cache.json');
+const DEFAULT_REFRESH_INTERVAL_MS = Math.max(
+  30_000,
+  Number(process.env.QUOTA_REFRESH_INTERVAL_MS) || 5 * 60 * 1000
+);
+const MAX_REFRESH_CONCURRENCY = 3;
+
+interface CachedAccountEntry {
+  engine: QuotaEngine;
+  email: string;
+  name: string;
+  picture: string | null;
+  isActive: boolean;
+  planTier?: string | null;
+  groups: QuotaGroup[];
+  lastFetchedAt: number;
+  status: QuotaCacheStatus;
+  errorMessage: string | null;
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  worker: (item: T) => Promise<void>
+): Promise<void> {
+  if (items.length === 0) return;
+  let index = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const current = items[index++];
+      await worker(current);
+    }
+  });
+  await Promise.all(workers);
+}
 
 // Formata intervalo de tempo restante no estilo oficial do Antigravity
 function formatRefreshTime(ms: number, isFiveHour = false): string | null {
@@ -123,13 +162,42 @@ class QuotaService {
           lastUpdated: parsedState.lastUpdated || new Date().toISOString()
         };
       }
+
+      // Carregar cache persistido de múltiplas contas (AGY + Claude)
+      const existsAccountsCache = await fs.access(ACCOUNTS_CACHE_FILE).then(() => true).catch(() => false);
+      if (existsAccountsCache) {
+        const rawCache = await fs.readFile(ACCOUNTS_CACHE_FILE, 'utf8');
+        const parsedCache = JSON.parse(rawCache) as {
+          lastRefreshedAt?: number;
+          accounts?: CachedAccountEntry[];
+        };
+        if (typeof parsedCache.lastRefreshedAt === 'number') {
+          this.lastAccountsRefreshAt = parsedCache.lastRefreshedAt;
+        }
+        if (Array.isArray(parsedCache.accounts)) {
+          for (const entry of parsedCache.accounts) {
+            if (entry?.email) {
+              const engine: QuotaEngine = entry.engine === 'claude' ? 'claude' : 'agy';
+              this.accountQuotaCache.set(this.getCacheKey(engine, entry.email), {
+                ...entry,
+                engine,
+                groups: Array.isArray(entry.groups) ? entry.groups : [],
+                status: entry.status || 'stale',
+                errorMessage: entry.errorMessage ?? null
+              });
+            }
+          }
+        }
+      }
     } catch (e) {
       console.warn('[QuotaService] Erro ao carregar cotas:', (e as Error).message);
     }
     this.initialized = true;
 
-    // Tentar consulta oficial em background ao inicializar
+    // Iniciar agendador periódico em background e tentar consulta inicial
+    this.startAutoRefresh();
     this.fetchLiveQuotaFromGoogle().catch(() => {});
+    this.refreshAllAccounts(false).catch(() => {});
   }
 
   async persistHistory(): Promise<void> {
@@ -621,8 +689,62 @@ class QuotaService {
     };
   }
 
-  // Cache de cotas por conta: email -> { groups, lastFetchedAt }
-  private accountQuotaCache = new Map<string, { groups: QuotaGroup[]; lastFetchedAt: number }>();
+  // Cache persistente de cotas por conta: `${engine}:${email}` -> CachedAccountEntry
+  private accountQuotaCache = new Map<string, CachedAccountEntry>();
+  private lastAccountsRefreshAt = 0;
+  private refreshIntervalMs = DEFAULT_REFRESH_INTERVAL_MS;
+  private refreshTimer: NodeJS.Timeout | null = null;
+  private activeRefreshPromise: Promise<void> | null = null;
+
+  private getCacheKey(engine: QuotaEngine, email: string): string {
+    return `${engine}:${email.toLowerCase()}`;
+  }
+
+  private async persistAccountsCache(): Promise<void> {
+    try {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      const payload = {
+        lastRefreshedAt: this.lastAccountsRefreshAt,
+        accounts: Array.from(this.accountQuotaCache.values())
+      };
+      await fs.writeFile(ACCOUNTS_CACHE_FILE, JSON.stringify(payload, null, 2), 'utf8');
+    } catch (e) {
+      console.warn('[QuotaService] Falha ao persistir cache multi-contas:', (e as Error).message);
+    }
+  }
+
+  startAutoRefresh(intervalMs?: number): void {
+    if (typeof intervalMs === 'number' && intervalMs >= 30_000) {
+      this.refreshIntervalMs = intervalMs;
+    }
+    if (this.refreshTimer) return;
+    this.refreshTimer = setInterval(() => {
+      this.refreshAllAccounts(false).catch(() => {});
+    }, this.refreshIntervalMs);
+    this.refreshTimer.unref?.();
+  }
+
+  stopAutoRefresh(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+  }
+
+  getCacheMeta(): QuotaCacheMeta {
+    const lastRefreshedAt = this.lastAccountsRefreshAt > 0
+      ? new Date(this.lastAccountsRefreshAt).toISOString()
+      : null;
+    const nextRefreshAt = this.lastAccountsRefreshAt > 0
+      ? new Date(this.lastAccountsRefreshAt + this.refreshIntervalMs).toISOString()
+      : null;
+    return {
+      lastRefreshedAt,
+      nextRefreshAt,
+      refreshIntervalMs: this.refreshIntervalMs,
+      isRefreshing: this.activeRefreshPromise !== null
+    };
+  }
 
   /**
    * Identifica a família a que pertence um determinado modelo
@@ -695,15 +817,17 @@ class QuotaService {
   }
 
   /**
-   * Consulta cotas oficiais para uma conta específica
+   * Consulta cotas oficiais para uma conta AGY específica
    */
   async fetchLiveQuotaForAccount(email?: string | null, force = false): Promise<QuotaGroup[]> {
     const activeEmail = await accountService.getActiveEmail();
     const targetEmail = (email || activeEmail || '').toLowerCase();
+    if (!targetEmail) return [];
 
+    const cacheKey = this.getCacheKey('agy', targetEmail);
     const now = Date.now();
-    const cached = this.accountQuotaCache.get(targetEmail);
-    if (!force && cached && now - cached.lastFetchedAt < 60000) {
+    const cached = this.accountQuotaCache.get(cacheKey);
+    if (!force && cached && now - cached.lastFetchedAt < this.refreshIntervalMs && cached.groups.length > 0) {
       return cached.groups;
     }
 
@@ -752,11 +876,30 @@ class QuotaService {
       }
 
       if (dynamicGroups.length > 0) {
-        this.accountQuotaCache.set(targetEmail, { groups: dynamicGroups, lastFetchedAt: now });
+        this.accountQuotaCache.set(cacheKey, {
+          engine: 'agy',
+          email: email || activeEmail || targetEmail,
+          name: cached?.name || email || activeEmail || targetEmail,
+          picture: cached?.picture ?? null,
+          isActive: Boolean(activeEmail && targetEmail === activeEmail.toLowerCase()),
+          groups: dynamicGroups,
+          lastFetchedAt: now,
+          status: 'ok',
+          errorMessage: null
+        });
         return dynamicGroups;
       }
     } catch (e) {
-      console.warn(`[QuotaService] Falha ao consultar cotas para conta ${targetEmail}:`, (e as Error).message);
+      const msg = (e as Error).message;
+      console.warn(`[QuotaService] Falha ao consultar cotas para conta ${targetEmail}:`, msg);
+      if (cached) {
+        this.accountQuotaCache.set(cacheKey, {
+          ...cached,
+          status: msg.includes('429') ? 'rate_limited' : 'error',
+          errorMessage: msg
+        });
+        return cached.groups;
+      }
     }
 
     // Se falhou ou cache não existe, retorna cotas do estado atual como fallback
@@ -764,47 +907,302 @@ class QuotaService {
   }
 
   /**
-   * Consolida visão multi-contas de cotas de todo o pool
+   * Consulta estado/cota da conta autenticada do Claude Code
+   */
+  async fetchLiveQuotaForClaude(force = false): Promise<CachedAccountEntry | null> {
+    const authStatus = await claudeAuthService.getStatus();
+    if (!authStatus.authenticated) {
+      return null;
+    }
+
+    const email = authStatus.email || (authStatus.hasKey ? 'anthropic-api-key' : 'claude-oauth');
+    const cacheKey = this.getCacheKey('claude', email);
+    const now = Date.now();
+    const cached = this.accountQuotaCache.get(cacheKey);
+    if (!force && cached && now - cached.lastFetchedAt < this.refreshIntervalMs) {
+      return cached;
+    }
+
+    const planTier = authStatus.planTier || authStatus.subscriptionType || authStatus.authMethod || null;
+    const name = authStatus.orgName || authStatus.email || 'Claude Code';
+
+    let groups: QuotaGroup[] = cached?.groups || [];
+    let status: QuotaCacheStatus = 'ok';
+    let errorMessage: string | null = null;
+
+    if (authStatus.hasToken) {
+      const token = await claudeAuthService.getOAuthAccessToken();
+      if (token) {
+        try {
+          const resp = await fetch('https://api.anthropic.com/api/oauth/usage', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'anthropic-beta': 'oauth-2025-04-20',
+              Accept: 'application/json',
+              'User-Agent': 'KrakenBridge-Web/1.0'
+            },
+            signal: AbortSignal.timeout(8000)
+          });
+
+          if (resp.ok) {
+            const usage = await resp.json() as {
+              five_hour?: { utilization?: number; resets_at?: string | null };
+              seven_day?: { utilization?: number; resets_at?: string | null };
+            };
+            const buckets: QuotaBucket[] = [];
+
+            if (usage.five_hour && typeof usage.five_hour.utilization === 'number') {
+              const remaining = Math.max(0, Math.min(100, Math.round(100 - usage.five_hour.utilization)));
+              const resetAt = usage.five_hour.resets_at ? new Date(usage.five_hour.resets_at).getTime() : null;
+              buckets.push({
+                id: 'claude_5h',
+                name: 'Five Hour Limit Remaining',
+                window: '5h',
+                remaining,
+                resetAt,
+                message: resetAt ? `Resets in ${formatRefreshTime(resetAt - now, true) || 'soon'}` : null
+              });
+            }
+
+            if (usage.seven_day && typeof usage.seven_day.utilization === 'number') {
+              const remaining = Math.max(0, Math.min(100, Math.round(100 - usage.seven_day.utilization)));
+              const resetAt = usage.seven_day.resets_at ? new Date(usage.seven_day.resets_at).getTime() : null;
+              buckets.push({
+                id: 'claude_weekly',
+                name: 'Weekly Limit Remaining',
+                window: 'weekly',
+                remaining,
+                resetAt,
+                message: resetAt ? `Resets in ${formatRefreshTime(resetAt - now, false) || 'soon'}` : null
+              });
+            }
+
+            if (buckets.length > 0) {
+              groups = [{
+                name: 'Claude Code',
+                description: planTier ? `Plano ${planTier} (OAuth)` : 'Claude Code (OAuth)',
+                buckets
+              }];
+            }
+          } else if (resp.status === 429) {
+            status = 'rate_limited';
+            errorMessage = 'Rate limit ao consultar OAuth usage (HTTP 429)';
+          } else {
+            status = groups.length > 0 ? 'stale' : 'ok';
+            errorMessage = `OAuth usage indisponível (HTTP ${resp.status})`;
+          }
+        } catch (err) {
+          status = groups.length > 0 ? 'stale' : 'error';
+          errorMessage = (err as Error).message;
+        }
+      }
+    }
+
+    if (groups.length === 0) {
+      groups = [{
+        name: 'Claude Code',
+        description: authStatus.hasKey
+          ? 'Autenticado via Anthropic API Key (uso por demanda)'
+          : `Autenticado via ${authStatus.authMethod || 'OAuth'}`,
+        buckets: []
+      }];
+    }
+
+    const entry: CachedAccountEntry = {
+      engine: 'claude',
+      email,
+      name,
+      picture: null,
+      isActive: true,
+      planTier,
+      groups,
+      lastFetchedAt: now,
+      status,
+      errorMessage
+    };
+    this.accountQuotaCache.set(cacheKey, entry);
+    return entry;
+  }
+
+  /**
+   * Atualiza o cache de todas as contas logadas (AGY + Claude Code) com single-flight e concorrência limitada
+   */
+  async refreshAllAccounts(force = false): Promise<void> {
+    if (this.activeRefreshPromise) {
+      return this.activeRefreshPromise;
+    }
+
+    this.activeRefreshPromise = (async () => {
+      try {
+        const now = Date.now();
+        const { activeEmail, accounts } = await accountService.listAccounts();
+        const validKeys = new Set<string>();
+
+        const agyTasks = accounts.filter(acc => {
+          const key = this.getCacheKey('agy', acc.email);
+          validKeys.add(key);
+          const cached = this.accountQuotaCache.get(key);
+          if (cached) {
+            cached.name = acc.name;
+            cached.picture = acc.picture;
+            cached.isActive = acc.isActive;
+          }
+          if (force) return true;
+          return !cached || cached.groups.length === 0 || (now - cached.lastFetchedAt >= this.refreshIntervalMs);
+        });
+
+        await runWithConcurrency(agyTasks, MAX_REFRESH_CONCURRENCY, async (acc) => {
+          const groups = await this.fetchLiveQuotaForAccount(acc.email, true);
+          const key = this.getCacheKey('agy', acc.email);
+          const existing = this.accountQuotaCache.get(key);
+          if (existing) {
+            existing.name = acc.name;
+            existing.picture = acc.picture;
+            existing.isActive = acc.isActive;
+          } else if (groups.length > 0) {
+            this.accountQuotaCache.set(key, {
+              engine: 'agy',
+              email: acc.email,
+              name: acc.name,
+              picture: acc.picture,
+              isActive: acc.isActive,
+              groups,
+              lastFetchedAt: Date.now(),
+              status: 'ok',
+              errorMessage: null
+            });
+          }
+        });
+
+        // Se a conta ativa tem grupos mais recentes no state, garante metadados sincronizados
+        if (activeEmail) {
+          const activeKey = this.getCacheKey('agy', activeEmail);
+          const activeAcc = accounts.find(a => a.isActive);
+          const activeCached = this.accountQuotaCache.get(activeKey);
+          if (!activeCached && activeAcc && this.state.groups && this.state.groups.length > 0) {
+            this.accountQuotaCache.set(activeKey, {
+              engine: 'agy',
+              email: activeAcc.email,
+              name: activeAcc.name,
+              picture: activeAcc.picture,
+              isActive: true,
+              groups: this.state.groups,
+              lastFetchedAt: Date.now(),
+              status: 'ok',
+              errorMessage: null
+            });
+          }
+        }
+
+        // Atualizar conta Claude Code logada (se houver)
+        const claudeEntry = await this.fetchLiveQuotaForClaude(force).catch(() => null);
+        if (claudeEntry) {
+          validKeys.add(this.getCacheKey('claude', claudeEntry.email));
+        }
+
+        // Remover contas que não estão mais logadas
+        for (const key of Array.from(this.accountQuotaCache.keys())) {
+          if (!validKeys.has(key)) {
+            this.accountQuotaCache.delete(key);
+          }
+        }
+
+        this.lastAccountsRefreshAt = Date.now();
+        await this.persistAccountsCache();
+      } finally {
+        this.activeRefreshPromise = null;
+      }
+    })();
+
+    return this.activeRefreshPromise;
+  }
+
+  /**
+   * Consolida visão multi-contas de cotas de todo o pool (AGY + Claude Code) usando cache SWR
    */
   async getMultiAccountQuotaOverview(forceRefresh = false): Promise<MultiAccountQuotaOverview> {
     await this.init();
-    const { activeEmail, accounts } = await accountService.listAccounts();
 
+    if (forceRefresh) {
+      await this.refreshAllAccounts(true);
+    } else {
+      const now = Date.now();
+      const { accounts } = await accountService.listAccounts();
+      const hasMissingOrStaleAgy = accounts.some(acc => {
+        const cached = this.accountQuotaCache.get(this.getCacheKey('agy', acc.email));
+        return !cached || (now - cached.lastFetchedAt >= this.refreshIntervalMs);
+      });
+      const hasAnyCached = this.accountQuotaCache.size > 0;
+
+      if (!hasAnyCached) {
+        await this.refreshAllAccounts(false);
+      } else if (hasMissingOrStaleAgy || (now - this.lastAccountsRefreshAt >= this.refreshIntervalMs)) {
+        // Stale-While-Revalidate: responde instantaneamente e atualiza em background
+        this.refreshAllAccounts(false).catch(() => {});
+      }
+    }
+
+    const { activeEmail, accounts } = await accountService.listAccounts();
     const profiles: AccountQuotaProfile[] = [];
 
     for (const acc of accounts) {
-      const email = acc.email;
-      let groups: QuotaGroup[];
-
-      if (acc.isActive) {
-        // Se for a conta ativa, usa os grupos oficiais conhecidos do state
-        groups = (this.state.groups && this.state.groups.length > 0) 
-          ? this.state.groups 
-          : await this.fetchLiveQuotaForAccount(email, forceRefresh);
-      } else {
-        groups = await this.fetchLiveQuotaForAccount(email, forceRefresh);
-      }
-
-      const modelSummary = this.extractModelSummaryFromGroups(groups);
+      const cached = this.accountQuotaCache.get(this.getCacheKey('agy', acc.email));
+      const groups = cached?.groups?.length
+        ? cached.groups
+        : (acc.isActive && this.state.groups?.length ? this.state.groups : []);
 
       profiles.push({
+        engine: 'agy',
         email: acc.email,
         name: acc.name,
         picture: acc.picture,
         isActive: acc.isActive,
+        cacheStatus: cached?.status || (groups.length > 0 ? 'ok' : 'stale'),
+        errorMessage: cached?.errorMessage ?? null,
         groups,
-        modelSummary,
-        lastUpdated: new Date().toISOString()
+        modelSummary: this.extractModelSummaryFromGroups(groups),
+        lastUpdated: cached?.lastFetchedAt
+          ? new Date(cached.lastFetchedAt).toISOString()
+          : new Date().toISOString()
       });
     }
 
-    // Identificar a melhor conta por família
+    // Incluir contas Claude Code do cache
+    for (const entry of this.accountQuotaCache.values()) {
+      if (entry.engine === 'claude') {
+        const claudeBucketGroup = entry.groups[0];
+        const claudeSummary = claudeBucketGroup && claudeBucketGroup.buckets.length > 0
+          ? this.extractModelSummaryFromGroups([{ name: 'Claude and GPT models', buckets: claudeBucketGroup.buckets }]).claudeGpt
+          : { remaining: 100, weeklyRemaining: 100, fiveHourRemaining: 100, resetAt: null, isAvailable: true };
+
+        profiles.push({
+          engine: 'claude',
+          email: entry.email,
+          name: entry.name,
+          picture: entry.picture,
+          isActive: entry.isActive,
+          planTier: entry.planTier ?? null,
+          cacheStatus: entry.status,
+          errorMessage: entry.errorMessage,
+          groups: entry.groups,
+          modelSummary: {
+            gemini: { remaining: 0, weeklyRemaining: 0, fiveHourRemaining: 0, resetAt: null, isAvailable: false },
+            claudeGpt: claudeSummary,
+            geminiArgon: { remaining: 0, weeklyRemaining: 0, fiveHourRemaining: 0, resetAt: null, isAvailable: false }
+          },
+          lastUpdated: new Date(entry.lastFetchedAt).toISOString()
+        });
+      }
+    }
+
+    // Identificar a melhor conta AGY por família (roteamento AGY considera apenas contas AGY)
+    const agyProfiles = profiles.filter(p => (p.engine ?? 'agy') === 'agy');
     const getBest = (family: 'gemini' | 'claudeGpt' | 'geminiArgon') => {
-      if (profiles.length === 0) return null;
-      let best = profiles[0];
+      if (agyProfiles.length === 0) return null;
+      let best = agyProfiles[0];
       let maxQuota = best.modelSummary[family]?.remaining ?? -1;
 
-      for (const p of profiles) {
+      for (const p of agyProfiles) {
         const q = p.modelSummary[family]?.remaining ?? -1;
         if (q > maxQuota) {
           maxQuota = q;
@@ -843,14 +1241,14 @@ class QuotaService {
     ];
 
     const modelQuotaMap: MultiAccountQuotaOverview['modelQuotaMap'] = {};
-    const activeProfile = profiles.find(p => p.isActive) || profiles[0];
+    const activeProfile = agyProfiles.find(p => p.isActive) || agyProfiles[0];
 
     for (const modelId of knownModels) {
       const family = this.getModelFamily(modelId);
       const currentRemaining = activeProfile?.modelSummary[family]?.remaining ?? 0;
       const best = bestAccountsByFamily[family];
       const bestRemaining = best?.remaining ?? currentRemaining;
-      
+
       modelQuotaMap[modelId] = {
         family,
         currentAccountRemaining: currentRemaining,
@@ -864,6 +1262,7 @@ class QuotaService {
     return {
       activeEmail,
       accounts: profiles,
+      cacheMeta: this.getCacheMeta(),
       bestAccountsByFamily,
       modelQuotaMap
     };
@@ -877,7 +1276,8 @@ class QuotaService {
     const family = this.getModelFamily(modelId);
     const overview = await this.getMultiAccountQuotaOverview(false);
 
-    const activeProfile = overview.accounts.find(p => p.isActive);
+    const agyAccounts = overview.accounts.filter(p => (p.engine ?? 'agy') === 'agy');
+    const activeProfile = agyAccounts.find(p => p.isActive);
     const currentEmail = overview.activeEmail || (activeProfile ? activeProfile.email : '');
     const currentQuota = activeProfile?.modelSummary[family]?.remaining ?? 0;
 

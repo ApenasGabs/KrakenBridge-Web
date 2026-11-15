@@ -40,6 +40,9 @@ export interface ClaudeAuthStatus {
   hasKey?: boolean;
   loginExpiresAt?: string | null;
   configDirectory?: string;
+  subscriptionType?: string | null;
+  planTier?: string | null;
+  orgName?: string | null;
   error?: string;
 }
 
@@ -233,6 +236,9 @@ class ClaudeAuthService {
             configDirectory?: string;
             loginExpiresAt?: string | null;
             email?: string | null;
+            subscriptionType?: string | null;
+            planTier?: string | null;
+            orgName?: string | null;
           };
 
           const isCliLoggedIn = Boolean(parsed.loggedIn);
@@ -246,7 +252,10 @@ class ClaudeAuthService {
               hasToken: isCliLoggedIn || hasOAuthTokenEnv,
               hasKey: hasApiKey,
               loginExpiresAt: parsed.loginExpiresAt || null,
-              configDirectory: parsed.configDirectory || configDir
+              configDirectory: parsed.configDirectory || configDir,
+              subscriptionType: parsed.subscriptionType || null,
+              planTier: parsed.planTier || null,
+              orgName: parsed.orgName || null
             };
           }
         } catch {}
@@ -292,6 +301,25 @@ class ClaudeAuthService {
       hasKey: false,
       configDirectory: configDir
     };
+  }
+
+  /**
+   * Obtém o token OAuth ativo do Claude Code (quando autenticado via OAuth)
+   */
+  async getOAuthAccessToken(): Promise<string | null> {
+    if (process.env.CLAUDE_CODE_OAUTH_TOKEN && process.env.CLAUDE_CODE_OAUTH_TOKEN.trim().length > 10) {
+      return process.env.CLAUDE_CODE_OAUTH_TOKEN.trim();
+    }
+    try {
+      await this.ensurePersistentStorage();
+      const raw = await fs.readFile(getCredentialsFile(), 'utf8');
+      const parsed = JSON.parse(raw);
+      const token = parsed?.claudeAiOauth?.accessToken || parsed?.accessToken;
+      if (typeof token === 'string' && token.trim().length > 10) {
+        return token.trim();
+      }
+    } catch {}
+    return null;
   }
 
   /**
