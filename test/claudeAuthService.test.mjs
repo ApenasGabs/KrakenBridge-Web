@@ -187,6 +187,17 @@ test('claudeAuthService: parsing de URL de autenticacao deve suportar escape ANS
   assert.equal(match[0].endsWith('test_state'), true, 'URL deve terminar limpa com o parametro state');
 });
 
+test('claudeAuthService: validar via suíte de testes unitários e testes E2E no Browserless do Dell com claude auth login sem travar em Ink/TTY', async () => {
+  const result = await claudeAuthService.startAuth(true, 'login');
+  assert.ok(result, 'Deve retornar resultado de autenticacao');
+  assert.equal(result.status, 'waiting_for_code');
+  assert.ok(result.authUrl, 'Deve conter authUrl');
+  assert.ok(result.authUrl.startsWith('https://claude.com/cai/oauth/authorize'));
+
+  // Garante que o processo filho e encerrado deterministamente com SIGKILL
+  await claudeAuthService.logout();
+});
+
 test('Limpeza do ambiente isolado de testes', async () => {
   await fs.rm(tmpTestDir, { recursive: true, force: true }).catch(() => {});
 });
