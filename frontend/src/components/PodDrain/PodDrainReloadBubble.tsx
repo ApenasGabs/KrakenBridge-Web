@@ -97,7 +97,7 @@ export const PodDrainReloadBubble: React.FC<PodDrainReloadBubbleProps> = ({
   return (
     <div
       data-testid="pod-drain-reload-bubble"
-      className="fixed bottom-6 right-6 z-50 max-w-sm w-full animate-in fade-in slide-in-from-bottom-5 duration-300 pointer-events-auto"
+      className="fixed bottom-20 md:bottom-6 right-3 md:right-6 z-50 max-w-[calc(100vw-1.5rem)] sm:max-w-sm w-full animate-in fade-in slide-in-from-bottom-5 duration-300 pointer-events-auto"
     >
       <div
         className={`rounded-2xl border p-4 shadow-2xl backdrop-blur-xl transition-all duration-300 ${
