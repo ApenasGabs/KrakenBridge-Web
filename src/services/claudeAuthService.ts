@@ -296,9 +296,10 @@ class ClaudeAuthService {
 
   /**
    * Inicia o fluxo de login interativo capturando a URL de autorização OAuth
-   * Por padrão usa `claude setup-token` para gerar tokens com 1 ano de validade.
+   * Por padrão usa `claude auth login` que é 100% plain text (não usa TTY/Ink),
+   * funcionando de forma instantânea e confiável em containers headless.
    */
-  async startAuth(force = false, mode: 'setup-token' | 'login' = 'setup-token'): Promise<ClaudeStartAuthResult> {
+  async startAuth(force = false, mode: 'login' | 'setup-token' = 'login'): Promise<ClaudeStartAuthResult> {
     const currentStatus = await this.getStatus();
     if (currentStatus.authenticated && !force) {
       return {
@@ -315,7 +316,7 @@ class ClaudeAuthService {
 
     return new Promise((resolve) => {
       let resolved = false;
-      const cmdArgs = mode === 'login' ? ['auth', 'login'] : ['setup-token'];
+      const cmdArgs = mode === 'setup-token' ? ['setup-token'] : ['auth', 'login'];
 
       const cp = spawn('claude', cmdArgs, {
         env: {
@@ -334,6 +335,9 @@ class ClaudeAuthService {
         stdoutBuffer: '',
         stderrBuffer: ''
       };
+
+      // Registra a sessão imediatamente para que qualquer timeout, erro ou cancelamento execute SIGKILL no cp
+      this.pendingSession = session;
 
       const finishResolve = (result: ClaudeStartAuthResult) => {
         if (!resolved) {
@@ -356,8 +360,6 @@ class ClaudeAuthService {
           }
 
           if (session.authUrl) {
-            this.pendingSession = session;
-
             // Timeout de 30 minutos para o usuário colar o código
             this.sessionTimeout = setTimeout(() => {
               this.cleanupSession();
@@ -366,7 +368,7 @@ class ClaudeAuthService {
             finishResolve({
               status: 'waiting_for_code',
               authUrl: session.authUrl,
-              message: 'URL de autenticação (token de 1 ano) gerada! Abra no navegador e copie o código.'
+              message: 'URL de autenticação do Claude Code gerada! Abra no navegador e copie o código.'
             });
           }
         }
@@ -639,9 +641,15 @@ class ClaudeAuthService {
       this.sessionTimeout = null;
     }
     if (this.pendingSession?.cp) {
+      const pid = this.pendingSession.cp.pid;
       try {
         this.pendingSession.cp.kill('SIGKILL');
       } catch {}
+      if (pid) {
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch {}
+      }
       this.pendingSession = null;
     }
   }
