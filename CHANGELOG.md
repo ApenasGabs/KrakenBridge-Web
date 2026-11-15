@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.43.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.42.2...v1.43.0) (2026-11-15)
+
+### ✨ Features
+
+* **ui:** reformular layout mobile/tablet e limpar funcionalidades (Refs [#180](https://github.com/ApenasGabs/KrakenBridge-Web/issues/180)) ([#181](https://github.com/ApenasGabs/KrakenBridge-Web/issues/181)) ([323ee06](https://github.com/ApenasGabs/KrakenBridge-Web/commit/323ee06a04714ed9f2737315704fba0d2ee3ecba))
+
 ## [1.42.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.42.1...v1.42.2) (2026-11-15)
 
 ### 🐛 Bug Fixes
