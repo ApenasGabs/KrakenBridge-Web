@@ -106,7 +106,7 @@ export const App: React.FC = () => {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
 
   // Layout & Abas (Sincronizado com a URL do navegador)
-  const { isMobile } = useViewport();
+  const { isMobile, isDesktop } = useViewport();
   const [activeTab, setActiveTab] = useState<'status' | 'whatsnext' | 'chat' | 'ide' | 'memory' | 'office'>(initialRoute.tab);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => 
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
@@ -1229,7 +1229,7 @@ export const App: React.FC = () => {
           sessionUsage={sessionUsage}
           currentModel={options.model}
           onToggleQuota={() => {
-            if (isMobile) {
+            if (!isDesktop) {
               setIsMobileQuotaOpen(prev => !prev);
             } else {
               handleUpdateOptions({ ...options, showQuotaBubble: !options.showQuotaBubble });
@@ -1358,9 +1358,9 @@ export const App: React.FC = () => {
 
       {/* Balão Flutuante de Cotas Antigravity (Horária e Semanal) */}
       <QuotaBubble
-        isVisible={isMobile ? isMobileQuotaOpen : !!options.showQuotaBubble}
+        isVisible={!isDesktop ? isMobileQuotaOpen : !!options.showQuotaBubble}
         onClose={() => {
-          if (isMobile) {
+          if (!isDesktop) {
             setIsMobileQuotaOpen(false);
           } else {
             handleUpdateOptions({ ...options, showQuotaBubble: false });

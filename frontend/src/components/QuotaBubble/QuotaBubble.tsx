@@ -68,7 +68,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
   lastTurnTokens,
   onStatsChange
 }) => {
-  const { isMobile } = useViewport();
+  const { isDesktop } = useViewport();
   const [stats, setStats] = useState<QuotaStats | null>(null);
   const [showWaterMetrics] = useWaterMetrics();
   // Em viewports < 1024px (mobile/tablet) inicia recolhido para não obstruir a área principal
@@ -118,7 +118,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
       const res = await api.refreshQuota();
       if (res?.stats) {
         setStats(res.stats);
-        onStatsChange?.(res.stats);
+        onStatsChangeRef.current?.(res.stats);
         if (res.stats.gemini) {
           setGeminiWeekly(res.stats.gemini.weekly.remaining);
           setGemini5h(res.stats.gemini.fiveHour.remaining);
@@ -159,7 +159,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
       });
       if (res?.stats) {
         setStats(res.stats);
-        onStatsChange?.(res.stats);
+        onStatsChangeRef.current?.(res.stats);
       }
       setShowConfig(false);
     } catch (err) {
@@ -234,8 +234,8 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
         }
       ];
 
-  // Modo Balão Minimizado (Pílula Flutuante — apenas Tablet/Desktop >= 768px)
-  if (!isMobile && !isExpanded) {
+  // Modo Balão Minimizado (Pílula Flutuante — apenas Desktop >= 1024px)
+  if (isDesktop && !isExpanded) {
     const firstGroup = displayGroups[0];
     const fiveHourBucket = firstGroup?.buckets.find(b => b.name.toLowerCase().includes('five') || b.name.toLowerCase().includes('5h')) || firstGroup?.buckets[0];
     const weeklyBucket = firstGroup?.buckets.find(b => b.name.toLowerCase().includes('week') || b.name.toLowerCase().includes('7d')) || firstGroup?.buckets[1];
@@ -276,11 +276,11 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
     );
   }
 
-  // Modo Balão Expandido (Desktop/Tablet flutuante ou Sheet Modal no Mobile)
+  // Modo Balão Expandido (Desktop flutuante ou Sheet Modal em Mobile/Tablet < 1024px)
   const cardContent = (
     <div
       className={
-        isMobile
+        !isDesktop
           ? 'w-full max-w-md max-h-[80dvh] overflow-y-auto rounded-2xl bg-[#121417]/98 backdrop-blur-xl border border-neutral-800/90 shadow-2xl p-4 text-xs font-sans text-neutral-200 select-none animate-in fade-in slide-in-from-top-3 duration-200'
           : 'fixed bottom-4 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto z-20 sm:w-96 max-w-full sm:max-w-[calc(100vw-2.5rem)] max-h-[85vh] overflow-y-auto rounded-2xl bg-[#121417]/98 backdrop-blur-xl border border-neutral-800/90 shadow-2xl p-3.5 sm:p-4 text-xs font-sans text-neutral-200 select-none animate-in fade-in slide-in-from-bottom-3 duration-200'
       }
@@ -317,7 +317,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
           >
             <RotateCw className="w-3.5 h-3.5" />
           </button>
-          {!isMobile && (
+          {isDesktop && (
             <button 
               onClick={() => setIsExpanded(false)}
               className="min-h-[36px] min-w-[36px] sm:min-h-[28px] sm:min-w-[28px] p-2 sm:p-1 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 transition-colors"
@@ -501,7 +501,7 @@ export const QuotaBubble: React.FC<QuotaBubbleProps> = ({
     </div>
   );
 
-  if (isMobile) {
+  if (!isDesktop) {
     return (
       <div
         data-testid="quota-mobile-backdrop"

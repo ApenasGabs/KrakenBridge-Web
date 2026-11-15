@@ -345,9 +345,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </select>
         </div>
 
-        {/* Card de Cotas Antigravity no Mobile (substitui o balão flutuante no rodapé) */}
+        {/* Card de Cotas Antigravity no Mobile/Tablet (substitui o balão flutuante no rodapé) */}
         {onOpenQuota && (
-          <div className="px-3 pt-3 border-t border-base-300 bg-base-200/50 md:hidden">
+          <div className="px-3 pt-3 border-t border-base-300 bg-base-200/50 lg:hidden">
             <button
               type="button"
               data-testid="sidebar-quota-card"

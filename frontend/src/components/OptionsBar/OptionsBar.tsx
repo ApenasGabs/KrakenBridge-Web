@@ -165,7 +165,9 @@ export const OptionsBar: React.FC<OptionsBarProps> = ({
             update({ autoRouteByModelQuota: val });
             try {
               localStorage.setItem('kraken_auto_route_model', String(val));
-            } catch {}
+            } catch (err) {
+              console.warn('Falha ao persistir preferência de auto-roteamento:', err);
+            }
           }}
           className="checkbox checkbox-xs checkbox-primary"
         />

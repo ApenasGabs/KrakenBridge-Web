@@ -41,8 +41,8 @@ export const IdeView: React.FC<IdeViewProps> = ({
               O editor incorporado é otimizado para telas de Tablet e Desktop (&gt;= 768px). No mobile, abra o VS Code diretamente em uma nova aba.
             </p>
           </div>
-          <div className="flex items-center justify-center gap-2 text-[11px] font-mono text-base-content/60">
-            <span className="badge badge-sm badge-neutral">Porta: {codeServerPort}</span>
+          <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] font-mono text-base-content/60">
+            <span className="badge badge-sm badge-neutral whitespace-nowrap shrink-0">Porta: {codeServerPort}</span>
             <span className="truncate max-w-[180px]">{workspaceDir}</span>
           </div>
           <a

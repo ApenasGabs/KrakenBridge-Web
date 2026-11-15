@@ -182,7 +182,7 @@ describe('Mobile & Tablet Layout Redesign (Issue #180 / APE-123)', () => {
     });
   });
 
-  describe('3. QuotaBubble no Mobile (< 768px)', () => {
+  describe('3. QuotaBubble no Mobile & Tablet (< 1024px)', () => {
     it('em 375px não renderiza pílula flutuante inferior quando fechado e abre modal superior ao ativar', async () => {
       setViewportWidth(375);
       const onClose = vi.fn();
@@ -192,6 +192,7 @@ describe('Mobile & Tablet Layout Redesign (Issue #180 / APE-123)', () => {
       );
 
       expect(screen.queryByTestId('quota-mobile-backdrop')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('quota-bubble-minimized')).not.toBeInTheDocument();
       expect(screen.queryByText(/Cotas/i)).not.toBeInTheDocument();
 
       rerender(<QuotaBubble isVisible={true} onClose={onClose} lastTurnTokens={250} />);
@@ -199,6 +200,25 @@ describe('Mobile & Tablet Layout Redesign (Issue #180 / APE-123)', () => {
       await waitFor(() => {
         expect(screen.getByTestId('quota-mobile-backdrop')).toBeInTheDocument();
       });
+    });
+
+    it('em 768px (Tablet) também suprime a pílula flutuante inferior e abre em modal superior', async () => {
+      setViewportWidth(768);
+      const onClose = vi.fn();
+
+      const { rerender } = render(
+        <QuotaBubble isVisible={false} onClose={onClose} lastTurnTokens={250} />
+      );
+
+      expect(screen.queryByTestId('quota-mobile-backdrop')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('quota-bubble-minimized')).not.toBeInTheDocument();
+
+      rerender(<QuotaBubble isVisible={true} onClose={onClose} lastTurnTokens={250} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('quota-mobile-backdrop')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('quota-bubble-minimized')).not.toBeInTheDocument();
     });
   });
 
@@ -247,12 +267,16 @@ describe('Mobile & Tablet Layout Redesign (Issue #180 / APE-123)', () => {
   });
 
   describe('5. Limpeza funcional em telas < 768px (IdeView & OfficeView)', () => {
-    it('IdeView no mobile oculta iframe e exibe botão Abrir VS Code em nova aba', () => {
+    it('IdeView no mobile oculta iframe e exibe botão Abrir VS Code em nova aba com badge sem clipping', () => {
       setViewportWidth(375);
       render(<IdeView codeServerPort={8443} workspaceDir="/workspace/KrakenBridge-Web" />);
 
       expect(screen.queryByTitle(/Code Server IDE/i)).not.toBeInTheDocument();
       expect(screen.getByTestId('ide-mobile-fallback')).toBeInTheDocument();
+      const portBadge = screen.getByText('Porta: 8443');
+      expect(portBadge.className).toContain('whitespace-nowrap');
+      expect(portBadge.className).toContain('shrink-0');
+      expect(portBadge.parentElement?.className).toContain('flex-wrap');
       const link = screen.getByTestId('ide-open-external-btn');
       expect(link).toHaveTextContent('Abrir VS Code em nova aba');
       expect(link).toHaveAttribute('target', '_blank');
