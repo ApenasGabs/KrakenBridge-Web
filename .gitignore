@@ -33,6 +33,7 @@ bin/
 
 # Runtime Skill Scout & Code Review
 .agents/
+.claude/
 .anytype-backups/
 REVIEW_REPORT.md
 review-fixes.patch
