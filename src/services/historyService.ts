@@ -675,7 +675,7 @@ export const historyService = {
     };
 
     const filePath = path.join(SESSIONS_DIR, `${session.id}.json`);
-    const tmpPath = `${filePath}.tmp.${Date.now()}`;
+    const tmpPath = `${filePath}.tmp.${Date.now()}.${randomUUID().slice(0, 8)}`;
     await fs.writeFile(tmpPath, JSON.stringify(record, null, 2), 'utf8');
     await fs.rename(tmpPath, filePath);
     return record;
@@ -687,7 +687,7 @@ export const historyService = {
     delete session.claudeSessionId;
     delete session.claudeSessionCwd;
     const filePath = path.join(SESSIONS_DIR, `${id}.json`);
-    const tmpPath = `${filePath}.tmp.${Date.now()}`;
+    const tmpPath = `${filePath}.tmp.${Date.now()}.${randomUUID().slice(0, 8)}`;
     await fs.writeFile(tmpPath, JSON.stringify(session, null, 2), 'utf8');
     await fs.rename(tmpPath, filePath);
   },

@@ -532,6 +532,7 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   const toolCalls: ToolCall[] = [];
   let lastUsage: Record<string, any> | null = null;
   let saveTimeout: NodeJS.Timeout | null = null;
+  let pendingSessionSave: Promise<unknown> | null = null;
 
   // Persistência contínua com debounce
   const scheduleSave = () => {
@@ -614,10 +615,12 @@ chatRouter.post('/', async (req: Request, res: Response) => {
 
       // Salva session_id nativo do Claude Code para `--resume` nos próximos turnos (Issue #188)
       if (parsed.event === 'claude_session' && parsed.session_id) {
-        historyService.save({
+        pendingSessionSave = historyService.save({
           id: conversationId,
           claudeSessionId: parsed.session_id,
           claudeSessionCwd: parsed.cwd || effectiveWorkDir
+        }).catch((err) => {
+          console.warn('[KrakenBridge] Falha ao persistir claudeSessionId:', (err as Error)?.message || err);
         });
         return;
       }
@@ -780,9 +783,13 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     const stopReason = session?.stopReason;
     const stderrLines = session?.stderrBuffer ? [...session.stderrBuffer] : [];
 
+    if (pendingSessionSave) {
+      await pendingSessionSave;
+    }
+
     // Sessão do Claude expirada/removida: descarta o ID para o próximo turno iniciar do zero (Issue #188)
     if (agent === 'claude' && claudeSessionId && code !== 0 && stderrLines.some(l => /no conversation found/i.test(l))) {
-      historyService.clearClaudeSession(conversationId).catch(() => {});
+      await historyService.clearClaudeSession(conversationId).catch(() => {});
     }
 
     activeProcesses.delete(reqId);

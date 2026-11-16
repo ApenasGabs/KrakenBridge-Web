@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { createClaudeStreamTranslator } from '../dist-server/services/claudeStreamAdapter.js';
 import { AGENT_DRIVERS, resolveNativeSessionId } from '../dist-server/routes/chat.js';
+import { historyService } from '../dist-server/services/historyService.js';
 
 // Issue #188: o driver claude precisa retomar a sessão nativa entre turnos.
 
@@ -59,4 +61,38 @@ test('resolveNativeSessionId ignora sessão do claude criada em outro cwd (works
   const session = { claudeSessionId: 'cl-1', claudeSessionCwd: '/w/app' };
   assert.equal(resolveNativeSessionId('claude', session, '/tmp/ephemeral/conv'), null);
   assert.equal(resolveNativeSessionId('claude', { claudeSessionId: 'cl-1' }, '/qualquer'), 'cl-1', 'sem cwd registrado: retoma');
+});
+
+test('historyService persiste e limpa claudeSessionId/claudeSessionCwd preservando agyConvId e tolerando saves concorrentes', async () => {
+  const id = `test-claude-resume-${randomUUID()}`;
+  try {
+    await historyService.save({
+      id,
+      agent: 'claude',
+      agyConvId: 'agy-keep',
+      claudeSessionId: 'cl-123',
+      claudeSessionCwd: '/workspace/app'
+    });
+
+    const loaded = await historyService.get(id);
+    assert.equal(loaded?.claudeSessionId, 'cl-123');
+    assert.equal(loaded?.claudeSessionCwd, '/workspace/app');
+    assert.equal(loaded?.agyConvId, 'agy-keep');
+
+    await Promise.all([
+      historyService.save({ id, title: 'T1' }),
+      historyService.save({ id, model: 'claude-opus-5-5' })
+    ]);
+
+    await historyService.clearClaudeSession(id);
+    await historyService.updateLastAssistantMessage(id, { text: 'falha', content: 'falha' });
+
+    const afterClear = await historyService.get(id);
+    assert.equal(afterClear?.claudeSessionId, undefined);
+    assert.equal(afterClear?.claudeSessionCwd, undefined);
+    assert.equal(afterClear?.agyConvId, 'agy-keep');
+    assert.equal(afterClear?.messages?.at(-1)?.text, 'falha');
+  } finally {
+    await historyService.delete(id).catch(() => {});
+  }
 });
