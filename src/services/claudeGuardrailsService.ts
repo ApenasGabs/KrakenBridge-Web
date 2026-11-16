@@ -56,6 +56,14 @@ export const mergeGuardHooks = (settings: Record<string, any>, scriptPath: strin
   return next;
 };
 
+/** Mescla os hooks do guard e desativa atribuição automática (Co-Authored-By / rodapé em PR) no settings.json. */
+export const mergeGuardSettings = (settings: Record<string, any>, scriptPath: string): Record<string, any> => {
+  const next = mergeGuardHooks(settings, scriptPath);
+  const currentAttr = settings.attribution && typeof settings.attribution === 'object' ? settings.attribution : {};
+  next.attribution = { ...currentAttr, commit: '', pr: '' };
+  return next;
+};
+
 /** Insere ou substitui o bloco gerenciado no CLAUDE.md, preservando o resto do arquivo. */
 export const upsertManagedBlock = (current: string, block: string): string => {
   const managed = `${CLAUDE_MD_BEGIN}\n${block.trim()}\n${CLAUDE_MD_END}`;
@@ -105,7 +113,7 @@ class ClaudeGuardrailsService {
       }
     }
     if (settingsOk) {
-      await writeIfChanged(settingsPath, JSON.stringify(mergeGuardHooks(settings, scriptPath), null, 2) + '\n', 0o644);
+      await writeIfChanged(settingsPath, JSON.stringify(mergeGuardSettings(settings, scriptPath), null, 2) + '\n', 0o644);
     }
 
     // 3. CLAUDE.md global (bloco gerenciado)
