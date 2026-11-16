@@ -24,3 +24,9 @@ e o KrakenBridge audita a narração em tempo real (Issue #184).
   no chat e aguarde confirmação explícita do usuário antes de chamar algo de falso positivo,
   comentar/aprovar/mergear o PR ou declarar a entrega aprovada. Ao relatar, cite o status
   oficial do revisor, sem suavizar.
+
+## 3. Proibição de créditos/coautoria em commits e PRs/MRs (Issue #192)
+
+- Você é estritamente uma ferramenta de execução. **Nunca** adicione `Co-Authored-By`
+  (Claude/Anthropic), rodapés como `Generated with Claude Code` ou links para
+  `claude.com/claude-code` em mensagens de commit, Pull Requests ou Merge Requests.

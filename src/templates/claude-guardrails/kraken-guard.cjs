@@ -25,7 +25,8 @@ const RULES_REMINDER = [
   '[KRAKEN GUARD — diretivas obrigatórias deste turno]',
   '1. Narração antes de agir: antes de CADA chamada de ferramenta, escreva no chat (texto visível, não só thinking) o que vai fazer e por quê. Após cada resultado, comente brevemente o que descobriu. O KrakenBridge audita e sinaliza toda ferramenta chamada sem narração prévia.',
   '2. Code review (agent-standards / spec-code-review.mjs): anuncie no chat ANTES de rodar; rode sem filtrar a saída (sem | grep/head/tail, sem > arquivo); leia o REVIEW_REPORT.md completo; liste no chat os apontamentos do Eixo Spec e do Eixo Standards e diga quais serão corrigidos.',
-  '3. Se o status for 🔴 Reprovado: corrija os itens ou apresente-os no chat e aguarde confirmação explícita do usuário antes de classificar qualquer item como falso positivo, comentar/aprovar o PR ou declarar aprovação. Nunca mova, apague ou edite o REVIEW_REPORT.md (para não sujar o git status use .git/info/exclude).'
+  '3. Se o status for 🔴 Reprovado: corrija os itens ou apresente-os no chat e aguarde confirmação explícita do usuário antes de classificar qualquer item como falso positivo, comentar/aprovar o PR ou declarar aprovação. Nunca mova, apague ou edite o REVIEW_REPORT.md (para não sujar o git status use .git/info/exclude).',
+  '4. Sem créditos ou coautoria: NUNCA inclua `Co-Authored-By` do Claude/Anthropic nem `Generated with Claude Code` / `claude.com/claude-code` em commits, PRs ou MRs.'
 ].join('\n');
 
 // ---------- utilidades ----------
@@ -96,6 +97,17 @@ const isPrFeedbackCommand = (command) => {
   return /\bgh\s+(pr\s+(comment|review|merge)\b|api\b[^\n]*(comments|reviews|merge))/.test(String(command || ''));
 };
 
+const PUBLISH_GIT_OR_PR_RE = /\b(git\s+commit|gh\s+(?:pr\s+(?:create|edit|comment|review)|api\b[^\n]*(?:pulls|issues))|glab\s+mr\s+(?:create|update|note))\b/;
+const FORBIDDEN_COAUTHOR_RE = /co-authored-by\s*:[^\n]*(?:claude|anthropic|noreply@anthropic\.com)/i;
+const FORBIDDEN_BRAND_RE = /generated\s+(?:with|by)\s+\[?\s*claude(?:\s+code)?|https?:\/\/claude\.com\/claude-code/i;
+
+/** True se o comando de commit ou PR/MR tentar inserir coautoria/créditos do Claude ou Anthropic. */
+const hasForbiddenAttribution = (command) => {
+  const cmd = String(command || '');
+  if (!segments(cmd).some((seg) => PUBLISH_GIT_OR_PR_RE.test(seg))) return false;
+  return FORBIDDEN_COAUTHOR_RE.test(cmd) || FORBIDDEN_BRAND_RE.test(cmd);
+};
+
 /** Extrai o status do relatório: 'reprovado' | 'aprovado' | 'desconhecido'. */
 const parseReportStatus = (content) => {
   const text = String(content || '');
@@ -129,6 +141,9 @@ const decidePreTool = (input, state) => {
   }
   if (state && state.status === 'reprovado' && !state.presented && isPrFeedbackCommand(cmd)) {
     return { deny: 'KRAKEN GUARD: o revisor agent-standards REPROVOU esta entrega e os apontamentos ainda não foram apresentados ao usuário. Liste no chat os itens do Eixo Spec e do Eixo Standards, corrija-os ou obtenha confirmação explícita do usuário antes de comentar, revisar ou mergear o PR (nada de classificar falso positivo sozinha).' };
+  }
+  if (hasForbiddenAttribution(cmd)) {
+    return { deny: 'KRAKEN GUARD: proibido inserir Co-Authored-By (Claude/Anthropic) ou assinaturas como "Generated with Claude Code" em commits, PRs ou MRs (Issue #192). Remova a atribuição e execute novamente.' };
   }
   return null;
 };
@@ -223,6 +238,7 @@ module.exports = {
   isMaskedReviewCommand,
   isReportTamperCommand,
   isPrFeedbackCommand,
+  hasForbiddenAttribution,
   parseReportStatus,
   decidePreTool,
   decideStop,
