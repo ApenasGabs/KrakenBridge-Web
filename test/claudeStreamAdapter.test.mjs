@@ -50,7 +50,8 @@ test('evento result vira result com response e usage', () => {
   const t = createClaudeStreamTranslator();
   const out = t({ type: 'result', subtype: 'success', result: 'Pronto', usage: { input_tokens: 1 } });
   assert.deepEqual(out, [{ event: 'result', result: { response: 'Pronto', usage: { input_tokens: 1 } }, is_error: false }]);
-  assert.deepEqual(t({ type: 'system', subtype: 'init', session_id: 's' }), [], 'init do Claude não deve virar agyConvId');
+  // Issue #188: init vira claude_session (para --resume), nunca conversation_id/agyConvId
+  assert.deepEqual(t({ type: 'system', subtype: 'init', session_id: 's' }), [{ event: 'claude_session', session_id: 's' }], 'init do Claude não deve virar agyConvId');
 });
 
 test('mapClaudeToolInput mapeia ferramentas MCP', () => {

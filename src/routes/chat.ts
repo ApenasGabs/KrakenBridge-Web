@@ -25,6 +25,7 @@ import {
 } from '../services/promptRefinerService.js';
 import { extractAgentFailureReason } from '../utils/agentFailureReason.js';
 import type { AgentDriver, AgentType, ToolCall, ChatRequestBody } from '../types/chat.js';
+import type { ConversationSession } from '../types/session.js';
 
 export const chatRouter = Router();
 export { activeSessions };
@@ -115,10 +116,14 @@ export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
 
   claude: {
     cmd: 'claude',
-    buildArgs: ({ prompt, model, skipPermissions }) => {
+    buildArgs: ({ prompt, model, skipPermissions, claudeSessionId }) => {
       // stream-json (+ --verbose, exigido pelo CLI em modo -p) faz cada narração e
       // ferramenta chegar em tempo real; em modo texto só o resultado final aparecia (#184).
       const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose'];
+      // Issue #188: retoma a sessão nativa para preservar o histórico entre turnos
+      if (claudeSessionId) {
+        args.push('--resume', claudeSessionId);
+      }
       if (skipPermissions !== false) {
         args.push('--dangerously-skip-permissions');
       }
@@ -158,6 +163,26 @@ export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
     },
     buildEnv: (env) => ({ ...env, HOME: env.HOME || '/root', OPENAI_API_KEY: env.OPENAI_API_KEY })
   }
+};
+
+/**
+ * Resolve o ID da sessão nativa do agente ativo (Issue #188): `agyConvId` para o AGY,
+ * `claudeSessionId` para o Claude Code. O Claude só retoma sessões criadas no mesmo cwd,
+ * então um workspace efêmero diferente do original força uma sessão nova.
+ */
+export const resolveNativeSessionId = (
+  agent: AgentType,
+  session: Pick<ConversationSession, 'agyConvId' | 'claudeSessionId' | 'claudeSessionCwd'> | null | undefined,
+  workDir: string
+): string | null => {
+  if (!session) return null;
+  if (agent === 'antigravity') return session.agyConvId || null;
+  if (agent === 'claude') {
+    if (!session.claudeSessionId) return null;
+    if (session.claudeSessionCwd && path.resolve(session.claudeSessionCwd) !== path.resolve(workDir)) return null;
+    return session.claudeSessionId;
+  }
+  return null;
 };
 
 // Endpoint principal de Chat com SSE Streaming
@@ -371,9 +396,11 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     tags: activeTags
   });
 
-  // Injeta a diretiva completa do sistema no primeiro turno da conversa ou se o modo de chat mudou.
-  // Em continuações de sessão (--conversation agyConvId), preserva a janela de contexto limpa sem poluição de tokens.
-  const shouldInjectDirective = !agyConvId;
+  // Injeta a diretiva completa do sistema no primeiro turno da sessão nativa do agente ativo.
+  // Em continuações (--conversation agyConvId / --resume claudeSessionId), preserva a janela de contexto limpa.
+  const nativeSessionId = resolveNativeSessionId(agent, existingSession, effectiveWorkDir);
+  const claudeSessionId = agent === 'claude' ? nativeSessionId : null;
+  const shouldInjectDirective = !nativeSessionId;
   const effectivePrompt = shouldInjectDirective ? `${systemDirective}${prompt}` : prompt;
 
   const driver = AGENT_DRIVERS[agent] || AGENT_DRIVERS.antigravity;
@@ -381,6 +408,7 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     prompt: effectivePrompt,
     conversationId,
     agyConvId,
+    claudeSessionId,
     continueSession,
     model,
     effort,
@@ -542,6 +570,8 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   type AgentStreamEvent = {
     event?: string;
     conversation_id?: string;
+    session_id?: string;
+    cwd?: string;
     step_update?: {
       step_type?: string;
       text_delta?: string;
@@ -580,6 +610,16 @@ chatRouter.post('/', async (req: Request, res: Response) => {
       // Salva ID interno do agy para continuações futuras
       if (parsed.event === 'init' && parsed.conversation_id) {
         historyService.save({ id: conversationId, agyConvId: parsed.conversation_id });
+      }
+
+      // Salva session_id nativo do Claude Code para `--resume` nos próximos turnos (Issue #188)
+      if (parsed.event === 'claude_session' && parsed.session_id) {
+        historyService.save({
+          id: conversationId,
+          claudeSessionId: parsed.session_id,
+          claudeSessionCwd: parsed.cwd || effectiveWorkDir
+        });
+        return;
       }
 
       // Coleta respostas para persistência no histórico
@@ -739,6 +779,11 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     const session = activeSessions.get(conversationId);
     const stopReason = session?.stopReason;
     const stderrLines = session?.stderrBuffer ? [...session.stderrBuffer] : [];
+
+    // Sessão do Claude expirada/removida: descarta o ID para o próximo turno iniciar do zero (Issue #188)
+    if (agent === 'claude' && claudeSessionId && code !== 0 && stderrLines.some(l => /no conversation found/i.test(l))) {
+      historyService.clearClaudeSession(conversationId).catch(() => {});
+    }
 
     activeProcesses.delete(reqId);
     activeSessions.delete(conversationId);

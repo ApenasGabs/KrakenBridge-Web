@@ -660,6 +660,8 @@ export const historyService = {
     const record: ConversationSession = {
       id: session.id,
       agyConvId: session.agyConvId || existing?.agyConvId || undefined,
+      claudeSessionId: session.claudeSessionId || existing?.claudeSessionId || undefined,
+      claudeSessionCwd: session.claudeSessionCwd || existing?.claudeSessionCwd || undefined,
       title: session.title || existing?.title || 'Nova Conversa',
       agent: session.agent || existing?.agent || 'antigravity',
       model: session.model || existing?.model || '',
@@ -677,6 +679,17 @@ export const historyService = {
     await fs.writeFile(tmpPath, JSON.stringify(record, null, 2), 'utf8');
     await fs.rename(tmpPath, filePath);
     return record;
+  },
+
+  async clearClaudeSession(id: string): Promise<void> {
+    const session = await this.get(id);
+    if (!session || !session.claudeSessionId) return;
+    delete session.claudeSessionId;
+    delete session.claudeSessionCwd;
+    const filePath = path.join(SESSIONS_DIR, `${id}.json`);
+    const tmpPath = `${filePath}.tmp.${Date.now()}`;
+    await fs.writeFile(tmpPath, JSON.stringify(session, null, 2), 'utf8');
+    await fs.rename(tmpPath, filePath);
   },
 
   async addMessage(id: string, message: ChatMessage, sessionMeta: Record<string, any> = {}): Promise<ConversationSession | null> {
