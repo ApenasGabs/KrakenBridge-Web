@@ -52,6 +52,7 @@ export interface AgentDriverArgs {
   prompt: string;
   conversationId?: string;
   agyConvId?: string | null;
+  claudeSessionId?: string | null;
   continueSession?: boolean;
   model?: string;
   effort?: string;

@@ -32,6 +32,7 @@ type ClaudeStreamLine = {
   type?: string;
   subtype?: string;
   session_id?: string;
+  cwd?: string;
   message?: { content?: ClaudeContentBlock[] | string; usage?: Record<string, unknown> };
   result?: string;
   usage?: Record<string, unknown>;
@@ -99,9 +100,20 @@ export const createClaudeStreamTranslator = () => {
   let nextStepIndex = 0;
   let narratedSinceLastTool = false;
   let emittedText = false;
+  let reportedSessionId: string | null = null;
 
   return function translate(line: ClaudeStreamLine): NormalizedAgentEvent[] {
     const out: NormalizedAgentEvent[] = [];
+
+    // Issue #188: expõe o session_id nativo uma única vez num evento próprio
+    // (`claude_session`) para que o chat persista `claudeSessionId` e retome com
+    // `--resume`, sem sobrescrever o `agyConvId` usado pelo driver do AGY.
+    if (typeof line.session_id === 'string' && line.session_id && line.session_id !== reportedSessionId) {
+      reportedSessionId = line.session_id;
+      const sessionEvent: NormalizedAgentEvent = { event: 'claude_session', session_id: line.session_id };
+      if (typeof line.cwd === 'string' && line.cwd) sessionEvent.cwd = line.cwd;
+      out.push(sessionEvent);
+    }
 
     if (line.type === 'assistant' && line.message) {
       const content = line.message.content;
@@ -167,8 +179,7 @@ export const createClaudeStreamTranslator = () => {
         is_error: line.is_error === true
       });
     }
-    // `system` (init/hooks) não tem equivalente na UI — ignorado de propósito
-    // (não salvar session_id como agyConvId para não quebrar trocas de agente).
+    // `system` (init/hooks) não tem equivalente na UI além do `claude_session` acima.
     return out;
   };
 };

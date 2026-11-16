@@ -3,6 +3,10 @@ import type { ChatMessage, AgentType, EffortLevelId, ExecutionModeId } from './c
 export interface ConversationSession {
   id: string;
   agyConvId?: string;
+  /** session_id nativo do Claude Code, usado em `claude --resume` (Issue #188) */
+  claudeSessionId?: string;
+  /** cwd em que a sessão do Claude foi criada; o CLI só retoma sessões do mesmo diretório */
+  claudeSessionCwd?: string;
   title: string;
   agent: AgentType;
   model: string;
