@@ -5,6 +5,71 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.39.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.38.0...v1.39.0) (2026-11-16)
+
+### ✨ Features
+
+* **auth:** suporte ao Claude Code CLI com fluxo OAuth idêntico ao Google (Refs [#166](https://github.com/ApenasGabs/KrakenBridge-Web/issues/166)) ([a011cb7](https://github.com/ApenasGabs/KrakenBridge-Web/commit/a011cb7af86cc20f00b6a2404e4927bbdfaed128))
+* **chat:** quick action chips de resposta e correcao sandbox claude code (Refs [#174](https://github.com/ApenasGabs/KrakenBridge-Web/issues/174)) ([24eac6f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/24eac6fa64f288702b7284de38af58b44f82753d))
+* **models:** suporte ao Gemini 4 Hydrogen e cascata inteligente para AGY e Claude (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([7f20918](https://github.com/ApenasGabs/KrakenBridge-Web/commit/7f209186b6c30dd85a483d6c049b1bb2c518bbaf))
+* **quota:** persistent multi-account cache with auto-refresh for AGY and Claude Code (Refs [#186](https://github.com/ApenasGabs/KrakenBridge-Web/issues/186)) ([#187](https://github.com/ApenasGabs/KrakenBridge-Web/issues/187)) ([2532b67](https://github.com/ApenasGabs/KrakenBridge-Web/commit/2532b672d0a221c864575f62fdefc0afbc234ba1))
+* **ui:** adicionar referência visual entre Antigravity e Claude Code no seletor de modelos (Refs [#170](https://github.com/ApenasGabs/KrakenBridge-Web/issues/170)) ([f43108b](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f43108bd6df85870f1b93531be10a36b3fbb74a1))
+* **ui:** reformular layout mobile/tablet e limpar funcionalidades (Refs [#180](https://github.com/ApenasGabs/KrakenBridge-Web/issues/180)) ([#181](https://github.com/ApenasGabs/KrakenBridge-Web/issues/181)) ([f3a078c](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f3a078ca648f3abda6c973515c65e8fcd6d0ffa1))
+
+### 🐛 Bug Fixes
+
+* **agent-core:** guardrails mecânicos de narração e code review para o Claude Code (Closes [#184](https://github.com/ApenasGabs/KrakenBridge-Web/issues/184)) ([#185](https://github.com/ApenasGabs/KrakenBridge-Web/issues/185)) ([427ce6f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/427ce6f9b94e4a4de157f00712dea239c8842f98))
+* **auth:** ampliar timeout da sessao oauth do claude para 30 minutos (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([148d57c](https://github.com/ApenasGabs/KrakenBridge-Web/commit/148d57c50ee404986af62192f7daf034b1cbca24))
+* **auth:** atender apontamentos do Sentinel com isolamento de testes, seguranca 0o600 e fallback 5-5 (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([502abf0](https://github.com/ApenasGabs/KrakenBridge-Web/commit/502abf00a359e8fb1050391858cad303f9b8465a))
+* **auth:** persistencia duradoura do Claude Code com cofre auto-curativo e setup-token de 1 ano (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([da08309](https://github.com/ApenasGabs/KrakenBridge-Web/commit/da08309273e4d30162ffc2099e1f3542ffee54b5))
+* **auth:** regex limpa para url oauth e aumento do timeout para 25s com sigkill ([66d5628](https://github.com/ApenasGabs/KrakenBridge-Web/commit/66d5628159652c6ced0719b7e766908880545ab4))
+* **auth:** usar claude auth login para headless container e evitar orfaos com SIGKILL imediato (Refs [#182](https://github.com/ApenasGabs/KrakenBridge-Web/issues/182)) ([d43921a](https://github.com/ApenasGabs/KrakenBridge-Web/commit/d43921a4b7565e4b82097e1ddd359e30f2ac9747))
+* **ci:** sincronizar package-lock.json com @anthropic-ai/claude-code (Refs [#168](https://github.com/ApenasGabs/KrakenBridge-Web/issues/168)) ([db37e5a](https://github.com/ApenasGabs/KrakenBridge-Web/commit/db37e5ae2b936db70326c13b25375d41823a3b61))
+* **claude:** retomar sessão com --resume e persistir claudeSessionId (Closes [#188](https://github.com/ApenasGabs/KrakenBridge-Web/issues/188)) ([#191](https://github.com/ApenasGabs/KrakenBridge-Web/issues/191)) ([bfedcf4](https://github.com/ApenasGabs/KrakenBridge-Web/commit/bfedcf4a4b1b2b5f5a2c4525006b1986db7ad4b5))
+* **e2e:** data-allow-x-scroll no QuickActionChips e protocolo de monitoramento de CI/CD (Refs [#174](https://github.com/ApenasGabs/KrakenBridge-Web/issues/174)) ([6851ceb](https://github.com/ApenasGabs/KrakenBridge-Web/commit/6851cebaf37a1330612e9835e16eb592f4bb2ad1))
+* **guardrails:** blindagem multicamada contra coautoria e creditos de bots (Refs [#194](https://github.com/ApenasGabs/KrakenBridge-Web/issues/194)) ([420c7ad](https://github.com/ApenasGabs/KrakenBridge-Web/commit/420c7ad21c511a5549e5cd993cb7381ec8c5de95))
+* **guardrails:** impedir créditos e coautoria do Claude Code em commits e PRs (Refs [#192](https://github.com/ApenasGabs/KrakenBridge-Web/issues/192)) ([#193](https://github.com/ApenasGabs/KrakenBridge-Web/issues/193)) ([b2bc66f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/b2bc66f55e975146e309a7ce2c07fe3e4d31b8a3))
+* **office:** sincronizar chats ativos e sessões do Kraken no Office Floor (Refs [#162](https://github.com/ApenasGabs/KrakenBridge-Web/issues/162)) ([090e01a](https://github.com/ApenasGabs/KrakenBridge-Web/commit/090e01abaa360e932557f02c6f3ec6c9522c39a7))
+* **pwa:** auto-recarga, invalidação de cache e auto-atualização do Service Worker após releases (Refs [#172](https://github.com/ApenasGabs/KrakenBridge-Web/issues/172)) ([879f225](https://github.com/ApenasGabs/KrakenBridge-Web/commit/879f2259d82eebc4a9ebddcd3dc56cfa388347bd))
+* **review:** resolver apontamentos de standards e spec do code review (Refs [#172](https://github.com/ApenasGabs/KrakenBridge-Web/issues/172)) ([c93b45e](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c93b45ee9ed74a899b77dbcd9c667597bfd306d8))
+* **standards:** converter para arrow function e remover console.log em claudeAuthService (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([8fbb2ed](https://github.com/ApenasGabs/KrakenBridge-Web/commit/8fbb2ed0cf05df6766be04178c66a217a228a969))
+
+### 📚 Documentation
+
+* **auth:** registrar evidencias de SIGKILL e isolamento de /DATA/.claude (Refs [#179](https://github.com/ApenasGabs/KrakenBridge-Web/issues/179)) ([92fafc3](https://github.com/ApenasGabs/KrakenBridge-Web/commit/92fafc385bc1615b38142c3c50182317a13d0881))
+* **governance:** registrar diretriz de temporizadores obrigatorios e prevencao de bloqueios (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([d409994](https://github.com/ApenasGabs/KrakenBridge-Web/commit/d409994bcf7c2a1e63eda3d03ac539566e0a237c))
+
+### ♻️ Refactoring
+
+* **types:** eliminar explicit any e tipar modelos estritamente (Refs [#170](https://github.com/ApenasGabs/KrakenBridge-Web/issues/170)) ([c285429](https://github.com/ApenasGabs/KrakenBridge-Web/commit/c28542930751ed102ff4bfeec434106c10e1ae3b))
+
+### 🧪 Tests
+
+* **auth:** adicionar testes para parsing de URL com escape ANSI OSC 8 (Refs [#179](https://github.com/ApenasGabs/KrakenBridge-Web/issues/179)) ([e29d673](https://github.com/ApenasGabs/KrakenBridge-Web/commit/e29d67335d30c70d8c792dc73385bd97fd0d5114))
+* **auth:** cobrir formalmente fluxos de início, submissão de código e status do Claude (Refs [#166](https://github.com/ApenasGabs/KrakenBridge-Web/issues/166)) ([f37ce71](https://github.com/ApenasGabs/KrakenBridge-Web/commit/f37ce710bb89bfb58c740d48ee254719614d94a7))
+* **auth:** validar via suite de testes unitarios e testes E2E no Browserless do Dell (Refs [#182](https://github.com/ApenasGabs/KrakenBridge-Web/issues/182)) ([7c16649](https://github.com/ApenasGabs/KrakenBridge-Web/commit/7c16649bada9d8745ee7f1fe457a782f200da28b))
+* **chat:** alinhamento semantico de testes e documentacao de requisitos (Refs [#174](https://github.com/ApenasGabs/KrakenBridge-Web/issues/174)) ([75905f2](https://github.com/ApenasGabs/KrakenBridge-Web/commit/75905f2d444ddf508216428f64aba2c7402b2261))
+* **ci:** adicionar teste de integridade do lockfile e validação de npm ci (Refs [#168](https://github.com/ApenasGabs/KrakenBridge-Web/issues/168)) ([54e9177](https://github.com/ApenasGabs/KrakenBridge-Web/commit/54e9177c340b7fead226a7c246ecae9e3f6bfc59))
+* **guardrails:** nomear testes pelos requisitos exatos da issue 194 (Refs [#194](https://github.com/ApenasGabs/KrakenBridge-Web/issues/194)) ([5f39c92](https://github.com/ApenasGabs/KrakenBridge-Web/commit/5f39c92e9dde680fe089f58b0ddcf357b697b8ed))
+* **paperclip:** validar integracao e credenciais do Claude no Paperclip (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([fcc1523](https://github.com/ApenasGabs/KrakenBridge-Web/commit/fcc1523a4834aa03cc00c3d7a9216972649092ed))
+* **review:** registrar conformidade de testes e code review (Refs [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)) ([16d00f4](https://github.com/ApenasGabs/KrakenBridge-Web/commit/16d00f4c0e257e805a63adfffebd65f2f42010c7))
+
+### 🔧 Chores
+
+* **release:** 1.38.1 [skip ci] ([9d4892e](https://github.com/ApenasGabs/KrakenBridge-Web/commit/9d4892ef6e7993ff64a9dd55ad10988221449c55)), closes [#162](https://github.com/ApenasGabs/KrakenBridge-Web/issues/162)
+* **release:** 1.39.0 [skip ci] ([d9c2876](https://github.com/ApenasGabs/KrakenBridge-Web/commit/d9c2876dc8bb33afa0094e7e91938c1a01317ef1)), closes [#166](https://github.com/ApenasGabs/KrakenBridge-Web/issues/166) [#168](https://github.com/ApenasGabs/KrakenBridge-Web/issues/168) [#166](https://github.com/ApenasGabs/KrakenBridge-Web/issues/166) [#168](https://github.com/ApenasGabs/KrakenBridge-Web/issues/168)
+* **release:** 1.40.0 [skip ci] ([3a4bcb3](https://github.com/ApenasGabs/KrakenBridge-Web/commit/3a4bcb39410dd2967ae0f3de23ac7467798b68f7)), closes [#170](https://github.com/ApenasGabs/KrakenBridge-Web/issues/170) [#170](https://github.com/ApenasGabs/KrakenBridge-Web/issues/170)
+* **release:** 1.40.1 [skip ci] ([0453c00](https://github.com/ApenasGabs/KrakenBridge-Web/commit/0453c00b9967191a83cb7e07660253890005948f)), closes [#172](https://github.com/ApenasGabs/KrakenBridge-Web/issues/172) [#172](https://github.com/ApenasGabs/KrakenBridge-Web/issues/172)
+* **release:** 1.41.0 [skip ci] ([a6d7735](https://github.com/ApenasGabs/KrakenBridge-Web/commit/a6d7735cc8c9769d3bd359f3ac6c274879d8f559)), closes [#174](https://github.com/ApenasGabs/KrakenBridge-Web/issues/174) [#174](https://github.com/ApenasGabs/KrakenBridge-Web/issues/174) [#174](https://github.com/ApenasGabs/KrakenBridge-Web/issues/174)
+* **release:** 1.42.0 [skip ci] ([915331d](https://github.com/ApenasGabs/KrakenBridge-Web/commit/915331dce550b92ac1a7a547e372c831cc1e3a8e)), closes [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176) [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176) [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176) [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176) [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176) [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176) [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176) [#176](https://github.com/ApenasGabs/KrakenBridge-Web/issues/176)
+* **release:** 1.42.1 [skip ci] ([ef79047](https://github.com/ApenasGabs/KrakenBridge-Web/commit/ef79047299a09f2d754a6e7b9ea483ad5bab2bab)), closes [#179](https://github.com/ApenasGabs/KrakenBridge-Web/issues/179) [#179](https://github.com/ApenasGabs/KrakenBridge-Web/issues/179)
+* **release:** 1.42.2 [skip ci] ([6e20140](https://github.com/ApenasGabs/KrakenBridge-Web/commit/6e20140b0fd003994c2d9946944e49ee45757912)), closes [#182](https://github.com/ApenasGabs/KrakenBridge-Web/issues/182) [#182](https://github.com/ApenasGabs/KrakenBridge-Web/issues/182)
+* **release:** 1.43.0 [skip ci] ([7147350](https://github.com/ApenasGabs/KrakenBridge-Web/commit/714735048e627f4f51b387a30856b499792b233b)), closes [#180](https://github.com/ApenasGabs/KrakenBridge-Web/issues/180) [#181](https://github.com/ApenasGabs/KrakenBridge-Web/issues/181)
+* **release:** 1.43.1 [skip ci] ([02c413f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/02c413f7d1f9eff7af42e12b1ffd04e1af4cb92c)), closes [#184](https://github.com/ApenasGabs/KrakenBridge-Web/issues/184) [#185](https://github.com/ApenasGabs/KrakenBridge-Web/issues/185)
+* **release:** 1.44.0 [skip ci] ([89dbfb3](https://github.com/ApenasGabs/KrakenBridge-Web/commit/89dbfb38e48d75d6e75774e53d5824805d360e1e)), closes [#186](https://github.com/ApenasGabs/KrakenBridge-Web/issues/186) [#187](https://github.com/ApenasGabs/KrakenBridge-Web/issues/187)
+* **release:** 1.44.1 [skip ci] ([1eacc38](https://github.com/ApenasGabs/KrakenBridge-Web/commit/1eacc389d56092ccfccf2c77faca4969d12f0846)), closes [#188](https://github.com/ApenasGabs/KrakenBridge-Web/issues/188) [#191](https://github.com/ApenasGabs/KrakenBridge-Web/issues/191)
+* **release:** 1.44.2 [skip ci] ([934a453](https://github.com/ApenasGabs/KrakenBridge-Web/commit/934a453545e92f7cdd58568fc86a319dd8915bc9)), closes [#192](https://github.com/ApenasGabs/KrakenBridge-Web/issues/192) [#193](https://github.com/ApenasGabs/KrakenBridge-Web/issues/193)
+
 ## [1.44.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.44.1...v1.44.2) (2026-11-16)
 
 ### 🐛 Bug Fixes
