@@ -153,7 +153,7 @@ test('Auto-Alinhamento do Claude com suas Próprias Diretrizes: provisionamento 
   }
 });
 
-test('Proibição de créditos/coautoria bloqueia Co-Authored-By e branding de Paperclip, Claude e IAs em commits e PRs (Issues #192, #194)', () => {
+test('Adicionar testes unitários abrangentes cobrindo todos os cenários de tentativas de coautoria externa: Proibição de créditos/coautoria bloqueia Co-Authored-By e branding de Paperclip, Claude e IAs em commits e PRs (Testes unitários passando)', () => {
   const cfg = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-attr-'));
   const session = { session_id: 'sess-192', cwd: '/workspace/app' };
 
