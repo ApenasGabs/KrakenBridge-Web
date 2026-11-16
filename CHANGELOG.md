@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.44.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.44.0...v1.44.1) (2026-11-16)
+
+### 🐛 Bug Fixes
+
+* **claude:** retomar sessão com --resume e persistir claudeSessionId (Closes [#188](https://github.com/ApenasGabs/KrakenBridge-Web/issues/188)) ([#191](https://github.com/ApenasGabs/KrakenBridge-Web/issues/191)) ([59468db](https://github.com/ApenasGabs/KrakenBridge-Web/commit/59468dba4aad15c9c677073a3e70130505449ef3))
+
 ## [1.44.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.43.1...v1.44.0) (2026-11-15)
 
 ### ✨ Features
