@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.46.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.45.0...v1.46.0) (2026-11-17)
+
+### ✨ Features
+
+* **mcp:** garantir auto-provisionamento do Anytype MCP para o Claude Code ([#201](https://github.com/ApenasGabs/KrakenBridge-Web/issues/201)) ([e2a3496](https://github.com/ApenasGabs/KrakenBridge-Web/commit/e2a3496a5b8d8a0be0415069cba783460288686f)), closes [#200](https://github.com/ApenasGabs/KrakenBridge-Web/issues/200) [#200](https://github.com/ApenasGabs/KrakenBridge-Web/issues/200)
+
 ## [1.45.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.44.3...v1.45.0) (2026-11-17)
 
 ### ✨ Features
