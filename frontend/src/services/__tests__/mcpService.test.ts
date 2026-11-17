@@ -62,4 +62,29 @@ describe('McpService - SQLite MCP Provisioning (Issue #48)', () => {
     expect(config.mcpServers?.['sqlite-ai-memory'].command).toBe('npx');
     expect(config.mcpServers?.['sqlite-ai-memory'].args).toContain(aiMemoryDbPath);
   });
+
+  it('deve sincronizar o servidor MCP anytype em ~/.claude.json quando o CLI existir', async () => {
+    const cliPath = path.join(testRoot, 'anytype-cli.mjs');
+    const claudeJsonPath = path.join(testRoot, '.claude.json');
+    fs.writeFileSync(cliPath, '#!/usr/bin/env node\n', 'utf8');
+
+    process.env.ANYTYPE_MCP_CLI_PATH = cliPath;
+    process.env.CLAUDE_USER_CONFIG_FILE = claudeJsonPath;
+    process.env.ANYTYPE_API_BASE_URL = 'http://192.0.2.10:31009';
+
+    try {
+      const res = await mcpService.ensureAnytypeMcpServer();
+      expect(res.cliExists).toBe(true);
+      expect(res.claudeConfigUpdated).toBe(true);
+
+      const claudeConfig = JSON.parse(fs.readFileSync(claudeJsonPath, 'utf8'));
+      expect(claudeConfig.mcpServers?.anytype?.command).toBe('node');
+      expect(claudeConfig.mcpServers?.anytype?.args).toEqual([cliPath]);
+      expect(claudeConfig.mcpServers?.anytype?.env?.ANYTYPE_API_BASE_URL).toBe('http://192.0.2.10:31009');
+    } finally {
+      delete process.env.ANYTYPE_MCP_CLI_PATH;
+      delete process.env.CLAUDE_USER_CONFIG_FILE;
+      delete process.env.ANYTYPE_API_BASE_URL;
+    }
+  });
 });

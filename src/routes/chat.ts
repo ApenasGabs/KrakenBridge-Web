@@ -16,6 +16,7 @@ import { coucouPhoneLinkService } from '../services/coucouPhoneLinkService.js';
 import { paperclipService } from '../services/paperclipService.js';
 import { claudeAuthService } from '../services/claudeAuthService.js';
 import { claudeGuardrailsService } from '../services/claudeGuardrailsService.js';
+import { mcpService } from '../services/mcpService.js';
 import { createClaudeStreamTranslator, isClaudeStreamLine } from '../services/claudeStreamAdapter.js';
 import {
   promptRefinerService,
@@ -455,6 +456,10 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     // Garante hooks de guardrail (narração + code review) antes de cada execução (#184)
     await claudeGuardrailsService.ensureProvisioned().catch((err) => {
       console.warn('[KrakenBridge] Aviso ao provisionar guardrails do Claude:', err?.message || err);
+    });
+    // Garante sincronização do servidor MCP Anytype em ~/.claude.json (#200)
+    await mcpService.ensureAnytypeMcpServer().catch((err) => {
+      console.warn('[KrakenBridge] Aviso ao provisionar MCP Anytype para o Claude:', err?.message || err);
     });
   }
 
