@@ -276,7 +276,7 @@ class SystemVersionService {
         percent: 20,
         targetTag: selectedTag
       });
-      await execAsync('git fetch --tags origin');
+      await execAsync('git fetch --tags --force origin');
 
       // 2. Checkout forçado da tag alvo (resiliente contra drift em arquivos rastreados no runtime de produção)
       console.log(`[SystemVersionService] Realizando checkout forçado de ${selectedTag}...`);
