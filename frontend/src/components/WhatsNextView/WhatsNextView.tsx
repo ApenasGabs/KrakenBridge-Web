@@ -35,7 +35,9 @@ import {
   SlidersHorizontal,
   Globe,
   ListChecks,
-  Edit3
+  Edit3,
+  Wand2,
+  SearchCheck
 } from 'lucide-react';
 
 import { BatchActionBar } from './BatchActionBar';
@@ -54,6 +56,36 @@ interface WhatsNextViewProps {
   onReviewPr: (data: { conversationId: string; subproject?: string; suggestedPrompt: string }) => void;
   onOpenConversation: (conversationId: string) => void;
 }
+
+const ISSUE_BATCH_ACTIONS: Array<{
+  action: BatchActionType;
+  label: string;
+  active: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { action: 'refine', label: 'Refinar', active: 'bg-secondary text-secondary-content', Icon: Wand2 },
+  { action: 'reevaluate', label: 'Reavaliar', active: 'bg-accent text-accent-content', Icon: SearchCheck },
+  { action: 'delegate_paperclip', label: 'Paperclip', active: 'bg-primary text-primary-content', Icon: Send },
+  { action: 'close', label: 'Fechar', active: 'bg-error text-error-content', Icon: XCircle }
+];
+
+// Monta a decisão padrão de um item (PR => OK/Aprovar; Issue => Refinar, pois "aprovar" não se aplica)
+const buildDefaultDecision = (
+  item: GithubPullRequestItem | GithubIssueItem,
+  itemType: 'pr' | 'issue'
+): BatchItemDecision => ({
+  itemKey: `${item.repository?.nameWithOwner}#${item.number}`,
+  itemType,
+  repo: item.repository?.nameWithOwner || '',
+  number: item.number,
+  title: item.title,
+  url: item.url,
+  branch: (item as GithubPullRequestItem).headRefName,
+  action: itemType === 'issue' ? 'refine' : 'approve',
+  notes: '',
+  body: itemType === 'issue' ? (item as GithubIssueItem).body : undefined,
+  linkedConversationId: (item as GithubPullRequestItem).linkedConversation?.id
+});
 
 export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
   onResolveIssue,
@@ -636,18 +668,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
         next.add(itemKey);
         setBatchDecisions(dec => ({
           ...dec,
-          [itemKey]: {
-            itemKey,
-            itemType,
-            repo: item.repository?.nameWithOwner || '',
-            number: item.number,
-            title: item.title,
-            url: item.url,
-            branch: (item as GithubPullRequestItem).headRefName,
-            action: 'approve', // Padrão: OK / Aprovar
-            notes: '',
-            linkedConversationId: (item as GithubPullRequestItem).linkedConversation?.id
-          }
+          [itemKey]: buildDefaultDecision(item, itemType)
         }));
       }
       return next;
@@ -687,6 +708,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
     setBatchDecisions(prev => {
       const updated = { ...prev };
       for (const key of Object.keys(updated)) {
+        if (updated[key].itemType !== 'pr') continue; // "OK" não se aplica a issues
         updated[key] = { ...updated[key], action: 'approve' };
       }
       return updated;
@@ -729,18 +751,7 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
         currentItems.forEach(item => {
           const itemKey = `${item.repository?.nameWithOwner}#${item.number}`;
           if (!next[itemKey]) {
-            next[itemKey] = {
-              itemKey,
-              itemType: activeSubTab === 'prs' ? 'pr' : 'issue',
-              repo: item.repository?.nameWithOwner || '',
-              number: item.number,
-              title: item.title,
-              url: item.url,
-              branch: (item as GithubPullRequestItem).headRefName,
-              action: 'approve',
-              notes: '',
-              linkedConversationId: (item as GithubPullRequestItem).linkedConversation?.id
-            };
+            next[itemKey] = buildDefaultDecision(item, activeSubTab === 'prs' ? 'pr' : 'issue');
           }
         });
         return next;
@@ -750,12 +761,15 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
 
   // Contagem dinâmica das ações selecionadas
   const batchCounts = useMemo(() => {
-    const counts = { approve: 0, requestChanges: 0, merge: 0, close: 0 };
+    const counts = { approve: 0, requestChanges: 0, merge: 0, close: 0, refine: 0, reevaluate: 0, delegate: 0 };
     Object.values(batchDecisions).forEach(d => {
       if (d.action === 'approve') counts.approve++;
       else if (d.action === 'request_changes') counts.requestChanges++;
       else if (d.action === 'merge') counts.merge++;
       else if (d.action === 'close') counts.close++;
+      else if (d.action === 'refine') counts.refine++;
+      else if (d.action === 'reevaluate') counts.reevaluate++;
+      else if (d.action === 'delegate_paperclip') counts.delegate++;
     });
     return counts;
   }, [batchDecisions]);
@@ -1250,13 +1264,83 @@ export const WhatsNextView: React.FC<WhatsNextViewProps> = ({
                   const issueKey = `${issue.repository?.nameWithOwner}#${issue.number}`;
                   const isResolving = resolvingIssueNumber === issue.number;
                   const isClosing = closingIssueKey === issueKey;
+                  const isIssueSelected = selectedItemKeys.has(issueKey);
+                  const issueDecision = batchDecisions[issueKey];
 
                   return (
                     <div
                       key={issueKey}
-                      className="card bg-base-200/50 hover:bg-base-200 border border-base-300 transition-all shadow-sm hover:shadow"
+                      className={`card border transition-all shadow-sm hover:shadow ${
+                        isIssueSelected
+                          ? 'bg-primary/5 border-primary/40 ring-1 ring-primary/30'
+                          : 'bg-base-200/50 hover:bg-base-200 border-base-300'
+                      }`}
                     >
-                      <div className="card-body p-4 sm:p-5">
+                      <div className="card-body p-4 sm:p-5 space-y-3">
+                        {/* Seleção e ação do card no Modo Lote */}
+                        {isBatchMode && (
+                          <div className="flex flex-wrap items-center justify-between pb-2.5 border-b border-base-300/70 gap-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isIssueSelected}
+                                onChange={() => handleToggleItemSelect(issue, 'issue')}
+                                className="checkbox checkbox-primary checkbox-sm rounded"
+                                aria-label={`Selecionar issue #${issue.number} para o lote`}
+                              />
+                              <span className="text-xs font-semibold">
+                                {isIssueSelected ? (
+                                  <span className="text-primary font-bold">Selecionada para Lote</span>
+                                ) : (
+                                  <span className="text-base-content/70">Selecionar issue</span>
+                                )}
+                              </span>
+                            </label>
+
+                            {isIssueSelected && (
+                              <div className="flex flex-wrap items-center gap-1 bg-base-100 p-1 rounded-lg border border-base-300/80 text-xs">
+                                {ISSUE_BATCH_ACTIONS.map(({ action, label, active, Icon }) => (
+                                  <button
+                                    key={action}
+                                    type="button"
+                                    onClick={() => handleSetItemAction(issueKey, action)}
+                                    aria-pressed={issueDecision?.action === action}
+                                    className={`px-2 py-0.5 rounded-md font-medium text-xs flex items-center gap-1 transition-all ${
+                                      issueDecision?.action === action
+                                        ? `${active} font-bold shadow-xs`
+                                        : 'text-base-content/60 hover:text-base-content'
+                                    }`}
+                                  >
+                                    <Icon className="w-3 h-3" />
+                                    <span>{label}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {isBatchMode && isIssueSelected && issueDecision && issueDecision.action !== 'close' && (
+                          <div className="p-3 rounded-xl bg-base-100 border border-base-300 space-y-1.5 animate-in fade-in duration-150">
+                            <span className="text-xs font-semibold text-base-content/80">
+                              Direcionamento para o agente (opcional)
+                            </span>
+                            <textarea
+                              rows={2}
+                              value={issueDecision.notes || ''}
+                              onChange={(e) => handleSetItemNotes(issueKey, e.target.value)}
+                              placeholder={
+                                issueDecision.action === 'delegate_paperclip'
+                                  ? 'Contexto extra para o agente do Paperclip...'
+                                  : issueDecision.action === 'refine'
+                                    ? "Ex: 'foque em critérios de aceitação e quebre em tarefas menores'"
+                                    : "Ex: 'verifique se já foi resolvida pela release atual'"
+                              }
+                              className="textarea textarea-bordered textarea-xs w-full text-xs font-sans"
+                            />
+                          </div>
+                        )}
+
                         <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
                           {/* Detalhes da Issue */}
                           <div className="flex-1 space-y-2">

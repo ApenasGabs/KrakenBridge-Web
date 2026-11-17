@@ -828,7 +828,14 @@ export interface LocalSubagent {
 // Tipos para Ações em Lote do What's Next (Batch Triage & Delegation)
 // ============================================================================
 
-export type BatchActionType = 'approve' | 'request_changes' | 'merge' | 'close';
+export type BatchActionType =
+  | 'approve'
+  | 'request_changes'
+  | 'merge'
+  | 'close'
+  | 'refine'
+  | 'reevaluate'
+  | 'delegate_paperclip';
 
 export interface BatchItemDecision {
   itemKey: string; // Ex: `${repo}#${number}`
@@ -840,6 +847,7 @@ export interface BatchItemDecision {
   branch?: string;
   action: BatchActionType;
   notes?: string;
+  body?: string;
   targetAgent?: 'auto' | 'forge' | 'sentinel' | 'pai_kraken';
   linkedConversationId?: string;
 }

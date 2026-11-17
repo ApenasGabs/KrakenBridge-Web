@@ -126,4 +126,30 @@ describe('BatchDispatchModal Component', () => {
     expect(screen.getByText('Todas as ações foram processadas com sucesso!')).toBeInTheDocument();
     expect(screen.getByText('Concluir')).toBeInTheDocument();
   });
+
+  it('deve agrupar ações de issue (refinar, reavaliar, delegar, fechar) com anotações', () => {
+    const issueItems: BatchItemDecision[] = [
+      { itemKey: 'o/r#1', itemType: 'issue', repo: 'o/r', number: 1, title: 'Issue A', action: 'refine', notes: 'foque nos critérios' },
+      { itemKey: 'o/r#2', itemType: 'issue', repo: 'o/r', number: 2, title: 'Issue B', action: 'reevaluate' },
+      { itemKey: 'o/r#3', itemType: 'issue', repo: 'o/r', number: 3, title: 'Issue C', action: 'delegate_paperclip' },
+      { itemKey: 'o/r#4', itemType: 'issue', repo: 'o/r', number: 4, title: 'Issue D', action: 'close' }
+    ];
+
+    render(
+      <BatchDispatchModal
+        isOpen={true}
+        onClose={vi.fn()}
+        items={issueItems}
+        isDispatching={false}
+        onConfirmDispatch={vi.fn()}
+        result={null}
+      />
+    );
+
+    expect(screen.getByText('Refinar Issue (1)')).toBeInTheDocument();
+    expect(screen.getByText('Reavaliar Issue (1)')).toBeInTheDocument();
+    expect(screen.getByText('Delegar ao Paperclip (1)')).toBeInTheDocument();
+    expect(screen.getByText('Fechar Issue (1)')).toBeInTheDocument();
+    expect(screen.getByText(/foque nos critérios/)).toBeInTheDocument();
+  });
 });

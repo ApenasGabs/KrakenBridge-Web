@@ -6,6 +6,9 @@ import {
   CheckCircle2, 
   Edit3, 
   GitMerge, 
+  Wand2,
+  SearchCheck,
+  Send,
   AlertTriangle,
   RefreshCw
 } from 'lucide-react';
@@ -17,6 +20,9 @@ export interface BatchActionBarProps {
     requestChanges: number;
     merge: number;
     close: number;
+    refine?: number;
+    reevaluate?: number;
+    delegate?: number;
   };
   hasUnfilledNotes?: boolean;
   isDispatching?: boolean;
@@ -65,6 +71,24 @@ export const BatchActionBar: React.FC<BatchActionBarProps> = ({
               <span className="badge badge-sm badge-info gap-1 text-[11px] font-medium py-2">
                 <GitMerge className="w-3 h-3" />
                 {counts.merge} Merge
+              </span>
+            )}
+            {(counts.refine ?? 0) > 0 && (
+              <span className="badge badge-sm badge-secondary gap-1 text-[11px] font-medium py-2">
+                <Wand2 className="w-3 h-3" />
+                {counts.refine} Refinar
+              </span>
+            )}
+            {(counts.reevaluate ?? 0) > 0 && (
+              <span className="badge badge-sm badge-accent gap-1 text-[11px] font-medium py-2">
+                <SearchCheck className="w-3 h-3" />
+                {counts.reevaluate} Reavaliar
+              </span>
+            )}
+            {(counts.delegate ?? 0) > 0 && (
+              <span className="badge badge-sm badge-primary gap-1 text-[11px] font-medium py-2">
+                <Send className="w-3 h-3" />
+                {counts.delegate} Paperclip
               </span>
             )}
           </div>
