@@ -11,6 +11,86 @@ export const getCredentialsFile = () => process.env.CLAUDE_CREDENTIALS_FILE || p
 export const getCredentialsVaultFile = () => process.env.CREDENTIALS_VAULT_FILE || path.join(getClaudeConfigDir(), '.credentials.json.vault');
 export const getDataVaultFile = () => process.env.DATA_VAULT_FILE || '/DATA/.claude/.credentials.json.vault';
 export const getPaperclipCredentialsFile = () => process.env.PAPERCLIP_CREDENTIALS_FILE || '/DATA/AppData/paperclip/data/.claude/.credentials.json';
+export const getClaudeUserConfigFile = () => process.env.CLAUDE_USER_CONFIG_FILE || '/root/.claude.json';
+export const getPersistentClaudeUserConfigFile = () => process.env.PERSISTENT_CLAUDE_USER_CONFIG_FILE || '/DATA/.claude.json';
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
+ * Mescla o .claude.json local no arquivo persistente sem sobrescrever servidores MCP ou campos existentes.
+ */
+const mergeClaudeUserJsonFiles = async (sourcePath: string, targetPath: string): Promise<void> => {
+  const sourceRaw = await fs.readFile(sourcePath, 'utf8').catch(() => '');
+  const targetRaw = await fs.readFile(targetPath, 'utf8').catch(() => '');
+
+  if (!targetRaw.trim()) {
+    await fs.writeFile(targetPath, sourceRaw.trim() ? sourceRaw : '{}', { mode: 0o600 }).catch(() => {});
+    return;
+  }
+
+  try {
+    const targetObj: unknown = JSON.parse(targetRaw);
+    if (!isPlainObject(targetObj)) return;
+    if (!sourceRaw.trim()) return;
+
+    const sourceObj: unknown = JSON.parse(sourceRaw);
+    if (!isPlainObject(sourceObj)) return;
+
+    const targetServers = isPlainObject(targetObj.mcpServers) ? { ...targetObj.mcpServers } : {};
+    const sourceServers = isPlainObject(sourceObj.mcpServers) ? sourceObj.mcpServers : {};
+    let changed = false;
+
+    for (const [name, serverConf] of Object.entries(sourceServers)) {
+      if (!(name in targetServers)) {
+        targetServers[name] = serverConf;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      targetObj.mcpServers = targetServers;
+      await fs.writeFile(targetPath, JSON.stringify(targetObj, null, 2) + '\n', { mode: 0o600 }).catch(() => {});
+    }
+  } catch {
+    // Nunca sobrescreve um JSON existente potencialmente customizado se houver erro de parse
+  }
+};
+
+/**
+ * Garante o symlink de ~/.claude.json apontando para o volume persistente sem corromper JSON existente.
+ */
+export const ensureClaudeJsonSymlink = async (userJsonPath: string, dataJsonPath: string): Promise<void> => {
+  await fs.mkdir(path.dirname(dataJsonPath), { recursive: true }).catch(() => {});
+  await fs.mkdir(path.dirname(userJsonPath), { recursive: true }).catch(() => {});
+
+  const dataStat = await fs.stat(dataJsonPath).catch(() => null);
+  const ensureDataJsonInitialized = async () => {
+    if (!dataStat || dataStat.size === 0) {
+      await fs.writeFile(dataJsonPath, '{}', { mode: 0o600 }).catch(() => {});
+    }
+  };
+
+  const userLstat = await fs.lstat(userJsonPath).catch(() => null);
+  if (!userLstat) {
+    await ensureDataJsonInitialized();
+    await fs.symlink(dataJsonPath, userJsonPath).catch(() => {});
+    return;
+  }
+
+  if (!userLstat.isSymbolicLink()) {
+    if (!dataStat || dataStat.size === 0) {
+      await fs.copyFile(userJsonPath, dataJsonPath).catch(() => {});
+    } else {
+      await mergeClaudeUserJsonFiles(userJsonPath, dataJsonPath);
+    }
+    await fs.rm(userJsonPath, { force: true }).catch(() => {});
+    await fs.symlink(dataJsonPath, userJsonPath).catch(() => {});
+    return;
+  }
+
+  await ensureDataJsonInitialized();
+};
 
 const updateEnvFile = async (key: string, value?: string | null): Promise<void> => {
   try {
@@ -121,16 +201,10 @@ class ClaudeAuthService {
           await fs.symlink(dataDir, configDir).catch(() => {});
         }
 
-        // Symlink /root/.claude.json -> /DATA/.claude.json
-        const rootJsonLstat = await fs.lstat('/root/.claude.json').catch(() => null);
-        if (!rootJsonLstat) {
-          await fs.writeFile('/DATA/.claude.json', '{}', { flag: 'a' }).catch(() => {});
-          await fs.symlink('/DATA/.claude.json', '/root/.claude.json').catch(() => {});
-        } else if (!rootJsonLstat.isSymbolicLink()) {
-          await fs.copyFile('/root/.claude.json', '/DATA/.claude.json').catch(() => {});
-          await fs.rm('/root/.claude.json', { force: true }).catch(() => {});
-          await fs.symlink('/DATA/.claude.json', '/root/.claude.json').catch(() => {});
-        }
+        // Symlink /root/.claude.json -> /DATA/.claude.json sem corromper conteúdo pré-existente
+        await ensureClaudeJsonSymlink(getClaudeUserConfigFile(), getPersistentClaudeUserConfigFile());
+      } else if (process.env.CLAUDE_USER_CONFIG_FILE && process.env.PERSISTENT_CLAUDE_USER_CONFIG_FILE) {
+        await ensureClaudeJsonSymlink(getClaudeUserConfigFile(), getPersistentClaudeUserConfigFile());
       }
 
       const credsFile = getCredentialsFile();

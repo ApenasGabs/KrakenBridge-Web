@@ -2,14 +2,118 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import fsSync from 'fs';
+import os from 'os';
 import path from 'path';
 import type { McpConfigFile, McpServerItem, McpAuthUrlResponse, McpExchangeResponse } from '../types/mcp.js';
 
 const execAsync = promisify(exec);
 
-function getConfigPath(): string {
-  return process.env.MCP_CONFIG_PATH || '/root/.gemini/config/mcp_config.json';
+const DEFAULT_ANYTYPE_CLI_PATH = '/workspace/anytype-mcp/bin/cli.mjs';
+const DEFAULT_ANYTYPE_BASE_URL = 'http://192.168.31.5:31009';
+
+export interface AnytypeProvisionResult {
+  cliExists: boolean;
+  mcpConfigUpdated: boolean;
+  claudeConfigUpdated: boolean;
 }
+
+const getConfigPath = (): string => process.env.MCP_CONFIG_PATH || '/root/.gemini/config/mcp_config.json';
+
+const getAnytypeCliPath = (): string => process.env.ANYTYPE_MCP_CLI_PATH || DEFAULT_ANYTYPE_CLI_PATH;
+
+const getClaudeUserConfigPath = (): string => {
+  if (process.env.CLAUDE_USER_CONFIG_FILE) return process.env.CLAUDE_USER_CONFIG_FILE;
+  if (process.env.CLAUDE_USER_CONFIG_PATH) return process.env.CLAUDE_USER_CONFIG_PATH;
+  return path.join(process.env.HOME || os.homedir() || '/root', '.claude.json');
+};
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const resolveAnytypeEnv = (existingEnv?: Record<string, string>): Record<string, string> => {
+  const baseUrl =
+    process.env.ANYTYPE_API_BASE_URL?.trim() ||
+    existingEnv?.ANYTYPE_API_BASE_URL?.trim() ||
+    DEFAULT_ANYTYPE_BASE_URL;
+
+  const envVars: Record<string, string> = {
+    ANYTYPE_API_BASE_URL: baseUrl
+  };
+
+  const apiKey = process.env.ANYTYPE_API_KEY?.trim();
+  const headers =
+    process.env.OPENAPI_MCP_HEADERS?.trim() ||
+    existingEnv?.OPENAPI_MCP_HEADERS?.trim() ||
+    (apiKey ? JSON.stringify({ Authorization: `Bearer ${apiKey}`, 'Anytype-Version': '2025-11-08' }) : '');
+
+  if (headers) {
+    envVars.OPENAPI_MCP_HEADERS = headers;
+  }
+
+  return envVars;
+};
+
+/**
+ * Mescla a entrada do servidor MCP Anytype em um objeto `.claude.json` preservando configurações existentes.
+ */
+export const upsertAnytypeInClaudeConfig = (
+  config: Record<string, unknown>,
+  cliPath: string,
+  desiredEnv: Record<string, string>
+): { nextConfig: Record<string, unknown>; changed: boolean } => {
+  const existingServers = isPlainRecord(config.mcpServers) ? { ...config.mcpServers } : {};
+  const existingEntry = existingServers.anytype;
+
+  if (!isPlainRecord(existingEntry)) {
+    existingServers.anytype = {
+      type: 'stdio',
+      command: 'node',
+      args: [cliPath],
+      env: { ...desiredEnv }
+    };
+    return {
+      nextConfig: { ...config, mcpServers: existingServers },
+      changed: true
+    };
+  }
+
+  let entryChanged = false;
+  const nextEntry: Record<string, unknown> = { ...existingEntry };
+
+  if (!nextEntry.type) {
+    nextEntry.type = 'stdio';
+    entryChanged = true;
+  }
+  if (typeof nextEntry.command !== 'string' || !nextEntry.command.trim()) {
+    nextEntry.command = 'node';
+    nextEntry.args = [cliPath];
+    entryChanged = true;
+  } else if (!Array.isArray(nextEntry.args)) {
+    nextEntry.args = nextEntry.command === 'node' ? [cliPath] : [];
+    entryChanged = true;
+  }
+
+  const currentEnv = isPlainRecord(nextEntry.env) ? { ...nextEntry.env } : {};
+  if (!currentEnv.ANYTYPE_API_BASE_URL && desiredEnv.ANYTYPE_API_BASE_URL) {
+    currentEnv.ANYTYPE_API_BASE_URL = desiredEnv.ANYTYPE_API_BASE_URL;
+    entryChanged = true;
+  }
+  if (!currentEnv.OPENAPI_MCP_HEADERS && desiredEnv.OPENAPI_MCP_HEADERS) {
+    currentEnv.OPENAPI_MCP_HEADERS = desiredEnv.OPENAPI_MCP_HEADERS;
+    entryChanged = true;
+  }
+
+  if (!entryChanged) {
+    return { nextConfig: config, changed: false };
+  }
+
+  nextEntry.env = currentEnv;
+  existingServers.anytype = nextEntry;
+  return {
+    nextConfig: { ...config, mcpServers: existingServers },
+    changed: true
+  };
+};
 
 function extractAuthCodeOrToken(input: unknown): string {
   if (!input || typeof input !== 'string') return '';
@@ -264,6 +368,72 @@ class McpService {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Garante que o servidor MCP `anytype` esteja configurado em `mcp_config.json` e
+   * sincronizado em `~/.claude.json` (`/DATA/.claude.json`) para uso pelo Claude Code.
+   */
+  async ensureAnytypeMcpServer(): Promise<AnytypeProvisionResult> {
+    const cliPath = getAnytypeCliPath();
+    if (!fsSync.existsSync(cliPath)) {
+      return { cliExists: false, mcpConfigUpdated: false, claudeConfigUpdated: false };
+    }
+
+    const mcpConfig = await this.readConfig();
+    if (!mcpConfig.mcpServers) mcpConfig.mcpServers = {};
+
+    const desiredEnv = resolveAnytypeEnv(mcpConfig.mcpServers.anytype?.env);
+    let mcpConfigUpdated = false;
+
+    if (!mcpConfig.mcpServers.anytype) {
+      mcpConfig.mcpServers.anytype = {
+        command: 'node',
+        args: [cliPath],
+        env: { ...desiredEnv },
+        disabled: false
+      };
+      await this.writeConfig(mcpConfig);
+      mcpConfigUpdated = true;
+    }
+
+    const claudeUserConfigPath = getClaudeUserConfigPath();
+    let claudeObj: Record<string, unknown> = {};
+    const exists = await fs.stat(claudeUserConfigPath).then(() => true).catch(() => false);
+
+    if (exists) {
+      try {
+        const raw = await fs.readFile(claudeUserConfigPath, 'utf8');
+        if (raw.trim()) {
+          const parsed: unknown = JSON.parse(raw);
+          if (!isPlainRecord(parsed)) {
+            console.error(`[McpService] ${claudeUserConfigPath} não contém um objeto JSON válido; servidor Anytype não foi gravado.`);
+            return { cliExists: true, mcpConfigUpdated, claudeConfigUpdated: false };
+          }
+          claudeObj = parsed;
+        }
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT') {
+          console.error(`[McpService] Erro ao ler ${claudeUserConfigPath} (JSON inválido); preservando arquivo original:`, (err as Error).message);
+          return { cliExists: true, mcpConfigUpdated, claudeConfigUpdated: false };
+        }
+      }
+    }
+
+    const { nextConfig, changed } = upsertAnytypeInClaudeConfig(claudeObj, cliPath, desiredEnv);
+    if (!changed) {
+      return { cliExists: true, mcpConfigUpdated, claudeConfigUpdated: false };
+    }
+
+    const linkTarget = await fs.readlink(claudeUserConfigPath).catch(() => null);
+    const targetPath = linkTarget
+      ? path.resolve(path.dirname(claudeUserConfigPath), linkTarget)
+      : await fs.realpath(claudeUserConfigPath).catch(() => claudeUserConfigPath);
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    await fs.writeFile(targetPath, JSON.stringify(nextConfig, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+
+    return { cliExists: true, mcpConfigUpdated, claudeConfigUpdated: true };
   }
 }
 
