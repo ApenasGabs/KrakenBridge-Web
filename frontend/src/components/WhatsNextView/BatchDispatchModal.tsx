@@ -247,7 +247,7 @@ export const BatchDispatchModal: React.FC<BatchDispatchModalProps> = ({
                     {group.map((item) => (
                       <div key={item.itemKey} className="text-xs py-1 space-y-0.5">
                         <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 truncate">
+                          <div className="flex items-center gap-1.5 min-w-0 truncate">
                             <span className="font-mono text-base-content/60">{item.repo}#{item.number}:</span>
                             <span className="text-base-content font-medium truncate">{item.title}</span>
                           </div>

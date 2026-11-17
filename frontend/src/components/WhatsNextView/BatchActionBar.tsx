@@ -9,6 +9,7 @@ import {
   Wand2,
   SearchCheck,
   Send,
+  XCircle,
   AlertTriangle,
   RefreshCw
 } from 'lucide-react';
@@ -54,41 +55,47 @@ export const BatchActionBar: React.FC<BatchActionBarProps> = ({
             <span className="hidden sm:inline">selecionado{totalSelected > 1 ? 's' : ''}:</span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
             {counts.approve > 0 && (
-              <span className="badge badge-sm badge-success gap-1 text-[11px] font-medium py-2">
+              <span className="badge badge-sm badge-success gap-1 text-[11px] font-medium py-2 whitespace-nowrap">
                 <CheckCircle2 className="w-3 h-3" />
                 {counts.approve} OK
               </span>
             )}
             {counts.requestChanges > 0 && (
-              <span className="badge badge-sm badge-warning gap-1 text-[11px] font-medium py-2">
+              <span className="badge badge-sm badge-warning gap-1 text-[11px] font-medium py-2 whitespace-nowrap">
                 <Edit3 className="w-3 h-3" />
                 {counts.requestChanges} Ajustar
               </span>
             )}
             {counts.merge > 0 && (
-              <span className="badge badge-sm badge-info gap-1 text-[11px] font-medium py-2">
+              <span className="badge badge-sm badge-info gap-1 text-[11px] font-medium py-2 whitespace-nowrap">
                 <GitMerge className="w-3 h-3" />
                 {counts.merge} Merge
               </span>
             )}
             {(counts.refine ?? 0) > 0 && (
-              <span className="badge badge-sm badge-secondary gap-1 text-[11px] font-medium py-2">
+              <span className="badge badge-sm badge-secondary gap-1 text-[11px] font-medium py-2 whitespace-nowrap">
                 <Wand2 className="w-3 h-3" />
                 {counts.refine} Refinar
               </span>
             )}
             {(counts.reevaluate ?? 0) > 0 && (
-              <span className="badge badge-sm badge-accent gap-1 text-[11px] font-medium py-2">
+              <span className="badge badge-sm badge-accent gap-1 text-[11px] font-medium py-2 whitespace-nowrap">
                 <SearchCheck className="w-3 h-3" />
                 {counts.reevaluate} Reavaliar
               </span>
             )}
             {(counts.delegate ?? 0) > 0 && (
-              <span className="badge badge-sm badge-primary gap-1 text-[11px] font-medium py-2">
+              <span className="badge badge-sm badge-primary gap-1 text-[11px] font-medium py-2 whitespace-nowrap">
                 <Send className="w-3 h-3" />
                 {counts.delegate} Paperclip
+              </span>
+            )}
+            {counts.close > 0 && (
+              <span className="badge badge-sm badge-error gap-1 text-[11px] font-medium py-2 whitespace-nowrap">
+                <XCircle className="w-3 h-3" />
+                {counts.close} Fechar
               </span>
             )}
           </div>

@@ -156,10 +156,10 @@ describe('BatchActionBar Component', () => {
     expect(screen.getByText('Anotação vazia')).toBeInTheDocument();
   });
 
-  it('deve exibir contadores de Refinar, Reavaliar e Paperclip para issues', () => {
+  it('deve exibir contadores de Refinar, Reavaliar, Paperclip e Fechar para issues', () => {
     render(
       <BatchActionBar
-        totalSelected={6}
+        totalSelected={7}
         counts={{ approve: 0, requestChanges: 0, merge: 0, close: 1, refine: 3, reevaluate: 2, delegate: 1 }}
         onMarkAllAsOk={vi.fn()}
         onClearSelection={vi.fn()}
@@ -170,5 +170,6 @@ describe('BatchActionBar Component', () => {
     expect(screen.getByText('3 Refinar')).toBeInTheDocument();
     expect(screen.getByText('2 Reavaliar')).toBeInTheDocument();
     expect(screen.getByText('1 Paperclip')).toBeInTheDocument();
+    expect(screen.getByText('1 Fechar')).toBeInTheDocument();
   });
 });

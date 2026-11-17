@@ -187,3 +187,39 @@ test('githubProjectService: dispatchBatchActions deve tratar refine, reevaluate 
     paperclipDelegationService.delegateGithubIssue = originalDelegate;
   }
 });
+
+test('paperclipDelegationService: delegateGithubIssue cria issue atribuída ao CEO e dispara wakeup', async () => {
+  const { paperclipDelegationService } = await import('../dist-server/services/paperclipDelegationService.js');
+  const { DEFAULT_CEO_AGENT_ID } = await import('../dist-server/services/paperclipAutoRemediationService.js');
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url: String(url), body: JSON.parse(init?.body || '{}') });
+    if (String(url).includes('/issues')) {
+      return new Response(JSON.stringify({ id: 'pc-issue-42', identifier: 'APE-42' }), { status: 201 });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+
+  try {
+    const res = await paperclipDelegationService.delegateGithubIssue({
+      repo: 'ApenasGabs/KrakenBridge-Web',
+      number: 198,
+      title: 'Ações em lote',
+      url: 'https://github.com/ApenasGabs/KrakenBridge-Web/issues/198',
+      body: 'Corpo da issue',
+      notes: 'Priorizar mobile'
+    });
+
+    assert.equal(res.paperclipIssueId, 'pc-issue-42');
+    assert.equal(res.identifier, 'APE-42');
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].body.status, 'todo');
+    assert.equal(requests[0].body.assigneeAgentId, DEFAULT_CEO_AGENT_ID);
+    assert.match(requests[0].body.description, /Priorizar mobile/);
+    assert.ok(requests[1].url.includes(`/api/agents/${DEFAULT_CEO_AGENT_ID}/wakeup`));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

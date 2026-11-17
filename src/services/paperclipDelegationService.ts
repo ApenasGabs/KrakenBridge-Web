@@ -54,7 +54,8 @@ export class PaperclipDelegationService {
       body: JSON.stringify({
         title: `[${repo}#${number}] ${title}`,
         description,
-        status: 'todo'
+        status: 'todo',
+        assigneeAgentId: DEFAULT_CEO_AGENT_ID
       }),
       signal: AbortSignal.timeout(10000)
     });
