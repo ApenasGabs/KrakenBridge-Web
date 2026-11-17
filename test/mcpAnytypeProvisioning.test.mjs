@@ -4,8 +4,12 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import http from 'node:http';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 import { mcpService, upsertAnytypeInClaudeConfig } from '../dist-server/services/mcpService.js';
 import { ensureClaudeJsonSymlink, claudeAuthService } from '../dist-server/services/claudeAuthService.js';
@@ -44,7 +48,7 @@ test('mcpService.ensureAnytypeMcpServer: sincroniza anytype em ~/.claude.json e 
           command: fakeCliPath,
           disabled: false,
           env: {
-            ANYTYPE_API_BASE_URL: 'http://192.168.31.5:31009',
+            ANYTYPE_API_BASE_URL: 'http://192.0.2.10:31009',
             OPENAPI_MCP_HEADERS: '{"Authorization":"Bearer mock-token","Anytype-Version":"2025-11-08"}'
           }
         }
@@ -88,7 +92,7 @@ test('mcpService.ensureAnytypeMcpServer: sincroniza anytype em ~/.claude.json e 
           command: 'node',
           args: [fakeCliPath],
           env: {
-            ANYTYPE_API_BASE_URL: 'http://192.168.31.5:31009',
+            ANYTYPE_API_BASE_URL: 'http://192.0.2.10:31009',
             OPENAPI_MCP_HEADERS: '{"Authorization":"Bearer mock-token","Anytype-Version":"2025-11-08"}'
           }
         });
@@ -116,7 +120,8 @@ test('mcpService.ensureAnytypeMcpServer: cria entrada em mcp_config.json quando 
       {
         MCP_CONFIG_PATH: mcpConfigPath,
         CLAUDE_USER_CONFIG_FILE: claudeUserPath,
-        ANYTYPE_MCP_CLI_PATH: missingCliPath
+        ANYTYPE_MCP_CLI_PATH: missingCliPath,
+        ANYTYPE_API_BASE_URL: 'http://192.0.2.10:31009'
       },
       async () => {
         const missingRes = await mcpService.ensureAnytypeMcpServer();
@@ -136,7 +141,7 @@ test('mcpService.ensureAnytypeMcpServer: cria entrada em mcp_config.json quando 
         const claudeJson = JSON.parse(await fs.readFile(claudeUserPath, 'utf8'));
         assert.equal(claudeJson.mcpServers.anytype.command, 'node');
         assert.deepEqual(claudeJson.mcpServers.anytype.args, [existingCliPath]);
-        assert.equal(claudeJson.mcpServers.anytype.env.ANYTYPE_API_BASE_URL, 'http://192.168.31.5:31009');
+        assert.equal(claudeJson.mcpServers.anytype.env.ANYTYPE_API_BASE_URL, 'http://192.0.2.10:31009');
       }
     );
   } finally {
@@ -176,20 +181,20 @@ test('mcpService.ensureAnytypeMcpServer: nunca sobrescreve ~/.claude.json com JS
             type: 'stdio',
             command: 'node',
             args: [fakeCliPath],
-            env: { ANYTYPE_API_BASE_URL: 'http://192.168.31.5:31009' }
+            env: { ANYTYPE_API_BASE_URL: 'http://192.0.2.10:31009' }
           }
         }
       },
       fakeCliPath,
       {
-        ANYTYPE_API_BASE_URL: 'http://192.168.31.5:31009',
+        ANYTYPE_API_BASE_URL: 'http://192.0.2.10:31009',
         OPENAPI_MCP_HEADERS: '{"Authorization":"Bearer abc"}'
       }
     );
     assert.equal(changed, true);
     const anytype = nextConfig.mcpServers.anytype;
     assert.deepEqual(anytype.env, {
-      ANYTYPE_API_BASE_URL: 'http://192.168.31.5:31009',
+      ANYTYPE_API_BASE_URL: 'http://192.0.2.10:31009',
       OPENAPI_MCP_HEADERS: '{"Authorization":"Bearer abc"}'
     });
   } finally {
@@ -272,6 +277,14 @@ test('claude mcp get anytype: servidor auto-provisionado reporta status Connecte
   const mcpConfigPath = path.join(tmpHome, 'mcp_config.json');
   const claudeUserPath = path.join(tmpHome, '.claude.json');
 
+  const mockServer = http.createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('{}');
+  });
+  await new Promise((resolve) => mockServer.listen(0, '127.0.0.1', resolve));
+  const address = mockServer.address();
+  const mockBaseUrl = `http://127.0.0.1:${address.port}`;
+
   try {
     await withIsolatedEnv(
       {
@@ -280,7 +293,7 @@ test('claude mcp get anytype: servidor auto-provisionado reporta status Connecte
         CLAUDE_USER_CONFIG_FILE: undefined,
         CLAUDE_USER_CONFIG_PATH: undefined,
         ANYTYPE_MCP_CLI_PATH: realCliPath,
-        ANYTYPE_API_BASE_URL: 'http://192.168.31.5:31009'
+        ANYTYPE_API_BASE_URL: mockBaseUrl
       },
       async () => {
         const res = await mcpService.ensureAnytypeMcpServer();
@@ -288,7 +301,7 @@ test('claude mcp get anytype: servidor auto-provisionado reporta status Connecte
         assert.equal(res.claudeConfigUpdated, true);
         assert.equal(fsSync.existsSync(claudeUserPath), true);
 
-        const output = execFileSync('claude', ['mcp', 'get', 'anytype'], {
+        const { stdout: output } = await execFileAsync('claude', ['mcp', 'get', 'anytype'], {
           env: { ...process.env, HOME: tmpHome },
           encoding: 'utf8',
           timeout: 15000
@@ -299,6 +312,7 @@ test('claude mcp get anytype: servidor auto-provisionado reporta status Connecte
       }
     );
   } finally {
+    await new Promise((resolve) => mockServer.close(resolve));
     await fs.rm(tmpHome, { recursive: true, force: true }).catch(() => {});
   }
 });

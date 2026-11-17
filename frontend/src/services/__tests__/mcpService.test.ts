@@ -70,7 +70,7 @@ describe('McpService - SQLite MCP Provisioning (Issue #48)', () => {
 
     process.env.ANYTYPE_MCP_CLI_PATH = cliPath;
     process.env.CLAUDE_USER_CONFIG_FILE = claudeJsonPath;
-    process.env.ANYTYPE_API_BASE_URL = 'http://192.168.31.5:31009';
+    process.env.ANYTYPE_API_BASE_URL = 'http://192.0.2.10:31009';
 
     try {
       const res = await mcpService.ensureAnytypeMcpServer();
@@ -80,7 +80,7 @@ describe('McpService - SQLite MCP Provisioning (Issue #48)', () => {
       const claudeConfig = JSON.parse(fs.readFileSync(claudeJsonPath, 'utf8'));
       expect(claudeConfig.mcpServers?.anytype?.command).toBe('node');
       expect(claudeConfig.mcpServers?.anytype?.args).toEqual([cliPath]);
-      expect(claudeConfig.mcpServers?.anytype?.env?.ANYTYPE_API_BASE_URL).toBe('http://192.168.31.5:31009');
+      expect(claudeConfig.mcpServers?.anytype?.env?.ANYTYPE_API_BASE_URL).toBe('http://192.0.2.10:31009');
     } finally {
       delete process.env.ANYTYPE_MCP_CLI_PATH;
       delete process.env.CLAUDE_USER_CONFIG_FILE;
