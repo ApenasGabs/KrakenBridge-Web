@@ -131,3 +131,95 @@ test('githubProjectService: dispatchBatchActions deve lidar com falhas parciais 
     githubProjectService.approveOrMergePR = originalApprove;
   }
 });
+
+test('githubProjectService: dispatchBatchActions deve tratar refine, reevaluate e delegate_paperclip em issues', async () => {
+  const { paperclipDelegationService } = await import('../dist-server/services/paperclipDelegationService.js');
+  const originalAgent = githubProjectService.dispatchIssueAgent;
+  const originalDelegate = paperclipDelegationService.delegateGithubIssue;
+
+  const agentCalls = [];
+  const delegateCalls = [];
+
+  githubProjectService.dispatchIssueAgent = async (params) => {
+    agentCalls.push(params);
+    return { conversationId: `conv-${params.issueNumber}`, subproject: 'backend', suggestedPrompt: 'p' };
+  };
+  paperclipDelegationService.delegateGithubIssue = async (params) => {
+    delegateCalls.push(params);
+    if (params.number === 23) throw new Error('Paperclip indisponível');
+    return { paperclipIssueId: 'pc-1', identifier: 'APE-1', message: 'Delegada ao Paperclip como APE-1' };
+  };
+
+  try {
+    const base = { itemType: 'issue', repo: 'ApenasGabs/repo' };
+    const res = await githubProjectService.dispatchBatchActions([
+      { ...base, number: 20, action: 'refine', notes: 'foque em critérios de aceitação' },
+      { ...base, number: 21, action: 'reevaluate' },
+      { ...base, number: 22, action: 'delegate_paperclip', title: 'Tarefa', body: 'corpo' },
+      { ...base, number: 23, action: 'delegate_paperclip' },
+      { itemType: 'pr', repo: 'ApenasGabs/repo', number: 24, action: 'refine' }
+    ]);
+
+    assert.equal(res.total, 5);
+    assert.equal(res.successful, 3);
+    assert.equal(res.failed, 2);
+
+    assert.equal(agentCalls.length, 2);
+    assert.equal(agentCalls[0].mode, 'refine');
+    assert.equal(agentCalls[0].notes, 'foque em critérios de aceitação');
+    assert.equal(agentCalls[1].mode, 'reevaluate');
+
+    assert.equal(delegateCalls.length, 2);
+    assert.equal(delegateCalls[0].body, 'corpo');
+
+    const refined = res.results.find(r => r.itemKey === 'ApenasGabs/repo#20');
+    assert.equal(refined.conversationId, 'conv-20');
+
+    const failedDelegate = res.results.find(r => r.itemKey === 'ApenasGabs/repo#23');
+    assert.equal(failedDelegate.success, false);
+    assert.match(failedDelegate.message, /indisponível/);
+
+    const prRefine = res.results.find(r => r.itemKey === 'ApenasGabs/repo#24');
+    assert.equal(prRefine.success, false);
+    assert.match(prRefine.message, /só se aplica a issues/);
+  } finally {
+    githubProjectService.dispatchIssueAgent = originalAgent;
+    paperclipDelegationService.delegateGithubIssue = originalDelegate;
+  }
+});
+
+test('paperclipDelegationService: delegateGithubIssue cria issue atribuída ao CEO e dispara wakeup', async () => {
+  const { paperclipDelegationService } = await import('../dist-server/services/paperclipDelegationService.js');
+  const { DEFAULT_CEO_AGENT_ID } = await import('../dist-server/services/paperclipAutoRemediationService.js');
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url: String(url), body: JSON.parse(init?.body || '{}') });
+    if (String(url).includes('/issues')) {
+      return new Response(JSON.stringify({ id: 'pc-issue-42', identifier: 'APE-42' }), { status: 201 });
+    }
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+
+  try {
+    const res = await paperclipDelegationService.delegateGithubIssue({
+      repo: 'ApenasGabs/KrakenBridge-Web',
+      number: 198,
+      title: 'Ações em lote',
+      url: 'https://github.com/ApenasGabs/KrakenBridge-Web/issues/198',
+      body: 'Corpo da issue',
+      notes: 'Priorizar mobile'
+    });
+
+    assert.equal(res.paperclipIssueId, 'pc-issue-42');
+    assert.equal(res.identifier, 'APE-42');
+    assert.equal(requests.length, 2);
+    assert.equal(requests[0].body.status, 'todo');
+    assert.equal(requests[0].body.assigneeAgentId, DEFAULT_CEO_AGENT_ID);
+    assert.match(requests[0].body.description, /Priorizar mobile/);
+    assert.ok(requests[1].url.includes(`/api/agents/${DEFAULT_CEO_AGENT_ID}/wakeup`));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

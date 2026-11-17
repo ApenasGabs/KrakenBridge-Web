@@ -5,12 +5,30 @@ import {
   CheckCircle2,
   Edit3,
   GitMerge,
+  Wand2,
+  SearchCheck,
+  Send,
+  XCircle,
   RefreshCw,
   Bot,
   AlertCircle,
   ExternalLink
 } from 'lucide-react';
-import type { BatchItemDecision, BatchDispatchResult } from '../../types';
+import type { BatchItemDecision, BatchDispatchResult, BatchActionType } from '../../types';
+
+const ISSUE_ACTION_META: Array<{
+  action: BatchActionType;
+  label: string;
+  badge: string;
+  text: string;
+  border: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { action: 'refine', label: 'Refinar Issue', badge: 'badge-secondary', text: 'text-secondary', border: 'border-secondary/40', Icon: Wand2 },
+  { action: 'reevaluate', label: 'Reavaliar Issue', badge: 'badge-accent', text: 'text-accent', border: 'border-accent/40', Icon: SearchCheck },
+  { action: 'delegate_paperclip', label: 'Delegar ao Paperclip', badge: 'badge-primary', text: 'text-primary', border: 'border-primary/40', Icon: Send },
+  { action: 'close', label: 'Fechar Issue', badge: 'badge-error', text: 'text-error', border: 'border-error/40', Icon: XCircle }
+];
 
 export interface BatchDispatchModalProps {
   isOpen: boolean;
@@ -37,6 +55,9 @@ export const BatchDispatchModal: React.FC<BatchDispatchModalProps> = ({
   const approvedItems = items.filter(i => i.action === 'approve');
   const adjustItems = items.filter(i => i.action === 'request_changes');
   const mergeItems = items.filter(i => i.action === 'merge');
+  const issueActionGroups = ISSUE_ACTION_META
+    .map(meta => ({ meta, group: items.filter(i => i.itemType === 'issue' && i.action === meta.action) }))
+    .filter(g => g.group.length > 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
@@ -214,6 +235,32 @@ export const BatchDispatchModal: React.FC<BatchDispatchModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Seção 4: Ações de Issues (Refinar / Reavaliar / Delegar / Fechar) */}
+              {issueActionGroups.map(({ meta, group }) => (
+                <div key={meta.action} className="space-y-2 pt-2">
+                  <div className={`flex items-center gap-1.5 text-xs font-bold ${meta.text}`}>
+                    <meta.Icon className="w-4 h-4" />
+                    <span>{meta.label} ({group.length})</span>
+                  </div>
+                  <div className={`space-y-1 pl-2 border-l-2 ${meta.border}`}>
+                    {group.map((item) => (
+                      <div key={item.itemKey} className="text-xs py-1 space-y-0.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0 truncate">
+                            <span className="font-mono text-base-content/60">{item.repo}#{item.number}:</span>
+                            <span className="text-base-content font-medium truncate">{item.title}</span>
+                          </div>
+                          <span className={`badge badge-xs ${meta.badge} shrink-0`}>{meta.label}</span>
+                        </div>
+                        {item.notes?.trim() && (
+                          <p className="text-[11px] text-base-content/70 font-mono pl-1">↳ {item.notes}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

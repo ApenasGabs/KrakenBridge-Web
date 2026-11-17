@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { historyService } from './historyService.js';
 import { randomUUID } from 'crypto';
+import { paperclipDelegationService } from './paperclipDelegationService.js';
 
 const execAsync = promisify(exec);
 
@@ -972,6 +973,45 @@ class GithubProjectService {
   }
 
   /**
+   * Abre (ou reaproveita) uma sessão de agente para trabalhar em uma Issue (refinar / reavaliar)
+   */
+  async dispatchIssueAgent(params: {
+    repo: string;
+    issueNumber: number;
+    title: string;
+    url: string;
+    body?: string;
+    mode: 'refine' | 'reevaluate';
+    notes?: string;
+  }): Promise<{ conversationId: string; subproject: string; suggestedPrompt: string }> {
+    const { repo, issueNumber, title, url, body, mode, notes } = params;
+    const repos = await this.getLocalGitRepositories();
+    const local = repos.find(r => r.ownerRepo.toLowerCase() === repo.toLowerCase());
+    const subproject = local?.subproject || (repo.includes('/') ? repo.split('/')[1] : repo);
+    const direction = notes?.trim() ? `\n\n**Direcionamento do usuário:**\n${notes.trim()}` : '';
+    const header = `Issue #${issueNumber} ("${title}") no repositório ${repo} - [Ver Issue](${url}).`;
+    const bodyBlock = body?.trim() ? `\n\n**Corpo atual:**\n${body.trim().slice(0, 6000)}` : '';
+
+    const suggestedPrompt = mode === 'refine'
+      ? `Refine a ${header}${bodyBlock}${direction}\n\nReescreva a issue com contexto, objetivo, escopo e critérios de aceitação verificáveis, e atualize-a no GitHub (gh issue edit).`
+      : `Reavalie a ${header}${bodyBlock}${direction}\n\nVerifique no código e no histórico se a issue ainda é válida, já foi resolvida ou está desatualizada. Comente o parecer na issue (gh issue comment) e recomende manter, ajustar ou fechar. Não feche sem confirmação do usuário.`;
+
+    const newId = randomUUID();
+    const session = await historyService.save({
+      id: newId,
+      title: `${mode === 'refine' ? 'Refinar' : 'Reavaliar'} Issue #${issueNumber}: ${title.slice(0, 32)}`,
+      agent: 'antigravity',
+      model: 'gemini-3.8-flash-high',
+      effort: 'high',
+      mode: 'default',
+      subproject,
+      tags: [mode, 'issue', `issue-${issueNumber}`, 'github'],
+      messages: []
+    });
+    return { conversationId: session?.id || newId, subproject, suggestedPrompt };
+  }
+
+  /**
    * Despacha um lote de ações de triagem para PRs e Issues
    */
   async dispatchBatchActions(items: Array<{
@@ -982,8 +1022,9 @@ class GithubProjectService {
     title?: string;
     url?: string;
     branch?: string;
-    action: 'approve' | 'merge' | 'close' | 'request_changes';
+    action: 'approve' | 'merge' | 'close' | 'request_changes' | 'refine' | 'reevaluate' | 'delegate_paperclip';
     notes?: string;
+    body?: string;
     targetAgent?: string;
   }>): Promise<{
     total: number;
@@ -1041,6 +1082,32 @@ class GithubProjectService {
             conversationId: res.conversationId,
             subproject: res.subproject
           });
+        } else if (item.action === 'refine' || item.action === 'reevaluate' || item.action === 'delegate_paperclip') {
+          if (item.itemType !== 'issue') {
+            results.push({ itemKey, action: item.action, success: false, message: `Ação ${item.action} só se aplica a issues` });
+            continue;
+          }
+          const url = item.url || `https://github.com/${item.repo}/issues/${item.number}`;
+          const title = item.title || `Issue #${item.number}`;
+          if (item.action === 'delegate_paperclip') {
+            const res = await paperclipDelegationService.delegateGithubIssue({
+              repo: item.repo, number: item.number, title, url, body: item.body, notes: item.notes
+            });
+            results.push({ itemKey, action: item.action, success: true, message: res.message });
+          } else {
+            const res = await this.dispatchIssueAgent({
+              repo: item.repo, issueNumber: item.number, title, url, body: item.body,
+              mode: item.action, notes: item.notes
+            });
+            results.push({
+              itemKey,
+              action: item.action,
+              success: true,
+              message: item.action === 'refine' ? 'Refinamento despachado para o agente' : 'Reavaliação despachada para o agente',
+              conversationId: res.conversationId,
+              subproject: res.subproject
+            });
+          }
         } else {
           results.push({
             itemKey,
