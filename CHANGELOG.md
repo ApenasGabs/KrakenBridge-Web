@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.47.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.46.0...v1.47.0) (2026-11-18)
+
+### ✨ Features
+
+* **chat:** fallback de histórico no prompt para troca de agente e cwd efêmero ([#202](https://github.com/ApenasGabs/KrakenBridge-Web/issues/202)) ([d22eaa8](https://github.com/ApenasGabs/KrakenBridge-Web/commit/d22eaa82872536ed568a286a376b360b60ad23c2)), closes [#189](https://github.com/ApenasGabs/KrakenBridge-Web/issues/189) [#189](https://github.com/ApenasGabs/KrakenBridge-Web/issues/189) [#189](https://github.com/ApenasGabs/KrakenBridge-Web/issues/189)
+
 ## [1.46.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.45.0...v1.46.0) (2026-11-17)
 
 ### ✨ Features
