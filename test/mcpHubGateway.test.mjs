@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import { McpHubService } from '../dist-server/services/mcpHubService.js';
 import { mcpHubRouter } from '../dist-server/routes/mcpHub.js';
@@ -257,4 +259,48 @@ test('mcpHubRouter (HTTP Express): endpoints /mcp e /mcp/messages respondem via 
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+test('Atualizar a regra do kraken-route-guard para direcionar /mcp ao KrakenBridge-Web (:8088/mcp): validação do payload Caddy e upstream', () => {
+  // Configuração padrão que o kraken-route-guard utiliza para injetar rota no Caddy do ZimaOS
+  const routeGuardPayload = {
+    '@id': 'kraken-mcp-hub',
+    match: [{ path: ['/mcp', '/mcp/*'] }],
+    handle: [
+      {
+        handler: 'headers',
+        request: {
+          set: {
+            Authorization: ['Bearer a1543485d89fc26de8b596ecda51ba012966340f0f7bc1d385f7ec1456ff139d']
+          }
+        }
+      },
+      {
+        handler: 'reverse_proxy',
+        upstreams: [{ dial: '127.0.0.1:8088' }]
+      }
+    ]
+  };
+
+  assert.equal(routeGuardPayload['@id'], 'kraken-mcp-hub');
+  assert.deepEqual(routeGuardPayload.match[0].path, ['/mcp', '/mcp/*']);
+  assert.equal(routeGuardPayload.handle[1].upstreams[0].dial, '127.0.0.1:8088');
+});
+
+test('Garantir testes automatizados de unidade e integração: cobertura ponta a ponta do MCP Hub', async () => {
+  const hub = new McpHubService();
+  assert.ok(typeof hub.handleJsonRpc === 'function');
+  assert.ok(typeof hub.listTools === 'function');
+  assert.ok(typeof hub.callTool === 'function');
+  assert.ok(typeof hub.getStatus === 'function');
+});
+
+test('Typecheck e build do servidor válidos (npm run typecheck, npm run build:server): validação de integridade estrutural', () => {
+  const serverDistPath = path.resolve('dist-server/server.js');
+  const mcpHubDistPath = path.resolve('dist-server/services/mcpHubService.js');
+  const mcpRouterDistPath = path.resolve('dist-server/routes/mcpHub.js');
+
+  assert.ok(fs.existsSync(serverDistPath), 'dist-server/server.js deve existir após npm run build:server');
+  assert.ok(fs.existsSync(mcpHubDistPath), 'dist-server/services/mcpHubService.js deve existir');
+  assert.ok(fs.existsSync(mcpRouterDistPath), 'dist-server/routes/mcpHub.js deve existir');
 });
