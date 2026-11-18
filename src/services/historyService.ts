@@ -707,6 +707,10 @@ export const historyService = {
         ...sessionMeta,
         messages: []
       };
+    } else if (sessionMeta.agent && session.agent !== sessionMeta.agent) {
+      // Atualiza o agente ativo da sessão para que turnos subsequentes no mesmo agente
+      // possam retomar a nova sessão nativa sem permanecer presos no agente anterior (Issue #189)
+      session.agent = sessionMeta.agent;
     }
 
     if (!message.content && message.text) message.content = message.text;

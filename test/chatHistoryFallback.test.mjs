@@ -241,3 +241,55 @@ test('Cenários integrados de fallback de histórico e montagem de prompt:', () 
   const promptNew = `${systemDirective}${fallbackEmpty ? `${fallbackEmpty}\n\n` : ''}${userPrompt}`;
   assert.equal(promptNew, `${systemDirective}${userPrompt}`);
 });
+
+test('historyService.addMessage atualiza session.agent na troca de agente permitindo retomada nos turnos seguintes', async () => {
+  const id = `test-agent-switch-${randomUUID()}`;
+  const tmpConfigDir = path.join(os.tmpdir(), `claude-switch-${randomUUID()}`);
+  const workDir = path.join(os.tmpdir(), `workdir-switch-${randomUUID()}`);
+
+  try {
+    const sessionDir = path.join(tmpConfigDir, 'projects', encodeClaudeProjectPath(workDir));
+    fs.mkdirSync(sessionDir, { recursive: true });
+
+    // Turno 1: iniciado com antigravity
+    await historyService.addMessage(id, {
+      id: randomUUID(),
+      role: 'user',
+      text: 'Turno 1 no AGY',
+      timestamp: new Date().toISOString()
+    }, { agent: 'antigravity', agyConvId: 'agy-1' });
+
+    let saved = await historyService.get(id);
+    assert.equal(saved?.agent, 'antigravity');
+
+    // Turno 2: usuário alterna para claude
+    const beforeTurn2 = await historyService.get(id);
+    assert.equal(resolveNativeSessionId('claude', beforeTurn2, workDir, { checkDisk: true, claudeConfigDir: tmpConfigDir }), null);
+
+    await historyService.addMessage(id, {
+      id: randomUUID(),
+      role: 'user',
+      text: 'Turno 2 no Claude',
+      timestamp: new Date().toISOString()
+    }, { agent: 'claude' });
+
+    const claudeSessId = `claude-${randomUUID()}`;
+    fs.writeFileSync(path.join(sessionDir, `${claudeSessId}.jsonl`), '{"type":"init"}\n');
+    await historyService.save({
+      id,
+      claudeSessionId: claudeSessId,
+      claudeSessionCwd: workDir
+    });
+
+    // Turno 3: usuário continua com claude -> deve retomar a sessão nativa criada no Turno 2
+    saved = await historyService.get(id);
+    assert.equal(saved?.agent, 'claude');
+    assert.equal(
+      resolveNativeSessionId('claude', saved, workDir, { checkDisk: true, claudeConfigDir: tmpConfigDir }),
+      claudeSessId
+    );
+  } finally {
+    await historyService.delete(id).catch(() => {});
+    fs.rmSync(tmpConfigDir, { recursive: true, force: true });
+  }
+});
