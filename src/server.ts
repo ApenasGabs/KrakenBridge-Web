@@ -10,6 +10,7 @@ import { authRouter } from './routes/auth.js';
 import { chatRouter } from './routes/chat.js';
 import { quotaRouter } from './routes/quota.js';
 import { mcpRouter } from './routes/mcp.js';
+import { mcpHubRouter } from './routes/mcpHub.js';
 import { systemRouter } from './routes/system.js';
 import { projectsRouter } from './routes/projects.js';
 import { memoryRouter } from './routes/memory.js';
@@ -201,9 +202,20 @@ const registerRoutes = (prefix: string) => {
 registerRoutes('/api');
 registerRoutes('/chat/api');
 
+// Rota do MCP Hub Gateway (unifica ai-memory e anytype sob /mcp para acesso via Cloudflare/Claude)
+app.use('/mcp', mcpHubRouter);
+app.use('/chat/mcp', mcpHubRouter);
+
 // Redirecionamento SPA para index.html (tanto para / quanto para /chat/*) com <base href> dinâmico
 app.get('*', (req: Request, res: Response, next: NextFunction) => {
-  if (req.path.startsWith('/api') || req.path.startsWith('/chat/api')) return next();
+  if (
+    req.path.startsWith('/api') ||
+    req.path.startsWith('/chat/api') ||
+    req.path.startsWith('/mcp') ||
+    req.path.startsWith('/chat/mcp')
+  ) {
+    return next();
+  }
   sendIndexHtml(req, res);
 });
 
