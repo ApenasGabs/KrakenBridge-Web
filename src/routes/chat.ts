@@ -4,7 +4,8 @@ import readline from 'readline';
 import { randomUUID } from 'crypto';
 import path from 'path';
 import fs from 'fs';
-import { historyService } from '../services/historyService.js';
+import os from 'os';
+import { historyService, buildHistoryFallbackPrompt } from '../services/historyService.js';
 import { quotaService } from '../services/quotaService.js';
 import { accountService } from '../services/accountService.js';
 import { identityService } from '../services/identityService.js';
@@ -167,20 +168,61 @@ export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
 };
 
 /**
- * Resolve o ID da sessão nativa do agente ativo (Issue #188): `agyConvId` para o AGY,
+ * Codifica o caminho do diretório de trabalho no formato de pasta utilizado pelo Claude Code CLI
+ * em `~/.claude/projects/<sanitized-cwd>`.
+ * Substitui qualquer caractere diferente de [a-zA-Z0-9-_] por '-'.
+ * Issue #189
+ */
+export function encodeClaudeProjectPath(dir: string): string {
+  const normalized = path.resolve(dir);
+  return normalized.replace(/[^a-zA-Z0-9\-_]/g, '-');
+}
+
+/**
+ * Retorna o caminho absoluto do arquivo de sessão `.jsonl` esperado para uma dada sessão do Claude Code.
+ * Issue #189
+ */
+export function getClaudeSessionFilePath(
+  sessionId: string,
+  workDir: string,
+  configDir?: string
+): string {
+  const baseDir = configDir || process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+  const encodedCwd = encodeClaudeProjectPath(workDir);
+  return path.join(baseDir, 'projects', encodedCwd, `${sessionId}.jsonl`);
+}
+
+export interface ResolveNativeSessionOptions {
+  checkDisk?: boolean;
+  claudeConfigDir?: string;
+}
+
+/**
+ * Resolve o ID da sessão nativa do agente ativo (Issue #188, Issue #189): `agyConvId` para o AGY,
  * `claudeSessionId` para o Claude Code. O Claude só retoma sessões criadas no mesmo cwd,
  * então um workspace efêmero diferente do original força uma sessão nova.
+ * Quando `options.checkDisk` é true, valida também a presença física do arquivo .jsonl no disco.
  */
 export const resolveNativeSessionId = (
   agent: AgentType,
-  session: Pick<ConversationSession, 'agyConvId' | 'claudeSessionId' | 'claudeSessionCwd'> | null | undefined,
-  workDir: string
+  session: Pick<ConversationSession, 'agyConvId' | 'claudeSessionId' | 'claudeSessionCwd' | 'agent'> | null | undefined,
+  workDir: string,
+  options?: ResolveNativeSessionOptions
 ): string | null => {
   if (!session) return null;
+  // Se houve troca de agente desde o último turno salvo, a sessão nativa do novo agente
+  // não contém os turnos intermediários gerados pelo agente anterior.
+  if (session.agent && session.agent !== agent) return null;
   if (agent === 'antigravity') return session.agyConvId || null;
   if (agent === 'claude') {
     if (!session.claudeSessionId) return null;
     if (session.claudeSessionCwd && path.resolve(session.claudeSessionCwd) !== path.resolve(workDir)) return null;
+    if (options?.checkDisk) {
+      const sessionFile = getClaudeSessionFilePath(session.claudeSessionId, workDir, options.claudeConfigDir);
+      if (!fs.existsSync(sessionFile)) {
+        return null;
+      }
+    }
     return session.claudeSessionId;
   }
   return null;
@@ -397,18 +439,33 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     tags: activeTags
   });
 
-  // Injeta a diretiva completa do sistema no primeiro turno da sessão nativa do agente ativo.
-  // Em continuações (--conversation agyConvId / --resume claudeSessionId), preserva a janela de contexto limpa.
-  const nativeSessionId = resolveNativeSessionId(agent, existingSession, effectiveWorkDir);
+  // Injeta a diretiva completa do sistema no primeiro turno da sessão nativa do agente ativo
+  // ou quando não houver sessão compatível no cwd (ex: workspace efêmero, arquivo inexistente ou troca de agente).
+  const isAgentSwitch = Boolean(existingSession?.agent && existingSession.agent !== agent);
+  const nativeSessionId = resolveNativeSessionId(agent, existingSession, effectiveWorkDir, { checkDisk: true });
   const claudeSessionId = agent === 'claude' ? nativeSessionId : null;
-  const shouldInjectDirective = !nativeSessionId;
-  const effectivePrompt = shouldInjectDirective ? `${systemDirective}${prompt}` : prompt;
+  const effectiveAgyConvId = (agent === 'antigravity' && !isAgentSwitch) ? (nativeSessionId || null) : null;
+  const hasNativeSession = Boolean(agent === 'antigravity' ? effectiveAgyConvId : claudeSessionId);
+  const shouldInjectDirective = !hasNativeSession;
+
+  // Fallback de histórico para troca de agente, cwd efêmero ou sessão nativa ausente (Issue #189)
+  let historyFallbackBlock = '';
+  if (!hasNativeSession && existingSession?.messages && existingSession.messages.length > 0) {
+    historyFallbackBlock = buildHistoryFallbackPrompt(existingSession.messages);
+  }
+
+  let effectivePrompt = prompt;
+  if (shouldInjectDirective) {
+    effectivePrompt = `${systemDirective}${historyFallbackBlock ? `${historyFallbackBlock}\n\n` : ''}${prompt}`;
+  } else if (historyFallbackBlock) {
+    effectivePrompt = `${historyFallbackBlock}\n\n${prompt}`;
+  }
 
   const driver = AGENT_DRIVERS[agent] || AGENT_DRIVERS.antigravity;
   const args = driver.buildArgs({
     prompt: effectivePrompt,
     conversationId,
-    agyConvId,
+    agyConvId: effectiveAgyConvId,
     claudeSessionId,
     continueSession,
     model,

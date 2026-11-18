@@ -838,5 +838,79 @@ export const historyService = {
     } catch {
       return null;
     }
+  },
+
+  /**
+   * Constrói o bloco de fallback de histórico para injeção no prompt quando a sessão nativa não pode ser retomada.
+   * Issue #189
+   */
+  buildHistoryFallbackPrompt(messages?: ChatMessage[], options?: HistoryFallbackOptions): string {
+    return buildHistoryFallbackPrompt(messages, options);
   }
 };
+
+export interface HistoryFallbackOptions {
+  maxMessages?: number;
+  maxCharsPerMessage?: number;
+  maxTotalChars?: number;
+}
+
+/**
+ * Constrói um bloco formatado de resumo do histórico anterior da conversa
+ * para injeção no prompt quando a sessão nativa não puder ser retomada
+ * (ex: troca de agente, mudança de cwd por workspace efêmero ou sessão expirada).
+ * Issue #189
+ */
+export function buildHistoryFallbackPrompt(
+  messages?: ChatMessage[],
+  options?: HistoryFallbackOptions
+): string {
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return '';
+  }
+
+  const maxMessages = options?.maxMessages ?? 14;
+  const maxCharsPerMessage = options?.maxCharsPerMessage ?? 1500;
+  const maxTotalChars = options?.maxTotalChars ?? 16000;
+
+  // Filtra mensagens relevantes com texto/conteúdo real (ignora vazias e sistema)
+  const relevant = messages.filter((m) => {
+    if (!m) return false;
+    if (m.role !== 'user' && m.role !== 'assistant') return false;
+    const content = (m.text || m.content || '').trim();
+    return content.length > 0;
+  });
+
+  if (relevant.length === 0) {
+    return '';
+  }
+
+  const slice = relevant.slice(-maxMessages);
+  const formattedItems: string[] = [];
+
+  for (const m of slice) {
+    const rawContent = (m.text || m.content || '').trim();
+    const truncatedContent =
+      rawContent.length > maxCharsPerMessage
+        ? `${rawContent.slice(0, maxCharsPerMessage)}\n... [conteúdo truncado para manter contexto]`
+        : rawContent;
+
+    const roleLabel = m.role === 'user' ? 'Usuário' : 'Assistente';
+    const agentLabel = m.agent ? ` (${m.agent})` : '';
+    formattedItems.push(`- [${roleLabel}${agentLabel}]:\n${truncatedContent}`);
+  }
+
+  let body = formattedItems.join('\n\n');
+
+  // Garante que o bloco não ultrapasse o limite total seguro de caracteres
+  while (body.length > maxTotalChars && formattedItems.length > 1) {
+    formattedItems.shift();
+    body = formattedItems.join('\n\n');
+  }
+
+  return `[HISTÓRICO_DA_CONVERSA_ANTERIOR]
+Contexto resumido das mensagens anteriores desta conversa (o ambiente de execução mudou, a sessão nativa expirou ou houve alternância de agente; utilize este histórico para dar continuidade ao diálogo e às tarefas em andamento):
+
+${body}
+[FIM_DO_HISTÓRICO_DA_CONVERSA_ANTERIOR]`;
+}
