@@ -173,24 +173,24 @@ export const AGENT_DRIVERS: Record<AgentType, AgentDriver> = {
  * Substitui qualquer caractere diferente de [a-zA-Z0-9-_] por '-'.
  * Issue #189
  */
-export function encodeClaudeProjectPath(dir: string): string {
+export const encodeClaudeProjectPath = (dir: string): string => {
   const normalized = path.resolve(dir);
   return normalized.replace(/[^a-zA-Z0-9\-_]/g, '-');
-}
+};
 
 /**
  * Retorna o caminho absoluto do arquivo de sessão `.jsonl` esperado para uma dada sessão do Claude Code.
  * Issue #189
  */
-export function getClaudeSessionFilePath(
+export const getClaudeSessionFilePath = (
   sessionId: string,
   workDir: string,
   configDir?: string
-): string {
+): string => {
   const baseDir = configDir || process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
   const encodedCwd = encodeClaudeProjectPath(workDir);
   return path.join(baseDir, 'projects', encodedCwd, `${sessionId}.jsonl`);
-}
+};
 
 export interface ResolveNativeSessionOptions {
   checkDisk?: boolean;

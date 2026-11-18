@@ -861,10 +861,10 @@ export interface HistoryFallbackOptions {
  * (ex: troca de agente, mudança de cwd por workspace efêmero ou sessão expirada).
  * Issue #189
  */
-export function buildHistoryFallbackPrompt(
+export const buildHistoryFallbackPrompt = (
   messages?: ChatMessage[],
   options?: HistoryFallbackOptions
-): string {
+): string => {
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return '';
   }
