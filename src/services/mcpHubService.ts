@@ -34,7 +34,7 @@ export interface McpHubOptions {
   anytypeHeaders?: string;
 }
 
-function resolveAiMemoryToken(): string {
+const resolveAiMemoryToken = (): string => {
   if (process.env.AI_MEMORY_TOKEN) return process.env.AI_MEMORY_TOKEN.trim();
   if (process.env.AI_MEMORY_AUTH_TOKEN) return process.env.AI_MEMORY_AUTH_TOKEN.trim();
   const tokenFile = process.env.AI_MEMORY_TOKEN_FILE || '/DATA/AppData/ai-memory/auth-tokens/default';
@@ -44,9 +44,9 @@ function resolveAiMemoryToken(): string {
     }
   } catch {}
   return '';
-}
+};
 
-function resolveAnytypeHeaders(): string {
+const resolveAnytypeHeaders = (): string => {
   if (process.env.OPENAPI_MCP_HEADERS) return process.env.OPENAPI_MCP_HEADERS.trim();
   if (process.env.ANYTYPE_API_KEY) {
     return JSON.stringify({
@@ -65,7 +65,7 @@ function resolveAnytypeHeaders(): string {
     }
   } catch {}
   return '';
-}
+};
 
 export class McpHubService {
   private aiMemoryUrl: string;
