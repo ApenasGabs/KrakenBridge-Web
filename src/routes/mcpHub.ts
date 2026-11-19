@@ -21,11 +21,12 @@ const mcpAuthMiddleware = (req: Request, res: Response, next: () => void) => {
 
   const secret = process.env.APP_SECRET || configuredPin;
   const expectedPinToken = crypto.createHmac('sha256', secret).update(`kraken_auth_${configuredPin}`).digest('hex');
-  const allowedTokens = new Set([
-    expectedPinToken,
-    configuredPin,
-    process.env.AI_MEMORY_TOKEN || 'a1543485d89fc26de8b596ecda51ba012966340f0f7bc1d385f7ec1456ff139d'
-  ]);
+  const allowedTokens = new Set<string>();
+  if (expectedPinToken) allowedTokens.add(expectedPinToken);
+  if (configuredPin) allowedTokens.add(configuredPin);
+
+  const envAiMemoryToken = (process.env.AI_MEMORY_TOKEN || process.env.AI_MEMORY_AUTH_TOKEN || '').trim();
+  if (envAiMemoryToken) allowedTokens.add(envAiMemoryToken);
 
   const authHeader = req.headers.authorization || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim() || (req.query.token as string | undefined) || (req.query.pin as string | undefined);
@@ -60,21 +61,25 @@ mcpHubRouter.get('/', (req: Request, res: Response) => {
 
     activeSseSessions.set(sessionId, res);
 
-    // Envia o endpoint relativo para POST de mensagens
-    const endpointUrl = `/mcp/messages?sessionId=${sessionId}`;
+    // Envia o endpoint relativo para POST de mensagens respeitando sub-rotas (/mcp ou /chat/mcp)
+    const baseUrl = req.baseUrl || '/mcp';
+    const endpointUrl = `${baseUrl}/messages?sessionId=${sessionId}`;
     res.write(`event: endpoint\ndata: ${endpointUrl}\n\n`);
 
     // Keepalive a cada 15 segundos
     const keepaliveTimer = setInterval(() => {
-      if (!res.writableEnded) {
+      if (!res.writableEnded && !res.destroyed) {
         res.write(': keepalive\n\n');
       }
     }, 15000);
 
-    req.on('close', () => {
+    const cleanup = () => {
       clearInterval(keepaliveTimer);
       activeSseSessions.delete(sessionId);
-    });
+    };
+
+    req.on('close', cleanup);
+    res.on('close', cleanup);
 
     return;
   }

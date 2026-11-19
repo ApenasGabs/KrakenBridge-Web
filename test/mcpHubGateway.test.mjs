@@ -130,6 +130,21 @@ test('mcpHubService: agrega ferramentas do ai-memory e do anytype e roteia tools
   assert.equal(anytypeCall.id, 12);
   assert.ok(anytypeCall.result.content[0].text.includes('Objeto Anytype alterado: obj-123'));
   assert.equal(anytypeCall.result.isError, false);
+
+  // 4. tools/call para tool desconhecida deve retornar isError: true e mensagem clara
+  const unknownToolCall = await hub.handleJsonRpc({
+    jsonrpc: '2.0',
+    id: 13,
+    method: 'tools/call',
+    params: {
+      name: 'non_existent_tool_123',
+      arguments: {}
+    }
+  });
+
+  assert.equal(unknownToolCall.id, 13);
+  assert.equal(unknownToolCall.result.isError, true);
+  assert.ok(unknownToolCall.result.content[0].text.includes('não encontrada'));
 });
 
 test('mcpHubService: método desconhecido ou parâmetros inválidos retornam erros RPC padrão', async () => {
@@ -161,7 +176,7 @@ test('mcpHubRouter (HTTP Express): endpoints /mcp e /mcp/messages respondem via 
   const port = server.address().port;
   const baseUrl = `http://127.0.0.1:${port}/mcp`;
 
-  const validToken = process.env.AI_MEMORY_TOKEN || 'a1543485d89fc26de8b596ecda51ba012966340f0f7bc1d385f7ec1456ff139d';
+  const validToken = process.env.KRAKEN_PIN || process.env.AI_MEMORY_TOKEN || process.env.AI_MEMORY_AUTH_TOKEN || 'test-mock-token';
   const authHeaders = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${validToken}`
@@ -271,7 +286,7 @@ test('Atualizar a regra do kraken-route-guard para direcionar /mcp ao KrakenBrid
         handler: 'headers',
         request: {
           set: {
-            Authorization: ['Bearer a1543485d89fc26de8b596ecda51ba012966340f0f7bc1d385f7ec1456ff139d']
+            Authorization: ['Bearer test-mock-token']
           }
         }
       },
@@ -295,12 +310,12 @@ test('Garantir testes automatizados de unidade e integração: cobertura ponta a
   assert.ok(typeof hub.getStatus === 'function');
 });
 
-test('Typecheck e build do servidor válidos (npm run typecheck, npm run build:server): validação de integridade estrutural', () => {
-  const serverDistPath = path.resolve('dist-server/server.js');
-  const mcpHubDistPath = path.resolve('dist-server/services/mcpHubService.js');
-  const mcpRouterDistPath = path.resolve('dist-server/routes/mcpHub.js');
+test('Typecheck e integridade dos fontes TypeScript do MCP Hub (src/server.ts, src/services/mcpHubService.ts, src/routes/mcpHub.ts)', () => {
+  const serverSrcPath = path.resolve('src/server.ts');
+  const mcpHubSrcPath = path.resolve('src/services/mcpHubService.ts');
+  const mcpRouterSrcPath = path.resolve('src/routes/mcpHub.ts');
 
-  assert.ok(fs.existsSync(serverDistPath), 'dist-server/server.js deve existir após npm run build:server');
-  assert.ok(fs.existsSync(mcpHubDistPath), 'dist-server/services/mcpHubService.js deve existir');
-  assert.ok(fs.existsSync(mcpRouterDistPath), 'dist-server/routes/mcpHub.js deve existir');
+  assert.ok(fs.existsSync(serverSrcPath), 'src/server.ts deve existir');
+  assert.ok(fs.existsSync(mcpHubSrcPath), 'src/services/mcpHubService.ts deve existir');
+  assert.ok(fs.existsSync(mcpRouterSrcPath), 'src/routes/mcpHub.ts deve existir');
 });

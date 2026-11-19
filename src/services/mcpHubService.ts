@@ -1,6 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
 
 export interface McpToolDefinition {
   name: string;
@@ -35,6 +34,39 @@ export interface McpHubOptions {
   anytypeHeaders?: string;
 }
 
+function resolveAiMemoryToken(): string {
+  if (process.env.AI_MEMORY_TOKEN) return process.env.AI_MEMORY_TOKEN.trim();
+  if (process.env.AI_MEMORY_AUTH_TOKEN) return process.env.AI_MEMORY_AUTH_TOKEN.trim();
+  const tokenFile = process.env.AI_MEMORY_TOKEN_FILE || '/DATA/AppData/ai-memory/auth-tokens/default';
+  try {
+    if (fs.existsSync(tokenFile)) {
+      return fs.readFileSync(tokenFile, 'utf8').trim();
+    }
+  } catch {}
+  return '';
+}
+
+function resolveAnytypeHeaders(): string {
+  if (process.env.OPENAPI_MCP_HEADERS) return process.env.OPENAPI_MCP_HEADERS.trim();
+  if (process.env.ANYTYPE_API_KEY) {
+    return JSON.stringify({
+      Authorization: `Bearer ${process.env.ANYTYPE_API_KEY.trim()}`,
+      'Anytype-Version': '2025-11-08'
+    });
+  }
+  try {
+    const configPath = process.env.MCP_CONFIG_PATH || '/root/.gemini/config/mcp_config.json';
+    if (fs.existsSync(configPath)) {
+      const parsed = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      const anytypeEnv = parsed.mcpServers?.anytype?.env;
+      if (anytypeEnv?.OPENAPI_MCP_HEADERS) {
+        return anytypeEnv.OPENAPI_MCP_HEADERS;
+      }
+    }
+  } catch {}
+  return '';
+}
+
 export class McpHubService {
   private aiMemoryUrl: string;
   private aiMemoryToken: string;
@@ -43,6 +75,7 @@ export class McpHubService {
   private anytypeHeaders: string;
 
   private anytypeProcess: ChildProcess | null = null;
+  private anytypeInitPromise: Promise<ChildProcess> | null = null;
   private anytypePendingRequests = new Map<
     string | number,
     {
@@ -66,8 +99,7 @@ export class McpHubService {
       'http://192.168.31.5:49374/mcp';
     this.aiMemoryToken =
       options?.aiMemoryToken ||
-      process.env.AI_MEMORY_TOKEN ||
-      'a1543485d89fc26de8b596ecda51ba012966340f0f7bc1d385f7ec1456ff139d';
+      resolveAiMemoryToken();
     this.anytypeCliPath =
       options?.anytypeCliPath ||
       process.env.ANYTYPE_MCP_CLI_PATH ||
@@ -78,8 +110,7 @@ export class McpHubService {
       'http://192.168.31.5:31009';
     this.anytypeHeaders =
       options?.anytypeHeaders ||
-      process.env.OPENAPI_MCP_HEADERS ||
-      '{"Authorization":"Bearer addaCb9D4imLnqfbESgmSOahREVy1w4Uo1FHX5MYQMc=","Anytype-Version":"2025-11-08"}';
+      resolveAnytypeHeaders();
   }
 
   public updateConfig(options: McpHubOptions): void {
@@ -126,7 +157,27 @@ export class McpHubService {
         throw new Error(`ai-memory HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const json = (await response.json()) as JsonRpcResponse;
+      let json: JsonRpcResponse;
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream')) {
+        const text = await response.text();
+        const lines = text.split('\n');
+        let dataPayload = '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data:')) {
+            dataPayload = trimmed.slice(5).trim();
+            break;
+          }
+        }
+        if (!dataPayload) {
+          throw new Error('ai-memory SSE response did not contain data payload');
+        }
+        json = JSON.parse(dataPayload) as JsonRpcResponse;
+      } else {
+        json = (await response.json()) as JsonRpcResponse;
+      }
+
       if (json.error) {
         throw new Error(`ai-memory RPC error: ${json.error.message}`);
       }
@@ -138,13 +189,26 @@ export class McpHubService {
   }
 
   /**
-   * Gerenciamento do processo child Anytype MCP via Stdio
+   * Gerenciamento do processo child Anytype MCP via Stdio com single-flight (mutex)
    */
   private async ensureAnytypeProcess(): Promise<ChildProcess> {
     if (this.anytypeProcess && !this.anytypeProcess.killed && this.anytypeReady) {
       return this.anytypeProcess;
     }
 
+    if (this.anytypeInitPromise) {
+      return this.anytypeInitPromise;
+    }
+
+    this.anytypeInitPromise = this.startAnytypeProcess();
+    try {
+      return await this.anytypeInitPromise;
+    } finally {
+      this.anytypeInitPromise = null;
+    }
+  }
+
+  private async startAnytypeProcess(): Promise<ChildProcess> {
     if (!fs.existsSync(this.anytypeCliPath)) {
       throw new Error(`Anytype MCP CLI não encontrado em: ${this.anytypeCliPath}`);
     }
@@ -259,6 +323,7 @@ export class McpHubService {
   private cleanupAnytypeProcess(): void {
     this.anytypeReady = false;
     this.anytypeProcess = null;
+    this.anytypeInitPromise = null;
     for (const [, req] of this.anytypePendingRequests) {
       clearTimeout(req.timeout);
       req.reject(new Error('Processo Anytype MCP encerrado inesperadamente'));
@@ -368,8 +433,15 @@ export class McpHubService {
       } else {
         // Atualiza a lista para tentar encontrar
         await this.listTools();
-        source = this.toolSourceMap.get(name) || (name.startsWith('memory_') ? 'ai-memory' : 'anytype');
+        source = this.toolSourceMap.get(name);
       }
+    }
+
+    if (!source) {
+      return {
+        content: [{ type: 'text', text: `Ferramenta '${name}' não encontrada no catálogo do MCP Hub.` }],
+        isError: true
+      };
     }
 
     try {
