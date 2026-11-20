@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.48.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.47.0...v1.48.0) (2026-11-20)
+
+### ✨ Features
+
+* **mcp:** gateway agregador mcp unificado em /mcp (ai-memory + anytype) ([#204](https://github.com/ApenasGabs/KrakenBridge-Web/issues/204)) ([76f04c5](https://github.com/ApenasGabs/KrakenBridge-Web/commit/76f04c5ec78e7602264d4edb9971b977fc238f08)), closes [#203](https://github.com/ApenasGabs/KrakenBridge-Web/issues/203) [#203](https://github.com/ApenasGabs/KrakenBridge-Web/issues/203) [#203](https://github.com/ApenasGabs/KrakenBridge-Web/issues/203) [#203](https://github.com/ApenasGabs/KrakenBridge-Web/issues/203)
+
 ## [1.47.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.46.0...v1.47.0) (2026-11-18)
 
 ### ✨ Features
