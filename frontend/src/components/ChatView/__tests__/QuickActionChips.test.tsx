@@ -36,7 +36,7 @@ describe('QuickActionChips Component (Issue #174)', () => {
     render(<QuickActionChips onSelectAction={handleSelect} />);
 
     fireEvent.click(screen.getByTestId('quick-action-paperclip'));
-    expect(handleSelect).toHaveBeenCalledWith('Crie a tarefa e despache para o Paperclip no servidor Dell (192.168.31.5:3101).');
+    expect(handleSelect).toHaveBeenCalledWith('Crie a tarefa e despache para o Paperclip no servidor Dell (paperclip.apenasgabs.dev).');
   });
 
   it('deve desabilitar todos os botões quando disabled for true', () => {

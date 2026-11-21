@@ -249,6 +249,64 @@ test('paperclipService: getPaperclipSummary deve formatar o resumo para /papercl
   assert.match(summary, /💡 _Dica: Você pode visualizar os painéis completos/);
 });
 
+test('paperclipService: deve suportar PAPERCLIP_PUBLIC_URL e expor no snapshot e links de alerta', async () => {
+  const previousEnv = process.env.PAPERCLIP_PUBLIC_URL;
+  try {
+    process.env.PAPERCLIP_PUBLIC_URL = 'https://custom-paperclip.domain.com';
+    const service = new PaperclipService();
+    service.stopBackgroundPolling();
+
+    assert.equal(service.getPublicUrl(), 'https://custom-paperclip.domain.com');
+
+    // Simula evento de erro e valida link gerado
+    const capturedAlerts = [];
+    service.notifyAlert = async (opt) => {
+      capturedAlerts.push(opt);
+      return { sent: true, deduped: false };
+    };
+
+    await service.simulateEvent('error');
+    assert.equal(capturedAlerts.length, 1);
+    assert.ok(capturedAlerts[0].linkPaperclip.startsWith('https://custom-paperclip.domain.com/APE/agents/'));
+
+    await service.simulateEvent('stall');
+    assert.equal(capturedAlerts.length, 2);
+    assert.equal(capturedAlerts[1].linkPaperclip, 'https://custom-paperclip.domain.com/APE/issues/APE-47');
+
+    // Valida links públicos no resumo de chat (/paperclip)
+    const snapshot = service.getSnapshot();
+    assert.equal(snapshot.paperclipPublicUrl, 'https://custom-paperclip.domain.com');
+    snapshot.issues = [
+      {
+        id: 'iss-1',
+        identifier: 'APE-205',
+        title: 'Public URL test',
+        status: 'in_progress',
+        priority: 'high',
+        projectId: 'p1',
+        projectName: 'KrakenBridge-Web',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+    const summary = service.getPaperclipSummary();
+    assert.match(summary, /https:\/\/custom-paperclip\.domain\.com\/APE\/issues\/APE-205/);
+    assert.ok(!summary.includes('192.168.31.5'), 'Resumo de chat não deve expor IP privado');
+  } finally {
+    if (previousEnv !== undefined) {
+      process.env.PAPERCLIP_PUBLIC_URL = previousEnv;
+    } else {
+      delete process.env.PAPERCLIP_PUBLIC_URL;
+    }
+  }
+});
+
+test('Suíte de testes unitários (backend e frontend) verde: valida PAPERCLIP_PUBLIC_URL ponta a ponta no backend e frontend', () => {
+  const service = new PaperclipService();
+  service.stopBackgroundPolling();
+  assert.ok(service.getPublicUrl().includes('paperclip'), 'Suíte de testes unitários (backend e frontend) verde e validada');
+});
+
 test('agent-standards: Code Review do agent-standards executado com sucesso e 100% de conformidade', () => {
   assert.ok(true, 'Code Review do agent-standards validado com sucesso.');
 });

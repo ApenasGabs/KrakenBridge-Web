@@ -22,6 +22,7 @@ const execAsync = promisify(exec);
 
 // Constantes e URLs Padrão
 const DEFAULT_PAPERCLIP_URL = 'http://192.168.31.5:3101';
+const DEFAULT_PAPERCLIP_PUBLIC_URL = 'https://paperclip.apenasgabs.dev';
 const DEFAULT_COMPANY_ID = '4034eb89-a640-48d2-8b4d-f2bb0f10a119'; // APE
 const DEFAULT_API_TOKEN = 'pcp_5df95fac0e950db0d8e9770214678a478ccb79d6d6ce9f3a';
 const DEFAULT_GABOT_URL = 'http://192.168.31.5:3091/api/admin/notify';
@@ -48,6 +49,7 @@ interface FailureTracker {
 
 export class PaperclipService {
   private paperclipUrl: string;
+  private paperclipPublicUrl: string;
   private companyId: string;
   private apiToken: string;
   private gabotWebhookUrl: string;
@@ -76,6 +78,7 @@ export class PaperclipService {
 
   constructor() {
     this.paperclipUrl = (process.env.PAPERCLIP_URL || process.env.PAPERCLIP_API_URL || DEFAULT_PAPERCLIP_URL).replace(/\/+$/, '');
+    this.paperclipPublicUrl = (process.env.PAPERCLIP_PUBLIC_URL || DEFAULT_PAPERCLIP_PUBLIC_URL).replace(/\/+$/, '');
     this.companyId = process.env.PAPERCLIP_COMPANY_ID || DEFAULT_COMPANY_ID;
     this.apiToken = process.env.PAPERCLIP_API_TOKEN || DEFAULT_API_TOKEN;
     this.gabotWebhookUrl = process.env.GABOT_WEBHOOK_URL || DEFAULT_GABOT_URL;
@@ -86,6 +89,7 @@ export class PaperclipService {
       lastPollAt: new Date(0).toISOString(),
       companyId: this.companyId,
       paperclipUrl: this.paperclipUrl,
+      paperclipPublicUrl: this.paperclipPublicUrl,
       agents: [],
       issues: [],
       activeRuns: [],
@@ -98,6 +102,7 @@ export class PaperclipService {
 
     this.prReviewSlaService = new PrReviewSlaService({
       paperclipUrl: this.paperclipUrl,
+      paperclipPublicUrl: this.paperclipPublicUrl,
       companyId: this.companyId,
       apiToken: this.apiToken,
       notifyAlert: this.notifyAlert.bind(this)
@@ -105,6 +110,7 @@ export class PaperclipService {
 
     this.autoRemediationService = new PaperclipAutoRemediationService({
       paperclipUrl: this.paperclipUrl,
+      paperclipPublicUrl: this.paperclipPublicUrl,
       companyId: this.companyId,
       apiToken: this.apiToken,
       notifyAlert: this.notifyAlert.bind(this),
@@ -114,6 +120,13 @@ export class PaperclipService {
     if (process.env.NODE_ENV !== 'test') {
       this.startBackgroundPolling();
     }
+  }
+
+  /**
+   * Retorna a URL pública configurada para o Paperclip
+   */
+  public getPublicUrl(): string {
+    return this.paperclipPublicUrl;
   }
 
   /**
@@ -365,6 +378,7 @@ export class PaperclipService {
         lastPollAt: now,
         companyId: this.companyId,
         paperclipUrl: this.paperclipUrl,
+        paperclipPublicUrl: this.paperclipPublicUrl,
         agents,
         issues,
         activeRuns,
@@ -648,7 +662,7 @@ export class PaperclipService {
             severity: 'red',
             title: `🔴 Agente ${agent.name} entrou em ERRO`,
             body: `O agente ${agent.name} falhou: ${agent.lastError || 'adapter_failed'}.`,
-            linkPaperclip: `${this.paperclipUrl}/APE/agents/${agent.id}`
+            linkPaperclip: `${this.paperclipPublicUrl}/APE/agents/${agent.id}`
           });
         }
       }
@@ -669,7 +683,7 @@ export class PaperclipService {
           description: `${issue.title}${issue.activeRecoveryAction?.nextAction ? ` (${issue.activeRecoveryAction.nextAction})` : ''}`,
           severity: isBlocked ? 'warning' : isDone ? 'success' : 'info',
           issueIdentifier: issue.identifier,
-          issueUrl: `${this.paperclipUrl}/APE/issues/${issue.identifier}`
+          issueUrl: `${this.paperclipPublicUrl}/APE/issues/${issue.identifier}`
         });
 
         if (isBlocked) {
@@ -690,7 +704,7 @@ export class PaperclipService {
             severity: 'yellow',
             title: `🟠 Issue ${issue.identifier} BLOQUEADA`,
             body: `A issue ${issue.identifier} (${issue.title}) foi bloqueada.\nMotivo: ${issue.activeRecoveryAction?.nextAction || 'Aguardando dependência'}`,
-            linkPaperclip: `${this.paperclipUrl}/APE/issues/${issue.identifier}`,
+            linkPaperclip: `${this.paperclipPublicUrl}/APE/issues/${issue.identifier}`,
             requiresHumanAction: isHumanRequired
           });
         } else if (isDone && (issue.title.toLowerCase().includes('epic') || issue.identifier === 'APE-41')) {
@@ -699,7 +713,7 @@ export class PaperclipService {
             severity: 'green',
             title: `🟢 Épico Concluído: ${issue.identifier}`,
             body: `O épico ${issue.identifier} (${issue.title}) foi 100% concluído com sucesso!`,
-            linkPaperclip: `${this.paperclipUrl}/APE/issues/${issue.identifier}`
+            linkPaperclip: `${this.paperclipPublicUrl}/APE/issues/${issue.identifier}`
           });
         }
       }
@@ -739,7 +753,7 @@ export class PaperclipService {
             severity: 'red',
             title: `🔴 Múltiplas Falhas Consecutivas (${agent?.name || 'Agente'})`,
             body: `O agente ${agent?.name} acumulou ${tracker.count} falhas de run em menos de 10 min.\nÚltimo erro: ${run.execution?.cause || run.error || 'adapter_failed'}`,
-            linkPaperclip: `${this.paperclipUrl}/APE/runs/${run.id}`
+            linkPaperclip: `${this.paperclipPublicUrl}/APE/runs/${run.id}`
           });
         }
       }
@@ -759,7 +773,7 @@ export class PaperclipService {
           severity: 'warning',
           agentName: stall.agentName,
           issueIdentifier: stall.issueIdentifier,
-          issueUrl: stall.issueId ? `${this.paperclipUrl}/APE/issues/${stall.issueIdentifier}` : undefined
+          issueUrl: stall.issueId ? `${this.paperclipPublicUrl}/APE/issues/${stall.issueIdentifier}` : undefined
         });
       }
 
@@ -773,7 +787,7 @@ export class PaperclipService {
         severity: 'yellow',
         title: `🟠 Stall Detectado: ${stall.issueIdentifier} (${stall.inactiveMinutes} min parado)`,
         body: `A tarefa ${stall.issueIdentifier} atribuída ao ${stall.agentName} está sem atividade há ${stall.inactiveMinutes} min.\nMotivo: ${stall.reason}\nAção sugerida: ${stall.recoverySuggestion || 'Acordar agente'}`,
-        linkPaperclip: stall.issueId ? `${this.paperclipUrl}/APE/issues/${stall.issueIdentifier}` : undefined,
+        linkPaperclip: stall.issueId ? `${this.paperclipPublicUrl}/APE/issues/${stall.issueIdentifier}` : undefined,
         requiresHumanAction: isHumanRequired
       });
     }
@@ -947,7 +961,7 @@ export class PaperclipService {
         severity: 'red',
         title: '🔴 [SIMULAÇÃO] Agente Kraken Forge em ERRO',
         body: 'Kraken Forge entrou em status ERROR por esgotamento de quota ou falha no adapter.',
-        linkPaperclip: `${this.paperclipUrl}/APE/agents/fb0ad346-e4b6-42dc-a3fa-ec26d43454d1`,
+        linkPaperclip: `${this.paperclipPublicUrl}/APE/agents/fb0ad346-e4b6-42dc-a3fa-ec26d43454d1`,
         force: true
       });
 
@@ -962,7 +976,7 @@ export class PaperclipService {
         description: 'Issue bloqueada por lost wake e dependência travada.',
         severity: 'warning',
         issueIdentifier: 'APE-47',
-        issueUrl: `${this.paperclipUrl}/APE/issues/APE-47`
+        issueUrl: `${this.paperclipPublicUrl}/APE/issues/APE-47`
       });
 
       await this.notifyAlert({
@@ -970,7 +984,7 @@ export class PaperclipService {
         severity: 'yellow',
         title: '🟠 [SIMULAÇÃO] Issue APE-47 BLOQUEADA',
         body: 'A issue APE-47 foi movida para BLOCKED após falha consecutiva.',
-        linkPaperclip: `${this.paperclipUrl}/APE/issues/APE-47`,
+        linkPaperclip: `${this.paperclipPublicUrl}/APE/issues/APE-47`,
         force: true
       });
 
@@ -993,7 +1007,7 @@ export class PaperclipService {
         severity: 'yellow',
         title: '🟠 [SIMULAÇÃO] Stall Detectado no Paperclip: APE-47',
         body: 'Issue APE-47 atribuída sem run há mais de 35 min.',
-        linkPaperclip: `${this.paperclipUrl}/APE/issues/APE-47`,
+        linkPaperclip: `${this.paperclipPublicUrl}/APE/issues/APE-47`,
         force: true
       });
 
@@ -1011,7 +1025,7 @@ export class PaperclipService {
 
     const lines: string[] = [];
     lines.push(`## 📎 Status em Tempo Real do Paperclip`);
-    lines.push(`> **Conexão:** ${connected ? '🟢 Online' : '🔴 Desconectado'} | **Atualizado:** ${new Date(lastPollAt).toLocaleTimeString('pt-BR')} | **Servidor:** \`${this.paperclipUrl}\`\n`);
+    lines.push(`> **Conexão:** ${connected ? '🟢 Online' : '🔴 Desconectado'} | **Atualizado:** ${new Date(lastPollAt).toLocaleTimeString('pt-BR')} | **Servidor:** \`${this.paperclipPublicUrl}\`\n`);
 
     // 1. Agentes
     lines.push(`### 🤖 Esquadrão de Agentes`);
@@ -1063,13 +1077,13 @@ export class PaperclipService {
       if (inProgress.length > 0) {
         lines.push(`**Em Andamento:**`);
         for (const i of inProgress) {
-          lines.push(`- [${i.identifier}](${this.paperclipUrl}/APE/issues/${i.identifier}) — ${i.title} (${i.assigneeAgentName || 'Sem agente'})`);
+          lines.push(`- [${i.identifier}](${this.paperclipPublicUrl}/APE/issues/${i.identifier}) — ${i.title} (${i.assigneeAgentName || 'Sem agente'})`);
         }
       }
       if (blocked.length > 0) {
         lines.push(`**Bloqueadas:**`);
         for (const i of blocked) {
-          lines.push(`- 🚫 [${i.identifier}](${this.paperclipUrl}/APE/issues/${i.identifier}) — ${i.title} (${i.activeRecoveryAction?.nextAction || 'Dependência pendente'})`);
+          lines.push(`- 🚫 [${i.identifier}](${this.paperclipPublicUrl}/APE/issues/${i.identifier}) — ${i.title} (${i.activeRecoveryAction?.nextAction || 'Dependência pendente'})`);
         }
       }
       lines.push('');
@@ -1084,7 +1098,7 @@ export class PaperclipService {
         lines.push(`  - Estado do CI: ${ciIcon} **${pr.ciStatus}** ${pr.ciWorkflowName ? `(${pr.ciWorkflowName})` : ''}`);
         if (pr.sla) {
           if (pr.sla.status === 'delegated_sentinel') {
-            const taskRef = pr.sla.paperclipIssueIdentifier ? ` ([${pr.sla.paperclipIssueIdentifier}](${this.paperclipUrl}/APE/issues/${pr.sla.paperclipIssueIdentifier}))` : '';
+            const taskRef = pr.sla.paperclipIssueIdentifier ? ` ([${pr.sla.paperclipIssueIdentifier}](${this.paperclipPublicUrl}/APE/issues/${pr.sla.paperclipIssueIdentifier}))` : '';
             lines.push(`  - 🤖 **Revisão Delegada ao Sentinel:** SLA de 2h atingido${taskRef}`);
           } else if (pr.sla.status === 'pending_human') {
             const remainingMin = Math.round(pr.sla.timeRemainingMs / 60000);
