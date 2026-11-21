@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.48.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.48.0...v1.48.1) (2026-11-21)
+
+### 🐛 Bug Fixes
+
+* **routing:** suporte a PAPERCLIP_PUBLIC_URL para links externos no WhatsApp e OfficeView (Refs [#205](https://github.com/ApenasGabs/KrakenBridge-Web/issues/205)) ([#206](https://github.com/ApenasGabs/KrakenBridge-Web/issues/206)) ([98364cb](https://github.com/ApenasGabs/KrakenBridge-Web/commit/98364cbae96acccf8e3d663c2bcde58b085e70a0))
+
 ## [1.48.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.47.0...v1.48.0) (2026-11-20)
 
 ### ✨ Features
