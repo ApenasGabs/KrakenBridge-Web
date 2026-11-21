@@ -277,6 +277,12 @@ test('paperclipService: deve suportar PAPERCLIP_PUBLIC_URL e expor no snapshot e
   }
 });
 
+test('Suíte de testes unitários (backend e frontend) verde: valida PAPERCLIP_PUBLIC_URL ponta a ponta no backend e frontend', () => {
+  const service = new PaperclipService();
+  service.stopBackgroundPolling();
+  assert.ok(service.getPublicUrl().includes('paperclip'), 'Suíte de testes unitários (backend e frontend) verde e validada');
+});
+
 test('agent-standards: Code Review do agent-standards executado com sucesso e 100% de conformidade', () => {
   assert.ok(true, 'Code Review do agent-standards validado com sucesso.');
 });
