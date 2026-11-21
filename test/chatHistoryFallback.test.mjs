@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import {
   encodeClaudeProjectPath,
   getClaudeSessionFilePath,
+  migrateClaudeSessionIfNeeded,
   resolveNativeSessionId,
   AGENT_DRIVERS
 } from '../dist-server/routes/chat.js';
@@ -292,4 +293,74 @@ test('historyService.addMessage atualiza session.agent na troca de agente permit
     await historyService.delete(id).catch(() => {});
     fs.rmSync(tmpConfigDir, { recursive: true, force: true });
   }
+});
+
+// Issue #207: migração de sessão .jsonl do Claude entre cwds e truncamento Head + Tail no fallback
+
+test('migrateClaudeSessionIfNeeded migra .jsonl entre cwds e mantém versão mais recente em ida e volta', () => {
+  const tmpConfigDir = path.join(os.tmpdir(), `claude-migrate-${randomUUID()}`);
+  const cwdA = path.join(os.tmpdir(), `cwd-a-${randomUUID()}`);
+  const cwdB = path.join(os.tmpdir(), `cwd-b-${randomUUID()}`);
+  const sessionId = `sess-${randomUUID()}`;
+
+  try {
+    const fileA = getClaudeSessionFilePath(sessionId, cwdA, tmpConfigDir);
+    const fileB = getClaudeSessionFilePath(sessionId, cwdB, tmpConfigDir);
+    fs.mkdirSync(path.dirname(fileA), { recursive: true });
+    fs.writeFileSync(fileA, '{"turn":1,"msg":"inicial"}\n');
+
+    // Migração A -> B
+    assert.equal(migrateClaudeSessionIfNeeded(sessionId, cwdA, cwdB, tmpConfigDir), true);
+    assert.equal(fs.existsSync(fileB), true);
+    assert.equal(fs.readFileSync(fileB, 'utf8'), '{"turn":1,"msg":"inicial"}\n');
+
+    // resolveNativeSessionId com checkDisk: true agora aprova no novo cwdB
+    assert.equal(
+      resolveNativeSessionId(
+        'claude',
+        { agent: 'claude', claudeSessionId: sessionId, claudeSessionCwd: cwdB },
+        cwdB,
+        { checkDisk: true, claudeConfigDir: tmpConfigDir }
+      ),
+      sessionId
+    );
+
+    // Simula novos turnos gravados em B e retorno para A (sobrescreve A desatualizado)
+    fs.appendFileSync(fileB, '{"turn":2,"msg":"atualizado-em-B"}\n');
+    assert.equal(migrateClaudeSessionIfNeeded(sessionId, cwdB, cwdA, tmpConfigDir), true);
+    assert.ok(fs.readFileSync(fileA, 'utf8').includes('atualizado-em-B'));
+  } finally {
+    fs.rmSync(tmpConfigDir, { recursive: true, force: true });
+  }
+});
+
+test('migrateClaudeSessionIfNeeded retorna false para mesmo cwd, arquivo inexistente ou sessionId inválido', () => {
+  const tmpConfigDir = path.join(os.tmpdir(), `claude-migrate-neg-${randomUUID()}`);
+  const cwdA = path.join(os.tmpdir(), `cwd-neg-a-${randomUUID()}`);
+  const cwdB = path.join(os.tmpdir(), `cwd-neg-b-${randomUUID()}`);
+
+  try {
+    assert.equal(migrateClaudeSessionIfNeeded('sess-1', cwdA, cwdA, tmpConfigDir), false);
+    assert.equal(migrateClaudeSessionIfNeeded('sess-inexistente', cwdA, cwdB, tmpConfigDir), false);
+    assert.equal(migrateClaudeSessionIfNeeded('../traversal', cwdA, cwdB, tmpConfigDir), false);
+    assert.equal(migrateClaudeSessionIfNeeded(null, cwdA, cwdB, tmpConfigDir), false);
+    assert.equal(migrateClaudeSessionIfNeeded('sess-1', null, cwdB, tmpConfigDir), false);
+  } finally {
+    fs.rmSync(tmpConfigDir, { recursive: true, force: true });
+  }
+});
+
+test('buildHistoryFallbackPrompt preserva início e final (perguntas/conclusões) em mensagens longas', () => {
+  const intro = 'INICIO_ANALISE_CUSTOS: Levantamento da plataforma QueroVagas. ';
+  const middle = 'X'.repeat(3000);
+  const ending = ' PERGUNTA_FINAL_4: Quanto você paga pelos planos de IA mensalmente?';
+  const messages = [
+    { role: 'user', text: 'Analise os custos da plataforma', timestamp: 1 },
+    { role: 'assistant', agent: 'claude', text: `${intro}${middle}${ending}`, timestamp: 2 }
+  ];
+
+  const result = buildHistoryFallbackPrompt(messages, { maxCharsPerMessage: 400 });
+  assert.ok(result.includes('INICIO_ANALISE_CUSTOS'), 'deve preservar o início da resposta');
+  assert.ok(result.includes('PERGUNTA_FINAL_4'), 'deve preservar o final/perguntas da resposta');
+  assert.ok(result.includes('... [conteúdo truncado para manter contexto] ...'));
 });

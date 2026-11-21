@@ -860,10 +860,23 @@ export interface HistoryFallbackOptions {
 }
 
 /**
+ * Trunca texto longo preservando início (45%) e final (55%) para manter tanto o contexto
+ * inicial quanto conclusões, próximos passos e perguntas abertas ao final da resposta (Issue #207).
+ */
+const truncateHeadTail = (text: string, maxChars: number): string => {
+  if (text.length <= maxChars) return text;
+  const headChars = Math.floor(maxChars * 0.45);
+  const tailChars = maxChars - headChars;
+  const head = text.slice(0, headChars).trimEnd();
+  const tail = text.slice(text.length - tailChars).trimStart();
+  return `${head}\n... [conteúdo truncado para manter contexto] ...\n${tail}`;
+};
+
+/**
  * Constrói um bloco formatado de resumo do histórico anterior da conversa
  * para injeção no prompt quando a sessão nativa não puder ser retomada
  * (ex: troca de agente, mudança de cwd por workspace efêmero ou sessão expirada).
- * Issue #189
+ * Issue #189, Issue #207
  */
 export const buildHistoryFallbackPrompt = (
   messages?: ChatMessage[],
@@ -874,8 +887,8 @@ export const buildHistoryFallbackPrompt = (
   }
 
   const maxMessages = options?.maxMessages ?? 14;
-  const maxCharsPerMessage = options?.maxCharsPerMessage ?? 1500;
-  const maxTotalChars = options?.maxTotalChars ?? 16000;
+  const maxCharsPerMessage = options?.maxCharsPerMessage ?? 2400;
+  const maxTotalChars = options?.maxTotalChars ?? 20000;
 
   // Filtra mensagens relevantes com texto/conteúdo real (ignora vazias e sistema)
   const relevant = messages.filter((m) => {
@@ -894,10 +907,7 @@ export const buildHistoryFallbackPrompt = (
 
   for (const m of slice) {
     const rawContent = (m.text || m.content || '').trim();
-    const truncatedContent =
-      rawContent.length > maxCharsPerMessage
-        ? `${rawContent.slice(0, maxCharsPerMessage)}\n... [conteúdo truncado para manter contexto]`
-        : rawContent;
+    const truncatedContent = truncateHeadTail(rawContent, maxCharsPerMessage);
 
     const roleLabel = m.role === 'user' ? 'Usuário' : 'Assistente';
     const agentLabel = m.agent ? ` (${m.agent})` : '';
