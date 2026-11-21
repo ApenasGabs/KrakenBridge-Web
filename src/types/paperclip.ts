@@ -213,6 +213,7 @@ export interface PaperclipStateSnapshot {
   lastError?: string;
   companyId: string;
   paperclipUrl: string;
+  paperclipPublicUrl?: string;
   agents: PaperclipAgent[];
   issues: PaperclipIssue[];
   activeRuns: PaperclipRun[];

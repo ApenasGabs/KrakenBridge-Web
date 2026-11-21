@@ -28,6 +28,7 @@ export const DEFAULT_FORGE_AGENT_ID = 'fb0ad346-e4b6-42dc-a3fa-ec26d43454d1'; //
 export interface PrReviewSlaServiceOptions {
   slaDurationMs?: number;
   paperclipUrl?: string;
+  paperclipPublicUrl?: string;
   companyId?: string;
   apiToken?: string;
   sentinelAgentId?: string;
@@ -52,6 +53,7 @@ export interface PrReviewSlaServiceOptions {
 export class PrReviewSlaService {
   private slaDurationMs: number;
   private paperclipUrl: string;
+  private paperclipPublicUrl: string;
   private companyId: string;
   private apiToken: string;
   private sentinelAgentId: string;
@@ -63,6 +65,7 @@ export class PrReviewSlaService {
   constructor(options: PrReviewSlaServiceOptions = {}) {
     this.slaDurationMs = options.slaDurationMs ?? DEFAULT_SLA_DURATION_MS;
     this.paperclipUrl = options.paperclipUrl || process.env.PAPERCLIP_URL || 'http://192.168.31.5:3101';
+    this.paperclipPublicUrl = options.paperclipPublicUrl || process.env.PAPERCLIP_PUBLIC_URL || 'https://paperclip.apenasgabs.dev';
     this.companyId = options.companyId || process.env.PAPERCLIP_COMPANY_ID || '4034eb89-a640-48d2-8b4d-f2bb0f10a119';
     this.apiToken = options.apiToken || process.env.PAPERCLIP_API_TOKEN || 'pcp_5df95fac0e950db0d8e9770214678a478ccb79d6d6ce9f3a';
     this.sentinelAgentId = options.sentinelAgentId || DEFAULT_SENTINEL_AGENT_ID;
@@ -348,7 +351,7 @@ export class PrReviewSlaService {
             title: `⏰ Timeout de 2h no PR #${pr.number} — Delegado ao Sentinel`,
             body: this.formatTimeoutNotification(tracked, delegation.issueIdentifier),
             linkPr: pr.url,
-            linkPaperclip: delegation.issueIdentifier ? `${this.paperclipUrl}/APE/issues/${delegation.issueIdentifier}` : undefined,
+            linkPaperclip: delegation.issueIdentifier ? `${this.paperclipPublicUrl}/APE/issues/${delegation.issueIdentifier}` : undefined,
             force: true,
             requiresHumanAction: true
           });

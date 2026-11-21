@@ -12,12 +12,14 @@ import type {
 const execAsync = promisify(exec);
 
 export const DEFAULT_PAPERCLIP_URL = 'http://192.168.31.5:3101';
+export const DEFAULT_PAPERCLIP_PUBLIC_URL = 'https://paperclip.apenasgabs.dev';
 export const DEFAULT_COMPANY_ID = '4034eb89-a640-48d2-8b4d-f2bb0f10a119';
 export const DEFAULT_API_TOKEN = 'pcp_5df95fac0e950db0d8e9770214678a478ccb79d6d6ce9f3a';
 export const DEFAULT_CEO_AGENT_ID = '38631dff-5dd3-4fb6-bc81-d90aa6b27a00';
 
 export interface AutoRemediationOptions {
   paperclipUrl?: string;
+  paperclipPublicUrl?: string;
   companyId?: string;
   apiToken?: string;
   ceoAgentId?: string;
@@ -56,6 +58,7 @@ interface IssueCommentItem {
  */
 export class PaperclipAutoRemediationService {
   private paperclipUrl: string;
+  private paperclipPublicUrl: string;
   private companyId: string;
   private apiToken: string;
   private ceoAgentId: string;
@@ -68,6 +71,7 @@ export class PaperclipAutoRemediationService {
 
   constructor(options: AutoRemediationOptions = {}) {
     this.paperclipUrl = (options.paperclipUrl || process.env.PAPERCLIP_URL || DEFAULT_PAPERCLIP_URL).replace(/\/+$/, '');
+    this.paperclipPublicUrl = (options.paperclipPublicUrl || process.env.PAPERCLIP_PUBLIC_URL || DEFAULT_PAPERCLIP_PUBLIC_URL).replace(/\/+$/, '');
     this.companyId = options.companyId || process.env.PAPERCLIP_COMPANY_ID || DEFAULT_COMPANY_ID;
     this.apiToken = options.apiToken || process.env.PAPERCLIP_API_TOKEN || DEFAULT_API_TOKEN;
     this.ceoAgentId = options.ceoAgentId || DEFAULT_CEO_AGENT_ID;
@@ -273,7 +277,7 @@ export class PaperclipAutoRemediationService {
             description: `Causa corrigida: ${category}. Ações: ${actionsTaken.join(', ')}`,
             severity: 'success',
             issueIdentifier: issue.identifier,
-            issueUrl: `${this.paperclipUrl}/APE/issues/${issue.identifier}`
+            issueUrl: `${this.paperclipPublicUrl}/APE/issues/${issue.identifier}`
           });
         }
 
@@ -283,7 +287,7 @@ export class PaperclipAutoRemediationService {
             severity: 'green',
             title: `✅ [SRE] Issue ${issue.identifier} Auto-Remediada`,
             body: `O Kraken detectou o bloqueio (${category}) na issue ${issue.identifier} e aplicou o reparo automaticamente:\n${actionsTaken.map(a => `• ${a}`).join('\n')}\n\nA tarefa foi retornada para TODO e o agente foi notificado via wakeup.`,
-            linkPaperclip: `${this.paperclipUrl}/APE/issues/${issue.identifier}`,
+            linkPaperclip: `${this.paperclipPublicUrl}/APE/issues/${issue.identifier}`,
             force: true
           });
         }

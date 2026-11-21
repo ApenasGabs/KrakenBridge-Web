@@ -37,7 +37,7 @@ export const DEFAULT_QUICK_ACTIONS: QuickActionItem[] = [
   {
     id: 'paperclip',
     label: 'Mandar para o Paperclip',
-    prompt: 'Crie a tarefa e despache para o Paperclip no servidor Dell (192.168.31.5:3101).',
+    prompt: 'Crie a tarefa e despache para o Paperclip no servidor Dell (paperclip.apenasgabs.dev).',
     icon: Paperclip,
     variant: 'info',
     tooltip: 'Despacha a tarefa para a equipe autônoma no Paperclip AI'

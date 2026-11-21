@@ -161,6 +161,47 @@ test('PrReviewSlaService: deve detectar timeout de 2h, criar tarefa no Paperclip
   assert.ok(timeoutNotification);
   assert.ok(timeoutNotification.title.includes('Timeout de 2h no PR #42 — Delegado ao Sentinel'));
   assert.ok(timeoutNotification.body.includes('APE-99'));
+  assert.equal(timeoutNotification.linkPaperclip, 'https://paperclip.apenasgabs.dev/APE/issues/APE-99');
+
+  if (fs.existsSync(testStorage)) fs.unlinkSync(testStorage);
+});
+
+test('PrReviewSlaService: deve respeitar paperclipPublicUrl customizada via options', async () => {
+  const testStorage = path.join(process.cwd(), 'data', 'test_pr_review_sla_custom_url.json');
+  if (fs.existsSync(testStorage)) fs.unlinkSync(testStorage);
+
+  const notifications = [];
+  const service = new PrReviewSlaService({
+    storagePath: testStorage,
+    paperclipPublicUrl: 'https://custom-sla.paperclip.dev',
+    notifyAlert: async (alert) => {
+      notifications.push(alert);
+      return { sent: true };
+    }
+  });
+
+  service.delegateToSentinel = async () => ({
+    success: true,
+    issueId: 'issue-123',
+    issueIdentifier: 'APE-123'
+  });
+
+  const t0 = Date.now();
+  const mockPr = {
+    number: 77,
+    title: 'fix: public link test',
+    url: 'https://github.com/ApenasGabs/KrakenBridge-Web/pull/77',
+    repo: 'ApenasGabs/KrakenBridge-Web',
+    ciStatus: 'SUCCESS',
+    updatedAt: new Date(t0).toISOString()
+  };
+
+  await service.evaluatePrs([mockPr], t0);
+  await service.evaluatePrs([mockPr], t0 + (2 * 60 * 60 * 1000) + 60000);
+
+  const timeoutNotification = notifications.find(n => n.key.includes('pr_timeout'));
+  assert.ok(timeoutNotification);
+  assert.equal(timeoutNotification.linkPaperclip, 'https://custom-sla.paperclip.dev/APE/issues/APE-123');
 
   if (fs.existsSync(testStorage)) fs.unlinkSync(testStorage);
 });

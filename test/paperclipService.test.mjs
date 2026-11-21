@@ -249,6 +249,34 @@ test('paperclipService: getPaperclipSummary deve formatar o resumo para /papercl
   assert.match(summary, /💡 _Dica: Você pode visualizar os painéis completos/);
 });
 
+test('paperclipService: deve suportar PAPERCLIP_PUBLIC_URL e expor no snapshot e links de alerta', async () => {
+  const previousEnv = process.env.PAPERCLIP_PUBLIC_URL;
+  try {
+    process.env.PAPERCLIP_PUBLIC_URL = 'https://custom-paperclip.domain.com';
+    const service = new PaperclipService();
+    service.stopBackgroundPolling();
+
+    assert.equal(service.getPublicUrl(), 'https://custom-paperclip.domain.com');
+
+    // Simula evento de erro e valida link gerado
+    const capturedAlerts = [];
+    service.notifyAlert = async (opt) => {
+      capturedAlerts.push(opt);
+      return { sent: true, deduped: false };
+    };
+
+    await service.simulateEvent('error');
+    assert.equal(capturedAlerts.length, 1);
+    assert.ok(capturedAlerts[0].linkPaperclip.startsWith('https://custom-paperclip.domain.com/APE/agents/'));
+  } finally {
+    if (previousEnv !== undefined) {
+      process.env.PAPERCLIP_PUBLIC_URL = previousEnv;
+    } else {
+      delete process.env.PAPERCLIP_PUBLIC_URL;
+    }
+  }
+});
+
 test('agent-standards: Code Review do agent-standards executado com sucesso e 100% de conformidade', () => {
   assert.ok(true, 'Code Review do agent-standards validado com sucesso.');
 });

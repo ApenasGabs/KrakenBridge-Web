@@ -52,6 +52,7 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [selectedAgentDetailsOpen, setSelectedAgentDetailsOpen] = useState(false);
+  const [paperclipPublicUrl, setPaperclipPublicUrl] = useState<string>('https://paperclip.apenasgabs.dev');
 
   // Computa estado dos chats e sessões ativas do Kraken
   const runningBackgroundConversations = useMemo(
@@ -80,6 +81,9 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
     setIsRefreshing(true);
     try {
       const snapshot = await api.getPaperclipStatus();
+      if (snapshot?.paperclipPublicUrl) {
+        setPaperclipPublicUrl(snapshot.paperclipPublicUrl);
+      }
       syncWithPaperclip(snapshot, localActiveTool, localSubagents, localChatState);
       setLastSyncTime(new Date());
     } catch (err) {
@@ -98,6 +102,9 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
       es = api.createPaperclipEventSource(
         (snapshot: PaperclipStateSnapshot) => {
           setIsLive(true);
+          if (snapshot?.paperclipPublicUrl) {
+            setPaperclipPublicUrl(snapshot.paperclipPublicUrl);
+          }
           syncWithPaperclip(snapshot, localActiveTool, localSubagents, localChatState);
           setLastSyncTime(new Date());
         },
@@ -452,7 +459,7 @@ export const OfficeView: React.FC<OfficeViewProps> = ({
           <div className="flex items-center gap-2 ml-auto">
             {selectedAgent.taskId && (
               <a
-                href={`http://192.168.31.5:3101/APE/issues/${selectedAgent.taskId}`}
+                href={`${paperclipPublicUrl}/APE/issues/${selectedAgent.taskId}`}
                 target="_blank"
                 rel="noreferrer"
                 className="btn btn-sm btn-outline gap-1.5 text-xs"
