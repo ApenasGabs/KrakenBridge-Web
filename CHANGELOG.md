@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.48.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.48.1...v1.48.2) (2026-11-21)
+
+### 🐛 Bug Fixes
+
+* **claude:** preservar --resume entre mudanças de cwd e truncamento head+tail no fallback ([#208](https://github.com/ApenasGabs/KrakenBridge-Web/issues/208)) ([fd408e6](https://github.com/ApenasGabs/KrakenBridge-Web/commit/fd408e6e77b73dd3d2248e38f02fc6ca649b494a)), closes [#207](https://github.com/ApenasGabs/KrakenBridge-Web/issues/207) [#207](https://github.com/ApenasGabs/KrakenBridge-Web/issues/207)
+
 ## [1.48.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.48.0...v1.48.1) (2026-11-21)
 
 ### 🐛 Bug Fixes
