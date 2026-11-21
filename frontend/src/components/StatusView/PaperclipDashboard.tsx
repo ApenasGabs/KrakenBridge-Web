@@ -179,7 +179,7 @@ export const PaperclipDashboard: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-base-content/60">
-                Última sincronização: {snapshot?.lastPollAt ? new Date(snapshot.lastPollAt).toLocaleTimeString('pt-BR') : 'nunca'} | Endpoint: <code className="text-xs">{snapshot?.paperclipPublicUrl || snapshot?.paperclipUrl}</code>
+                Última sincronização: {snapshot?.lastPollAt ? new Date(snapshot.lastPollAt).toLocaleTimeString('pt-BR') : 'nunca'} | Endpoint: <code className="text-xs">{paperclipPublicEndpoint}</code>
               </p>
             </div>
           </div>
