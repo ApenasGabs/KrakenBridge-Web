@@ -192,6 +192,44 @@ export const getClaudeSessionFilePath = (
   return path.join(baseDir, 'projects', encodedCwd, `${sessionId}.jsonl`);
 };
 
+/**
+ * Migra/espelha o arquivo de sessão `.jsonl` do Claude Code de `previousCwd` para `targetWorkDir`
+ * quando o `WorkspaceManager` alterna o diretório de trabalho (ex: workspace real ↔ workspace efêmero).
+ * Permite manter o `--resume <sessionId>` nativo sem perder o contexto entre turnos (Issue #207).
+ */
+export const migrateClaudeSessionIfNeeded = (
+  sessionId: string | null | undefined,
+  previousCwd: string | null | undefined,
+  targetWorkDir: string,
+  configDir?: string
+): boolean => {
+  if (!sessionId || !previousCwd || !targetWorkDir) return false;
+  if (!/^[a-zA-Z0-9._-]+$/.test(sessionId)) return false;
+
+  const resolvedPrev = path.resolve(previousCwd);
+  const resolvedTarget = path.resolve(targetWorkDir);
+  if (resolvedPrev === resolvedTarget) return false;
+
+  const srcFile = getClaudeSessionFilePath(sessionId, resolvedPrev, configDir);
+  if (!fs.existsSync(srcFile)) return false;
+
+  const dstFile = getClaudeSessionFilePath(sessionId, resolvedTarget, configDir);
+  const tmpFile = `${dstFile}.tmp-${randomUUID().slice(0, 8)}`;
+
+  try {
+    fs.mkdirSync(path.dirname(dstFile), { recursive: true });
+    fs.copyFileSync(srcFile, tmpFile);
+    fs.renameSync(tmpFile, dstFile);
+    return true;
+  } catch (err) {
+    try {
+      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+    } catch {}
+    console.warn('[KrakenBridge] Falha ao migrar sessão Claude entre cwds:', (err as Error)?.message || err);
+    return false;
+  }
+};
+
 export interface ResolveNativeSessionOptions {
   checkDisk?: boolean;
   claudeConfigDir?: string;
@@ -442,7 +480,37 @@ chatRouter.post('/', async (req: Request, res: Response) => {
   // Injeta a diretiva completa do sistema no primeiro turno da sessão nativa do agente ativo
   // ou quando não houver sessão compatível no cwd (ex: workspace efêmero, arquivo inexistente ou troca de agente).
   const isAgentSwitch = Boolean(existingSession?.agent && existingSession.agent !== agent);
-  const nativeSessionId = resolveNativeSessionId(agent, existingSession, effectiveWorkDir, { checkDisk: true });
+  let sessionForResolution = existingSession;
+
+  // Issue #207: se o cwd mudou (ex: workspace real <-> efêmero), migra o .jsonl da sessão
+  // do Claude para o novo projeto codificado para manter o `--resume` nativo funcionando.
+  if (
+    agent === 'claude' &&
+    !isAgentSwitch &&
+    existingSession?.claudeSessionId &&
+    existingSession?.claudeSessionCwd &&
+    path.resolve(existingSession.claudeSessionCwd) !== path.resolve(effectiveWorkDir)
+  ) {
+    const migrated = migrateClaudeSessionIfNeeded(
+      existingSession.claudeSessionId,
+      existingSession.claudeSessionCwd,
+      effectiveWorkDir
+    );
+    if (migrated) {
+      console.log(
+        `[KrakenBridge] Sessão Claude ${existingSession.claudeSessionId} migrada de "${existingSession.claudeSessionCwd}" para "${effectiveWorkDir}"`
+      );
+      sessionForResolution = { ...existingSession, claudeSessionCwd: effectiveWorkDir };
+      await historyService.save({
+        id: conversationId,
+        claudeSessionCwd: effectiveWorkDir
+      }).catch((err) => {
+        console.warn('[KrakenBridge] Falha ao atualizar claudeSessionCwd após migração:', (err as Error)?.message || err);
+      });
+    }
+  }
+
+  const nativeSessionId = resolveNativeSessionId(agent, sessionForResolution, effectiveWorkDir, { checkDisk: true });
   const claudeSessionId = agent === 'claude' ? nativeSessionId : null;
   const effectiveAgyConvId = (agent === 'antigravity' && !isAgentSwitch) ? (nativeSessionId || null) : null;
   const hasNativeSession = Boolean(agent === 'antigravity' ? effectiveAgyConvId : claudeSessionId);
