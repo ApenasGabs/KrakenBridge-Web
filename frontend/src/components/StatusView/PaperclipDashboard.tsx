@@ -156,6 +156,7 @@ export const PaperclipDashboard: React.FC = () => {
   }
 
   const isConnected = snapshot?.connected ?? false;
+  const paperclipPublicEndpoint = snapshot?.paperclipPublicUrl || snapshot?.paperclipUrl || 'https://paperclip.apenasgabs.dev';
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-2 sm:px-4 py-4 animate-in fade-in duration-200">
@@ -484,7 +485,7 @@ export const PaperclipDashboard: React.FC = () => {
                   filteredIssues.inProgress.map((issue) => (
                     <a
                       key={issue.id}
-                      href={`${snapshot?.paperclipPublicUrl || snapshot?.paperclipUrl || 'https://paperclip.apenasgabs.dev'}/APE/issues/${issue.identifier}`}
+                      href={`${paperclipPublicEndpoint}/APE/issues/${issue.identifier}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block p-2.5 rounded-xl bg-base-200/50 hover:bg-base-200 border border-base-300 transition-colors text-xs space-y-1"
@@ -513,7 +514,7 @@ export const PaperclipDashboard: React.FC = () => {
                   filteredIssues.blocked.map((issue) => (
                     <a
                       key={issue.id}
-                      href={`${snapshot?.paperclipPublicUrl || snapshot?.paperclipUrl || 'https://paperclip.apenasgabs.dev'}/APE/issues/${issue.identifier}`}
+                      href={`${paperclipPublicEndpoint}/APE/issues/${issue.identifier}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block p-2.5 rounded-xl bg-base-100 hover:bg-base-200 border border-warning/30 transition-colors text-xs space-y-1"

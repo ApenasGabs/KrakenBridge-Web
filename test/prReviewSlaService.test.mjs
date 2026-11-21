@@ -173,7 +173,7 @@ test('PrReviewSlaService: deve respeitar paperclipPublicUrl customizada via opti
   const notifications = [];
   const service = new PrReviewSlaService({
     storagePath: testStorage,
-    paperclipPublicUrl: 'https://custom-sla.paperclip.dev',
+    paperclipPublicUrl: 'https://custom-sla.paperclip.dev/',
     notifyAlert: async (alert) => {
       notifications.push(alert);
       return { sent: true };

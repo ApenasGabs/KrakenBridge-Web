@@ -753,7 +753,7 @@ export class PaperclipService {
             severity: 'red',
             title: `🔴 Múltiplas Falhas Consecutivas (${agent?.name || 'Agente'})`,
             body: `O agente ${agent?.name} acumulou ${tracker.count} falhas de run em menos de 10 min.\nÚltimo erro: ${run.execution?.cause || run.error || 'adapter_failed'}`,
-            linkPaperclip: `${this.paperclipUrl}/APE/runs/${run.id}`
+            linkPaperclip: `${this.paperclipPublicUrl}/APE/runs/${run.id}`
           });
         }
       }
@@ -773,7 +773,7 @@ export class PaperclipService {
           severity: 'warning',
           agentName: stall.agentName,
           issueIdentifier: stall.issueIdentifier,
-          issueUrl: stall.issueId ? `${this.paperclipUrl}/APE/issues/${stall.issueIdentifier}` : undefined
+          issueUrl: stall.issueId ? `${this.paperclipPublicUrl}/APE/issues/${stall.issueIdentifier}` : undefined
         });
       }
 
@@ -787,7 +787,7 @@ export class PaperclipService {
         severity: 'yellow',
         title: `🟠 Stall Detectado: ${stall.issueIdentifier} (${stall.inactiveMinutes} min parado)`,
         body: `A tarefa ${stall.issueIdentifier} atribuída ao ${stall.agentName} está sem atividade há ${stall.inactiveMinutes} min.\nMotivo: ${stall.reason}\nAção sugerida: ${stall.recoverySuggestion || 'Acordar agente'}`,
-        linkPaperclip: stall.issueId ? `${this.paperclipUrl}/APE/issues/${stall.issueIdentifier}` : undefined,
+        linkPaperclip: stall.issueId ? `${this.paperclipPublicUrl}/APE/issues/${stall.issueIdentifier}` : undefined,
         requiresHumanAction: isHumanRequired
       });
     }
@@ -1025,7 +1025,7 @@ export class PaperclipService {
 
     const lines: string[] = [];
     lines.push(`## 📎 Status em Tempo Real do Paperclip`);
-    lines.push(`> **Conexão:** ${connected ? '🟢 Online' : '🔴 Desconectado'} | **Atualizado:** ${new Date(lastPollAt).toLocaleTimeString('pt-BR')} | **Servidor:** \`${this.paperclipUrl}\`\n`);
+    lines.push(`> **Conexão:** ${connected ? '🟢 Online' : '🔴 Desconectado'} | **Atualizado:** ${new Date(lastPollAt).toLocaleTimeString('pt-BR')} | **Servidor:** \`${this.paperclipPublicUrl}\`\n`);
 
     // 1. Agentes
     lines.push(`### 🤖 Esquadrão de Agentes`);
@@ -1077,13 +1077,13 @@ export class PaperclipService {
       if (inProgress.length > 0) {
         lines.push(`**Em Andamento:**`);
         for (const i of inProgress) {
-          lines.push(`- [${i.identifier}](${this.paperclipUrl}/APE/issues/${i.identifier}) — ${i.title} (${i.assigneeAgentName || 'Sem agente'})`);
+          lines.push(`- [${i.identifier}](${this.paperclipPublicUrl}/APE/issues/${i.identifier}) — ${i.title} (${i.assigneeAgentName || 'Sem agente'})`);
         }
       }
       if (blocked.length > 0) {
         lines.push(`**Bloqueadas:**`);
         for (const i of blocked) {
-          lines.push(`- 🚫 [${i.identifier}](${this.paperclipUrl}/APE/issues/${i.identifier}) — ${i.title} (${i.activeRecoveryAction?.nextAction || 'Dependência pendente'})`);
+          lines.push(`- 🚫 [${i.identifier}](${this.paperclipPublicUrl}/APE/issues/${i.identifier}) — ${i.title} (${i.activeRecoveryAction?.nextAction || 'Dependência pendente'})`);
         }
       }
       lines.push('');
@@ -1098,7 +1098,7 @@ export class PaperclipService {
         lines.push(`  - Estado do CI: ${ciIcon} **${pr.ciStatus}** ${pr.ciWorkflowName ? `(${pr.ciWorkflowName})` : ''}`);
         if (pr.sla) {
           if (pr.sla.status === 'delegated_sentinel') {
-            const taskRef = pr.sla.paperclipIssueIdentifier ? ` ([${pr.sla.paperclipIssueIdentifier}](${this.paperclipUrl}/APE/issues/${pr.sla.paperclipIssueIdentifier}))` : '';
+            const taskRef = pr.sla.paperclipIssueIdentifier ? ` ([${pr.sla.paperclipIssueIdentifier}](${this.paperclipPublicUrl}/APE/issues/${pr.sla.paperclipIssueIdentifier}))` : '';
             lines.push(`  - 🤖 **Revisão Delegada ao Sentinel:** SLA de 2h atingido${taskRef}`);
           } else if (pr.sla.status === 'pending_human') {
             const remainingMin = Math.round(pr.sla.timeRemainingMs / 60000);

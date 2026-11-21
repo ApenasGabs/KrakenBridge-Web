@@ -268,6 +268,30 @@ test('paperclipService: deve suportar PAPERCLIP_PUBLIC_URL e expor no snapshot e
     await service.simulateEvent('error');
     assert.equal(capturedAlerts.length, 1);
     assert.ok(capturedAlerts[0].linkPaperclip.startsWith('https://custom-paperclip.domain.com/APE/agents/'));
+
+    await service.simulateEvent('stall');
+    assert.equal(capturedAlerts.length, 2);
+    assert.equal(capturedAlerts[1].linkPaperclip, 'https://custom-paperclip.domain.com/APE/issues/APE-47');
+
+    // Valida links públicos no resumo de chat (/paperclip)
+    const snapshot = service.getSnapshot();
+    assert.equal(snapshot.paperclipPublicUrl, 'https://custom-paperclip.domain.com');
+    snapshot.issues = [
+      {
+        id: 'iss-1',
+        identifier: 'APE-205',
+        title: 'Public URL test',
+        status: 'in_progress',
+        priority: 'high',
+        projectId: 'p1',
+        projectName: 'KrakenBridge-Web',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+    ];
+    const summary = service.getPaperclipSummary();
+    assert.match(summary, /https:\/\/custom-paperclip\.domain\.com\/APE\/issues\/APE-205/);
+    assert.ok(!summary.includes('192.168.31.5'), 'Resumo de chat não deve expor IP privado');
   } finally {
     if (previousEnv !== undefined) {
       process.env.PAPERCLIP_PUBLIC_URL = previousEnv;
