@@ -497,9 +497,6 @@ chatRouter.post('/', async (req: Request, res: Response) => {
       effectiveWorkDir
     );
     if (migrated) {
-      console.log(
-        `[KrakenBridge] Sessão Claude ${existingSession.claudeSessionId} migrada de "${existingSession.claudeSessionCwd}" para "${effectiveWorkDir}"`
-      );
       sessionForResolution = { ...existingSession, claudeSessionCwd: effectiveWorkDir };
       await historyService.save({
         id: conversationId,
