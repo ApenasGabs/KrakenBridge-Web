@@ -86,14 +86,15 @@ mcpHubRouter.get('/', (req: Request, res: Response) => {
 
   // Se não for SSE, responde com o status operacional do Hub
   const status = mcpHubService.getStatus();
+  const mountPath = req.baseUrl || '/mcp';
   res.json({
     status: 'online',
     service: 'Kraken MCP Hub Gateway',
     version: '1.0.0',
     endpoints: {
-      http: '/mcp',
-      sse: '/mcp',
-      messages: '/mcp/messages'
+      http: mountPath,
+      sse: mountPath,
+      messages: `${mountPath}/messages`
     },
     downstream: {
       aiMemory: status.aiMemoryUrl,
