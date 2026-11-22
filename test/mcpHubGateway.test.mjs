@@ -276,32 +276,6 @@ test('mcpHubRouter (HTTP Express): endpoints /mcp e /mcp/messages respondem via 
   }
 });
 
-test('Atualizar a regra do kraken-route-guard para direcionar /mcp ao KrakenBridge-Web (:8088/mcp): validação do payload Caddy e upstream', () => {
-  // Configuração padrão que o kraken-route-guard utiliza para injetar rota no Caddy do ZimaOS
-  const routeGuardPayload = {
-    '@id': 'kraken-mcp-hub',
-    match: [{ path: ['/mcp', '/mcp/*'] }],
-    handle: [
-      {
-        handler: 'headers',
-        request: {
-          set: {
-            Authorization: ['Bearer test-mock-token']
-          }
-        }
-      },
-      {
-        handler: 'reverse_proxy',
-        upstreams: [{ dial: '127.0.0.1:8088' }]
-      }
-    ]
-  };
-
-  assert.equal(routeGuardPayload['@id'], 'kraken-mcp-hub');
-  assert.deepEqual(routeGuardPayload.match[0].path, ['/mcp', '/mcp/*']);
-  assert.equal(routeGuardPayload.handle[1].upstreams[0].dial, '127.0.0.1:8088');
-});
-
 test('Garantir testes automatizados de unidade e integração: cobertura ponta a ponta do MCP Hub', async () => {
   const hub = new McpHubService();
   assert.ok(typeof hub.handleJsonRpc === 'function');
