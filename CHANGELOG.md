@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.48.3](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.48.2...v1.48.3) (2026-11-22)
+
+### 🐛 Bug Fixes
+
+* **mcp:** endpoints de status relativos ao mount path e remove teste tautológico (Refs [#204](https://github.com/ApenasGabs/KrakenBridge-Web/issues/204)) ([#209](https://github.com/ApenasGabs/KrakenBridge-Web/issues/209)) ([2ce3451](https://github.com/ApenasGabs/KrakenBridge-Web/commit/2ce34519ad9db75fae7b9f50306c00d7f6b2e08b))
+
 ## [1.48.2](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.48.1...v1.48.2) (2026-11-21)
 
 ### 🐛 Bug Fixes
