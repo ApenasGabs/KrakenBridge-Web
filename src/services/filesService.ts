@@ -26,6 +26,10 @@ export function getAllowedDirectories(): string[] {
     dirs.push(process.env.CUSTOM_ALLOWED_FILE_DIR);
   }
 
+  if (process.env.KRAKEN_UPLOADS_DIR) {
+    dirs.push(process.env.KRAKEN_UPLOADS_DIR);
+  }
+
   // Permite o diretório atual de execução para dev/testes
   dirs.push(process.cwd());
 

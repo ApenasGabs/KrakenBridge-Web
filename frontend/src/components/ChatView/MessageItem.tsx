@@ -20,11 +20,15 @@ import {
   Square,
   ListOrdered,
   Gauge,
-  Sparkles
+  Sparkles,
+  ImageOff,
+  ZoomIn
 } from 'lucide-react';
 import { parseFileOperation } from '../../utils/diffParser';
 import { FileOperationCard } from './FileOperationCard';
 import { SpinnerVerbs } from './SpinnerVerbs';
+import { ImageLightboxModal } from './ImageLightboxModal';
+import { isSafeDataImageUrl, resolveImageUrl } from '../../utils/mediaUtils';
 import { 
   playSpeech, 
   subscribeSpeechState, 
@@ -43,8 +47,62 @@ const MermaidBlock = lazy(() =>
 interface MessageItemProps {
   message: ChatMessage;
   codeServerPort?: number;
+  subproject?: string;
   onOpenFilePreview?: (filePath: string) => void;
 }
+
+const ChatMarkdownImage: React.FC<{
+  src?: string;
+  alt?: string;
+  subproject?: string;
+  onOpenLightbox: (src: string, alt?: string) => void;
+}> = ({ src, alt, subproject, onOpenLightbox }) => {
+  const [hasError, setHasError] = useState(false);
+  const resolvedSrc = useMemo(
+    () => (src ? resolveImageUrl(src, { subproject }) : ''),
+    [src, subproject]
+  );
+
+  if (!resolvedSrc || hasError) {
+    return (
+      <span
+        data-testid="message-image-fallback"
+        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 my-1 rounded-lg bg-base-300/60 border border-base-300 text-xs text-base-content/70"
+      >
+        <ImageOff className="w-3.5 h-3.5 shrink-0 opacity-70" />
+        <span className="truncate max-w-xs">{alt || src || 'Imagem indisponível'}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="block my-2 group relative w-fit max-w-full">
+      <button
+        type="button"
+        onClick={() => onOpenLightbox(resolvedSrc, alt)}
+        className="block relative rounded-xl overflow-hidden border border-base-300/80 bg-base-300/30 shadow-sm hover:border-primary/60 transition-all cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-primary/50"
+        title="Clique para ampliar imagem"
+        data-testid="message-image-trigger"
+      >
+        <img
+          src={resolvedSrc}
+          alt={alt || 'Imagem'}
+          loading="lazy"
+          onError={() => setHasError(true)}
+          className="max-h-96 max-w-full w-auto h-auto object-contain block"
+        />
+        <span className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <ZoomIn className="w-3.5 h-3.5" />
+        </span>
+      </button>
+      {alt && (
+        <span className="block text-[11px] text-base-content/60 mt-1 truncate max-w-md">
+          {alt}
+        </span>
+      )}
+    </span>
+  );
+};
 
 const CodeBlock: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => {
   const [copied, setCopied] = useState(false);
@@ -234,7 +292,7 @@ const MarkdownCode: React.FC<any> = ({ className, children, ...props }) => {
   return <CodeBlock className={className}>{children}</CodeBlock>;
 };
 
-const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerPort, onOpenFilePreview }) => {
+const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerPort, subproject, onOpenFilePreview }) => {
   const isUser = message.role === 'user';
   const [showWaterMetrics] = useWaterMetrics();
   const [speechState, setSpeechState] = useState<SpeechState>({
@@ -243,6 +301,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
     rate: getSpeechRate(),
   });
   const [copiedMessage, setCopiedMessage] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt?: string } | null>(null);
 
   useEffect(() => {
     return subscribeSpeechState((_activeId, state) => {
@@ -285,6 +344,16 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
 
   const markdownComponents = useMemo(() => ({
     code: MarkdownCode,
+    img({ src, alt }: { src?: string; alt?: string }) {
+      return (
+        <ChatMarkdownImage
+          src={src}
+          alt={alt}
+          subproject={subproject}
+          onOpenLightbox={(resolvedSrc, caption) => setLightboxImage({ src: resolvedSrc, alt: caption })}
+        />
+      );
+    },
     // Intercepta links markdown para permitir abrir no visualizador in-app (ArtifactDrawer) ou na IDE
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     a({ href, children, ...props }: any) {
@@ -358,7 +427,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
         </a>
       );
     }
-  }), [codeServerPort, onOpenFilePreview]);
+  }), [codeServerPort, subproject, onOpenFilePreview]);
 
   return (
     <div className={`chat ${isUser ? 'chat-end' : 'chat-start'} mb-4 animate-in fade-in duration-150`}>
@@ -408,6 +477,35 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
           </div>
         )}
 
+        {/* Imagens anexadas na mensagem (ex: enviadas pelo usuário) */}
+        {message.attachments && message.attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2.5" data-testid="message-attachments-grid">
+            {message.attachments.map((att) => {
+              const resolvedUrl = resolveImageUrl(att.url || att.path, { subproject });
+              return (
+                <button
+                  key={att.id || att.path}
+                  type="button"
+                  onClick={() => setLightboxImage({ src: resolvedUrl, alt: att.name })}
+                  className="group relative min-w-[80px] min-h-[56px] flex items-center justify-center rounded-xl overflow-hidden border border-base-300/70 bg-base-100/20 shadow-sm hover:ring-2 hover:ring-primary/50 transition-all cursor-zoom-in"
+                  title={`Ampliar ${att.name}`}
+                  data-testid="message-attachment-thumb"
+                >
+                  <img
+                    src={resolvedUrl}
+                    alt={att.name}
+                    loading="lazy"
+                    className="max-h-44 max-w-[220px] object-cover block"
+                  />
+                  <span className="absolute inset-x-0 bottom-0 px-1.5 py-0.5 text-[10px] bg-black/60 text-white truncate text-left">
+                    {att.name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Conteúdo Principal em Markdown */}
         <div className={`text-sm prose prose-sm max-w-none min-w-0 break-words [overflow-wrap:anywhere] leading-relaxed ${isUser ? 'prose-user text-primary-content' : 'text-base-content'}`}>
           {message.isStreaming && !isUser && !message.text ? (
@@ -416,15 +514,17 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
               toolCalls={message.toolCalls}
               thinking={message.thinking}
             />
-          ) : (
+          ) : (message.text || !isUser) ? (
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
-              urlTransform={(url) => (url.startsWith('file:') ? url : defaultUrlTransform(url))}
+              urlTransform={(url) =>
+                url.startsWith('file:') || isSafeDataImageUrl(url) ? url : defaultUrlTransform(url)
+              }
               components={markdownComponents}
             >
               {message.text || (!message.isStreaming && !isUser ? (message.thinking ? '*(Resposta concluída no acordeão de raciocínio acima)*' : '*(Sem resposta de texto emitida)*') : '')}
             </ReactMarkdown>
-          )}
+          ) : null}
 
           {message.isStreaming && message.text && (
             <span className="inline-block w-2 h-4 ml-1 bg-primary animate-pulse align-middle" />
@@ -665,6 +765,13 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
         )}
 
       </div>
+      {lightboxImage && (
+        <ImageLightboxModal
+          src={lightboxImage.src}
+          alt={lightboxImage.alt}
+          onClose={() => setLightboxImage(null)}
+        />
+      )}
     </div>
   );
 };

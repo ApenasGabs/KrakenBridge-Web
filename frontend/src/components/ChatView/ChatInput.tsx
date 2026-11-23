@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type {
+  ChatImageAttachment,
   ModelOption,
   SlashCommand,
   EvolutionStatus,
@@ -9,8 +10,9 @@ import type {
   MultiAccountQuotaOverview
 } from '../../types';
 import { api } from '../../services/api';
+import { formatImageBytes, resolveImageUrl } from '../../utils/mediaUtils';
 import { 
-  Plus, 
+  ImagePlus,
   ChevronUp, 
   Mic, 
   MicOff, 
@@ -82,6 +84,9 @@ interface ChatInputProps {
   chatMode?: 'agent' | 'chat';
   onChatModeChange?: (mode: 'agent' | 'chat') => void;
   project?: string;
+  conversationId?: string;
+  attachments?: ChatImageAttachment[];
+  onAttachmentsChange?: (attachments: ChatImageAttachment[]) => void;
   recentMessages?: string[];
   onRefinePrompt?: (payload: RefinePromptPayload, signal?: AbortSignal) => Promise<RefinePromptResponse>;
 }
@@ -260,6 +265,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   chatMode = 'agent',
   onChatModeChange,
   project,
+  conversationId,
+  attachments = [],
+  onAttachmentsChange,
   recentMessages,
   onRefinePrompt
 }) => {
@@ -268,11 +276,121 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const isSystemBusyWithEvolution = isPodDraining || isReloading;
   const effectiveDisabled = disabled || isSystemBusyWithEvolution;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const initialTextRef = useRef<string>('');
+  const attachmentsRef = useRef<ChatImageAttachment[]>(attachments);
+  attachmentsRef.current = attachments;
+  const hasSendableContent = Boolean(prompt.trim() || attachments.length > 0);
+
+  const handleImageFiles = useCallback(async (fileList: FileList | File[]) => {
+    if (!onAttachmentsChange || !isOnline || effectiveDisabled) return;
+    const files = Array.from(fileList).filter((f) => f && f.size >= 0);
+    if (files.length === 0) return;
+
+    const maxImages = 6;
+    const maxBytes = 10 * 1024 * 1024;
+    const allowedMimes = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
+
+    setImageUploadError(null);
+    const availableSlots = Math.max(0, maxImages - attachmentsRef.current.length);
+    if (availableSlots === 0) {
+      setImageUploadError(`Limite máximo de ${maxImages} imagens por mensagem atingido.`);
+      return;
+    }
+
+    const toUpload = files.slice(0, availableSlots);
+    const uploaded: ChatImageAttachment[] = [];
+    const errors: string[] = [];
+
+    setIsUploadingImage(true);
+    try {
+      for (const file of toUpload) {
+        if (file.type && !allowedMimes.has(file.type.toLowerCase())) {
+          errors.push(`"${file.name || 'arquivo'}": formato não suportado (use PNG, JPEG, WebP ou GIF).`);
+          continue;
+        }
+        if (file.size > maxBytes) {
+          errors.push(`"${file.name || 'imagem'}": excede o limite de 10MB.`);
+          continue;
+        }
+        try {
+          const att = await api.uploadChatImage(file, conversationId);
+          uploaded.push(att);
+        } catch (err) {
+          errors.push((err as Error).message || `Falha ao enviar "${file.name}".`);
+        }
+      }
+      if (uploaded.length > 0) {
+        const nextAttachments = [...attachmentsRef.current, ...uploaded].slice(0, maxImages);
+        attachmentsRef.current = nextAttachments;
+        onAttachmentsChange(nextAttachments);
+      }
+      if (errors.length > 0) {
+        setImageUploadError(errors[0]);
+      }
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }, [conversationId, effectiveDisabled, isOnline, onAttachmentsChange]);
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    if (!onAttachmentsChange) return;
+    const nextAttachments = attachmentsRef.current.filter((att) => att.id !== id);
+    attachmentsRef.current = nextAttachments;
+    onAttachmentsChange(nextAttachments);
+    setImageUploadError(null);
+  }, [onAttachmentsChange]);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items || !onAttachmentsChange) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      void handleImageFiles(imageFiles);
+    }
+  }, [handleImageFiles, onAttachmentsChange]);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!onAttachmentsChange || !isOnline || effectiveDisabled) return;
+    if (Array.from(e.dataTransfer.types).includes('Files')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      if (!isDragOver) setIsDragOver(true);
+    }
+  }, [effectiveDisabled, isDragOver, isOnline, onAttachmentsChange]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (!onAttachmentsChange || !isOnline || effectiveDisabled) return;
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      void handleImageFiles(e.dataTransfer.files);
+    }
+  }, [effectiveDisabled, handleImageFiles, isOnline, onAttachmentsChange]);
 
   // Estados do Roteamento Inteligente por Cota e Multi-Contas
   const [quotaOverview, setQuotaOverview] = useState<MultiAccountQuotaOverview | null>(null);
@@ -676,7 +794,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      if (prompt.trim() && !effectiveDisabled && isOnline) {
+      if (hasSendableContent && !isUploadingImage && !effectiveDisabled && isOnline) {
         if (isListening) stopListening();
         setUndoDraft(null);
         setRefineSuggestion(null);
@@ -691,7 +809,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (prompt.trim() && !effectiveDisabled && isOnline) {
+      if (hasSendableContent && !isUploadingImage && !effectiveDisabled && isOnline) {
         if (isListening) stopListening();
         setUndoDraft(null);
         setRefineSuggestion(null);
@@ -1058,8 +1176,85 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         )}
 
         {/* Caixa de Entrada Integrada com Barra de Ações Inferior */}
-        <div className={`relative flex flex-col bg-base-200/70 rounded-2xl border ${isListening ? 'border-red-500/80 ring-2 ring-red-500/20' : 'border-base-300 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/40'} shadow-sm transition-all overflow-visible`}>
-          
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`relative flex flex-col bg-base-200/70 rounded-2xl border ${
+            isDragOver
+              ? 'border-primary ring-2 ring-primary/40 bg-primary/5'
+              : isListening
+                ? 'border-red-500/80 ring-2 ring-red-500/20'
+                : 'border-base-300 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/40'
+          } shadow-sm transition-all overflow-visible`}
+        >
+          {/* Input oculto para seleção de imagens */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            multiple
+            className="hidden"
+            data-testid="chat-image-file-input"
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                void handleImageFiles(e.target.files);
+              }
+            }}
+          />
+
+          {/* Preview das imagens anexadas / status de upload */}
+          {(attachments.length > 0 || isUploadingImage || imageUploadError) && (
+            <div className="px-3 pt-2.5 pb-1 flex flex-col gap-1.5 border-b border-base-300/40" data-testid="chat-attachments-preview">
+              {(attachments.length > 0 || isUploadingImage) && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {attachments.map((att) => (
+                    <div
+                      key={att.id}
+                      className="relative group shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-base-300 bg-base-100 shadow-xs"
+                      title={`${att.name} (${formatImageBytes(att.size)})`}
+                      data-testid="chat-attachment-chip"
+                    >
+                      <img
+                        src={resolveImageUrl(att.url || att.path)}
+                        alt={att.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttachment(att.id)}
+                        aria-label={`Remover imagem ${att.name}`}
+                        className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 hover:bg-error text-white flex items-center justify-center transition-colors"
+                        data-testid="chat-attachment-remove-btn"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {isUploadingImage && (
+                    <div className="shrink-0 w-16 h-16 rounded-xl border border-dashed border-primary/50 bg-primary/5 flex flex-col items-center justify-center gap-1 text-[10px] text-primary">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Enviando</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {imageUploadError && (
+                <div className="flex items-center justify-between gap-2 text-[11px] text-error bg-error/10 border border-error/25 rounded-lg px-2.5 py-1">
+                  <span className="truncate">{imageUploadError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setImageUploadError(null)}
+                    className="btn btn-ghost btn-xs btn-circle h-4 w-4 min-h-0"
+                    aria-label="Fechar aviso de imagem"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Área de Digitação do Prompt */}
           <textarea
             data-testid="chat-textarea"
@@ -1068,6 +1263,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             value={prompt}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             disabled={effectiveDisabled}
             placeholder={
               !isOnline
@@ -1095,10 +1291,18 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                 <button
                   type="button"
-                  className="btn btn-ghost btn-sm sm:btn-xs btn-circle min-h-[32px] min-w-[32px] sm:min-h-0 sm:min-w-0 text-base-content/50 hover:text-base-content transition-colors shrink-0"
-                  title="Opções adicionais / contexto"
+                  data-testid="chat-attach-image-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!onAttachmentsChange || !isOnline || effectiveDisabled || isUploadingImage}
+                  aria-label="Anexar imagem"
+                  className="btn btn-ghost btn-sm sm:btn-xs btn-circle min-h-[32px] min-w-[32px] sm:min-h-0 sm:min-w-0 text-base-content/60 hover:text-primary hover:bg-primary/10 transition-colors shrink-0 disabled:opacity-30"
+                  title="Anexar imagem (PNG, JPEG, WebP, GIF — ou cole com Ctrl+V / arraste aqui)"
                 >
-                  <Plus className="w-4 h-4" />
+                  {isUploadingImage ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  ) : (
+                    <ImagePlus className="w-4 h-4" />
+                  )}
                 </button>
 
                 {/* Botão Seletor de Modelo */}
@@ -1480,7 +1684,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 </div>
               ) : isLoading ? (
                 <div className="flex items-center gap-1.5">
-                  {prompt.trim() && (
+                  {hasSendableContent && !isUploadingImage && (
                     <>
                       {/* Botão de Enfileirar (aguarda o próximo prompt) */}
                       <button
@@ -1542,7 +1746,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                     setRefineSuggestion(null);
                     onSubmit();
                   }}
-                  disabled={!prompt.trim() || effectiveDisabled}
+                  disabled={!hasSendableContent || isUploadingImage || effectiveDisabled}
                   className="w-9 h-9 sm:w-8 sm:h-8 rounded-full bg-sky-500 hover:bg-sky-400 active:scale-95 text-white flex items-center justify-center shadow-md transition-all disabled:opacity-30 disabled:pointer-events-none shrink-0"
                   title="Enviar mensagem (Enter ou Ctrl+Enter)"
                 >

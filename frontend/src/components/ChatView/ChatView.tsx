@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { ChatMessage, ModelOption, ProjectWorkspace, QueuedMessage, EvolutionStatus } from '../../types';
+import type { ChatImageAttachment, ChatMessage, ModelOption, ProjectWorkspace, QueuedMessage, EvolutionStatus } from '../../types';
 import { MessageItem } from './MessageItem';
 import { ChatInput } from './ChatInput';
 import { QuickActionChips } from './QuickActionChips';
@@ -13,6 +13,8 @@ interface ChatViewProps {
   messages: ChatMessage[];
   prompt: string;
   onPromptChange: (val: string) => void;
+  attachments?: ChatImageAttachment[];
+  onAttachmentsChange?: (attachments: ChatImageAttachment[]) => void;
   onSubmit: () => void;
   onForceSubmit?: () => void;
   onStop: () => void;
@@ -51,6 +53,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
   messages,
   prompt,
   onPromptChange,
+  attachments = [],
+  onAttachmentsChange,
   onSubmit,
   onForceSubmit,
   onStop,
@@ -382,7 +386,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <MessageItem 
                 key={msg.id} 
                 message={msg} 
-                codeServerPort={codeServerPort} 
+                codeServerPort={codeServerPort}
+                subproject={subproject}
                 onOpenFilePreview={handleOpenFilePreview}
               />
             ))
@@ -443,10 +448,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
         />
       )}
 
-      {/* Input de Envio de Mensagem com Seletor de Modelo, MCPs, Refinar e Microfone */}
+      {/* Input de Envio de Mensagem com Seletor de Modelo, MCPs, Refinar, Imagens e Microfone */}
       <ChatInput
         prompt={prompt}
         onChange={onPromptChange}
+        attachments={attachments}
+        onAttachmentsChange={onAttachmentsChange}
+        conversationId={conversationId}
         onSubmit={onSubmit}
         onForceSubmit={onForceSubmit}
         onStop={onStop}
