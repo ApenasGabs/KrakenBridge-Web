@@ -26,6 +26,10 @@ import {
   RefineProvidersExhaustedError
 } from '../services/promptRefinerService.js';
 import { extractAgentFailureReason } from '../utils/agentFailureReason.js';
+import {
+  sanitizeChatAttachments,
+  buildPromptWithAttachments
+} from '../services/imageMediaService.js';
 import type { AgentDriver, AgentType, ToolCall, ChatRequestBody } from '../types/chat.js';
 import type { ConversationSession } from '../types/session.js';
 
@@ -269,7 +273,8 @@ export const resolveNativeSessionId = (
 // Endpoint principal de Chat com SSE Streaming
 chatRouter.post('/', async (req: Request, res: Response) => {
   const {
-    prompt,
+    prompt: rawPrompt = '',
+    attachments: rawAttachments,
     conversationId: clientConvId,
     continueSession,
     agent = 'antigravity',
@@ -285,8 +290,11 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     force = false
   } = (req.body || {}) as ChatRequestBody;
 
-  if (!prompt || typeof prompt !== 'string') {
-    return res.status(400).json({ error: 'Prompt é obrigatório' });
+  const attachments = sanitizeChatAttachments(rawAttachments);
+  const prompt = typeof rawPrompt === 'string' ? rawPrompt : '';
+
+  if (!prompt.trim() && attachments.length === 0) {
+    return res.status(400).json({ error: 'Prompt ou pelo menos uma imagem anexada é obrigatório.' });
   }
 
   // Bloqueio preventivo durante Pod Drain ou Auto-Reload
@@ -394,12 +402,13 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     console.log(`[KrakenBridge] [Workspace Efêmero] Ativado para a conversa ${conversationId}: ${effectiveWorkDir} (base: ${workDir})`);
   }
 
-  // Salvar mensagem do usuário no histórico com accountEmail
+  // Salvar mensagem do usuário no histórico com accountEmail e anexos de imagem
   await historyService.addMessage(conversationId, {
     id: randomUUID(),
     role: 'user',
     text: prompt,
     content: prompt,
+    ...(attachments.length > 0 ? { attachments } : {}),
     timestamp: new Date().toISOString()
   }, { agent, model, effort, mode, chatMode: activeChatMode, subproject: activeSubproject, agyConvId, accountEmail: activeAccountEmail });
 
@@ -519,11 +528,12 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     historyFallbackBlock = buildHistoryFallbackPrompt(existingSession.messages);
   }
 
-  let effectivePrompt = prompt;
+  const promptWithAttachments = buildPromptWithAttachments(prompt, attachments);
+  let effectivePrompt = promptWithAttachments;
   if (shouldInjectDirective) {
-    effectivePrompt = `${systemDirective}${historyFallbackBlock ? `${historyFallbackBlock}\n\n` : ''}${prompt}`;
+    effectivePrompt = `${systemDirective}${historyFallbackBlock ? `${historyFallbackBlock}\n\n` : ''}${promptWithAttachments}`;
   } else if (historyFallbackBlock) {
-    effectivePrompt = `${historyFallbackBlock}\n\n${prompt}`;
+    effectivePrompt = `${historyFallbackBlock}\n\n${promptWithAttachments}`;
   }
 
   const driver = AGENT_DRIVERS[agent] || AGENT_DRIVERS.antigravity;

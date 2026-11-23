@@ -18,10 +18,20 @@ export interface TurnTokens {
   total_tokens?: number;
 }
 
+export interface ChatImageAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  path: string;
+  url: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   text: string;
+  attachments?: ChatImageAttachment[];
   timestamp: string;
   agent?: string;
   model?: string;
@@ -35,6 +45,7 @@ export interface QueuedMessage {
   id: string;
   conversationId?: string | null;
   text: string;
+  attachments?: ChatImageAttachment[];
   timestamp: string;
   model?: string;
   subproject?: string;

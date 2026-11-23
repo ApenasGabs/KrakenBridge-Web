@@ -46,10 +46,11 @@ const CODE_SERVER_PORT = process.env.CODE_SERVER_PORT || '8089';
 
 const app = express();
 app.use(cors());
-// O PUT /files/raw (edição in-app) usa seu próprio parser com limite de 10MB
+// Rotas com payload maior (edição in-app e upload de imagens) usam seus próprios parsers
 const globalJsonParser = express.json();
 app.use((req, res, next) => {
   if (req.method === 'PUT' && req.path.endsWith('/files/raw')) return next();
+  if (req.method === 'POST' && req.path.endsWith('/files/upload-image')) return next();
   return globalJsonParser(req, res, next);
 });
 

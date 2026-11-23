@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { 
+  ChatImageAttachment,
   ChatMessage, 
   ChatOptions, 
   ConversationSession, 
@@ -99,6 +100,7 @@ export const App: React.FC = () => {
   }, [activeConvId]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [prompt, setPrompt] = useState('');
+  const [pendingAttachments, setPendingAttachments] = useState<ChatImageAttachment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [evolutionStatus, setEvolutionStatus] = useState<EvolutionStatus | null>(null);
 
@@ -738,6 +740,9 @@ export const App: React.FC = () => {
   const handleEditQueueItem = useCallback((msg: QueuedMessage) => {
     updateMessageQueue(prev => prev.filter(m => m.id !== msg.id));
     setPrompt(msg.text);
+    if (msg.attachments && msg.attachments.length > 0) {
+      setPendingAttachments(msg.attachments);
+    }
   }, [updateMessageQueue]);
 
   const handleClearQueue = useCallback(() => {
@@ -755,7 +760,7 @@ export const App: React.FC = () => {
   }, [messageQueue, activeConvId]);
 
   // Ref mutável para executeTurn a fim de evitar stale closures nos callbacks SSE
-  const executeTurnRef = useRef<(userText: string, turnOptions?: { force?: boolean; model?: string; subproject?: string }) => Promise<void>>(async () => {});
+  const executeTurnRef = useRef<(userText: string, turnOptions?: { force?: boolean; model?: string; subproject?: string; attachments?: ChatImageAttachment[] }) => Promise<void>>(async () => {});
 
   // Despacho seguro do próximo item da fila
   const dispatchNextQueueItem = useCallback(() => {
@@ -775,7 +780,8 @@ export const App: React.FC = () => {
       executeTurnRef.current(nextMsg.text, {
         force: true,
         model: nextMsg.model,
-        subproject: nextMsg.subproject
+        subproject: nextMsg.subproject,
+        attachments: nextMsg.attachments
       });
     }, 450);
   }, [updateMessageQueue]);
@@ -783,14 +789,16 @@ export const App: React.FC = () => {
   // Executar Turno do Assistente com SSE Streaming
   const executeTurn = useCallback(async (
     userText: string,
-    turnOptions?: { force?: boolean; model?: string; subproject?: string }
+    turnOptions?: { force?: boolean; model?: string; subproject?: string; attachments?: ChatImageAttachment[] }
   ) => {
     setIsLoading(true);
+    const turnAttachments = turnOptions?.attachments && turnOptions.attachments.length > 0 ? turnOptions.attachments : undefined;
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       text: userText,
+      ...(turnAttachments ? { attachments: turnAttachments } : {}),
       timestamp: new Date().toISOString()
     };
 
@@ -816,6 +824,7 @@ export const App: React.FC = () => {
       await api.streamChat(
         {
           prompt: userText,
+          attachments: turnAttachments,
           conversationId: activeConvIdRef.current || undefined,
           options: {
             ...optionsRef.current,
@@ -1065,7 +1074,8 @@ export const App: React.FC = () => {
   const handleSubmitMessage = useCallback(() => {
     if (!isOnlineRef.current) return;
     const userText = prompt.trim();
-    if (!userText) return;
+    const attachmentsToSend = [...pendingAttachments];
+    if (!userText && attachmentsToSend.length === 0) return;
 
     if (isLoading) {
       // Adiciona à fila de mensagens associando à conversa atual
@@ -1073,6 +1083,7 @@ export const App: React.FC = () => {
         id: `queue-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         conversationId: activeConvIdRef.current,
         text: userText,
+        ...(attachmentsToSend.length > 0 ? { attachments: attachmentsToSend } : {}),
         timestamp: new Date().toISOString(),
         model: optionsRef.current.model,
         subproject: optionsRef.current.subproject,
@@ -1080,18 +1091,21 @@ export const App: React.FC = () => {
       };
       updateMessageQueue(prev => [...prev, queuedItem]);
       setPrompt('');
+      setPendingAttachments([]);
       return;
     }
 
     setPrompt('');
-    executeTurn(userText);
-  }, [prompt, isLoading, executeTurn, updateMessageQueue]);
+    setPendingAttachments([]);
+    executeTurn(userText, { attachments: attachmentsToSend });
+  }, [prompt, pendingAttachments, isLoading, executeTurn, updateMessageQueue]);
 
   // Forçar Envio Imediato de Mensagem do Campo de Texto (Interrompe qualquer tarefa ativa e roda imediatamente)
   const handleForceSubmitMessage = useCallback(async () => {
     if (!isOnlineRef.current) return;
     const userText = prompt.trim();
-    if (!userText) return;
+    const attachmentsToSend = [...pendingAttachments];
+    if (!userText && attachmentsToSend.length === 0) return;
 
     if (isLoading || abortControllerRef.current) {
       if (abortControllerRef.current) {
@@ -1110,8 +1124,9 @@ export const App: React.FC = () => {
     }
 
     setPrompt('');
-    executeTurn(userText, { force: true });
-  }, [prompt, isLoading, executeTurn]);
+    setPendingAttachments([]);
+    executeTurn(userText, { force: true, attachments: attachmentsToSend });
+  }, [prompt, pendingAttachments, isLoading, executeTurn]);
 
   // Forçar Envio de um Item Específico da Fila
   const handleForceSendQueueItem = useCallback(async (item: QueuedMessage) => {
@@ -1136,7 +1151,8 @@ export const App: React.FC = () => {
     executeTurn(item.text, {
       force: true,
       model: item.model,
-      subproject: item.subproject
+      subproject: item.subproject,
+      attachments: item.attachments
     });
   }, [isLoading, updateMessageQueue, executeTurn]);
 
@@ -1303,6 +1319,8 @@ export const App: React.FC = () => {
             messages={messages}
             prompt={prompt}
             onPromptChange={setPrompt}
+            attachments={pendingAttachments}
+            onAttachmentsChange={setPendingAttachments}
             onSubmit={handleSubmitMessage}
             onForceSubmit={handleForceSubmitMessage}
             onStop={handleStop}

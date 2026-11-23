@@ -1,6 +1,7 @@
 import type { 
   AccountInfo, 
   AuthStatus, 
+  ChatImageAttachment,
   ChatOptions, 
   CloudflareAuthStatus, 
   ConversationSession, 
@@ -713,9 +714,42 @@ export const api = {
   /**
    * Stream de Chat com suporte a SSE via Fetch ReadableStream
    */
+  async uploadChatImage(file: File, conversationId?: string): Promise<ChatImageAttachment> {
+    const dataBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Falha ao ler arquivo de imagem.'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Erro ao ler arquivo de imagem.'));
+      reader.readAsDataURL(file);
+    });
+
+    const res = await fetchWithAuth(`${getApiBase()}/files/upload-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: file.name || 'imagem.png',
+        mimeType: file.type || undefined,
+        dataBase64,
+        conversationId
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.attachment) {
+      throw new Error(data?.error || `Falha no upload da imagem (HTTP ${res.status})`);
+    }
+    return data.attachment as ChatImageAttachment;
+  },
+
   async streamChat(
     payload: {
       prompt: string;
+      attachments?: ChatImageAttachment[];
       conversationId?: string;
       options: ChatOptions;
       force?: boolean;
@@ -725,6 +759,7 @@ export const api = {
   ): Promise<void> {
     const body = {
       prompt: payload.prompt,
+      attachments: payload.attachments && payload.attachments.length > 0 ? payload.attachments : undefined,
       conversationId: payload.conversationId,
       agent: payload.options.agent,
       model: payload.options.model,

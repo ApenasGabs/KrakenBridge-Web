@@ -15,11 +15,21 @@ export interface ToolCall {
   state?: string;
 }
 
+export interface ChatImageAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  path: string;
+  url: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content?: string;
   text?: string;
+  attachments?: ChatImageAttachment[];
   thinking?: string;
   agent?: string;
   model?: string;
@@ -70,6 +80,7 @@ export interface AgentDriver {
 
 export interface ChatRequestBody {
   prompt: string;
+  attachments?: ChatImageAttachment[];
   conversationId?: string;
   continueSession?: boolean;
   model?: string;
