@@ -193,11 +193,12 @@ export const sanitizeChatAttachments = (raw: unknown): ChatImageAttachment[] => 
     const filePath = typeof candidate.path === 'string' ? candidate.path.trim() : '';
     if (!filePath || !isPathAllowed(filePath)) continue;
 
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeFromExt = MEDIA_MIME_BY_EXTENSION[ext];
+    const mimeFromExt = getMediaMimeType(filePath);
+    if (!mimeFromExt) continue;
+
     const mimeType = typeof candidate.mimeType === 'string' && candidate.mimeType.startsWith('image/')
       ? candidate.mimeType
-      : (mimeFromExt || 'image/png');
+      : mimeFromExt;
 
     valid.push({
       id: typeof candidate.id === 'string' && candidate.id.trim() ? candidate.id.trim() : randomUUID(),

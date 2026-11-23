@@ -487,7 +487,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({ message, codeServerP
                   key={att.id || att.path}
                   type="button"
                   onClick={() => setLightboxImage({ src: resolvedUrl, alt: att.name })}
-                  className="group relative rounded-xl overflow-hidden border border-base-300/70 bg-base-100/20 shadow-sm hover:ring-2 hover:ring-primary/50 transition-all cursor-zoom-in"
+                  className="group relative min-w-[80px] min-h-[56px] flex items-center justify-center rounded-xl overflow-hidden border border-base-300/70 bg-base-100/20 shadow-sm hover:ring-2 hover:ring-primary/50 transition-all cursor-zoom-in"
                   title={`Ampliar ${att.name}`}
                   data-testid="message-attachment-thumb"
                 >

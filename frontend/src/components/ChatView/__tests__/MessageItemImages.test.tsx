@@ -50,10 +50,13 @@ describe('MessageItem — Imagens inline e anexos (Issue #210)', () => {
     render(<MessageItem message={message} />);
 
     expect(screen.getByTestId('message-attachments-grid')).toBeInTheDocument();
+    const thumbBtn = screen.getByTestId('message-attachment-thumb');
+    expect(thumbBtn.className).toContain('min-w-[80px]');
+    expect(thumbBtn.className).toContain('min-h-[56px]');
     const thumbImg = screen.getByRole('img', { name: 'erro-tela.png' });
     expect(thumbImg).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('message-attachment-thumb'));
+    fireEvent.click(thumbBtn);
     expect(screen.getByTestId('image-lightbox-modal')).toBeInTheDocument();
   });
 

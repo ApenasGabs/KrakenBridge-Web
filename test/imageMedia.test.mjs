@@ -1,8 +1,10 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import express from 'express';
 
 // 1x1 PNG transparente válido
 const TINY_PNG_BASE64 =
@@ -81,11 +83,15 @@ describe('imageMediaService (Issue #210)', () => {
     );
   });
 
-  it('filtra caminhos fora dos diretórios autorizados em sanitizeChatAttachments', () => {
+  it('filtra caminhos fora dos diretórios autorizados e extensões não-imagem em sanitizeChatAttachments', () => {
     const allowedPath = path.join(tempUploadsDir, 'ok.png');
+    const nonImageTsPath = path.join(tempUploadsDir, 'secret.ts');
+    const nonImageEnvPath = path.join(tempUploadsDir, '.env');
     const result = svc.sanitizeChatAttachments([
       { id: '1', name: 'ok.png', mimeType: 'image/png', size: 120, path: allowedPath, url: '' },
-      { id: '2', name: 'secret.png', mimeType: 'image/png', size: 120, path: '/etc/passwd', url: '' }
+      { id: '2', name: 'secret.png', mimeType: 'image/png', size: 120, path: '/etc/passwd', url: '' },
+      { id: '3', name: 'secret.ts', mimeType: 'image/png', size: 120, path: nonImageTsPath, url: '' },
+      { id: '4', name: '.env', mimeType: 'image/png', size: 120, path: nonImageEnvPath, url: '' }
     ]);
 
     assert.equal(result.length, 1);
@@ -110,5 +116,137 @@ describe('imageMediaService (Issue #210)', () => {
     const withoutText = svc.buildPromptWithAttachments('   ', [att]);
     assert.ok(withoutText.includes('/workspace/erro.png'));
     assert.ok(withoutText.includes('Analise a(s) imagem(ns)'));
+  });
+});
+
+describe('Rotas HTTP /api/files/upload-image e /api/files/media (Issue #210)', () => {
+  let tempUploadsDir = '';
+  let server;
+  let baseUrl = '';
+
+  before(async () => {
+    tempUploadsDir = await fs.mkdtemp(path.join(os.tmpdir(), 'kraken-files-http-test-'));
+    process.env.KRAKEN_UPLOADS_DIR = tempUploadsDir;
+
+    const { filesRouter } = await import('../dist-server/routes/files.js');
+    const app = express();
+    app.use('/api/files', filesRouter);
+
+    server = http.createServer(app);
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const addr = server.address();
+    baseUrl = `http://127.0.0.1:${addr.port}`;
+  });
+
+  after(async () => {
+    delete process.env.KRAKEN_UPLOADS_DIR;
+    if (server) {
+      await new Promise((resolve) => server.close(resolve));
+    }
+    if (tempUploadsDir) {
+      await fs.rm(tempUploadsDir, { recursive: true, force: true });
+    }
+  });
+
+  it('POST /api/files/upload-image retorna 201 para imagem válida, 400 para MIME spoof/SVG e 413 para > 10MB', async () => {
+    // 1. 201 válido
+    const validRes = await fetch(`${baseUrl}/api/files/upload-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: 'evidencia.png',
+        mimeType: 'image/png',
+        dataBase64: `data:image/png;base64,${TINY_PNG_BASE64}`,
+        conversationId: 'http-conv-1'
+      })
+    });
+    assert.equal(validRes.status, 201);
+    const validBody = await validRes.json();
+    assert.equal(validBody.ok, true);
+    assert.equal(validBody.attachment.mimeType, 'image/png');
+    assert.ok(validBody.attachment.path.startsWith(tempUploadsDir));
+
+    // 2. 400 MIME spoof
+    const spoofRes = await fetch(`${baseUrl}/api/files/upload-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: 'fake.png',
+        mimeType: 'image/png',
+        dataBase64: Buffer.from('not-a-png').toString('base64')
+      })
+    });
+    assert.equal(spoofRes.status, 400);
+
+    // 3. 400 SVG não suportado no upload
+    const svgRes = await fetch(`${baseUrl}/api/files/upload-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: 'xss.svg',
+        mimeType: 'image/svg+xml',
+        dataBase64: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>').toString('base64')
+      })
+    });
+    assert.equal(svgRes.status, 400);
+
+    // 4. 413 > 10MB
+    const oversizedBuf = Buffer.alloc(10 * 1024 * 1024 + 2048, 0);
+    const bigRes = await fetch(`${baseUrl}/api/files/upload-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filename: 'grande.png',
+        mimeType: 'image/png',
+        dataBase64: oversizedBuf.toString('base64')
+      })
+    });
+    assert.equal(bigRes.status, 413);
+  });
+
+  it('GET /api/files/media serve imagens com headers seguros, bloqueia /etc/passwd, traversal e symlinks com 403 e rejeita não-imagens com 415', async () => {
+    const pngPath = path.join(tempUploadsDir, 'sample.png');
+    const svgPath = path.join(tempUploadsDir, 'diagram.svg');
+    const txtPath = path.join(tempUploadsDir, 'notes.txt');
+    const symlinkPath = path.join(tempUploadsDir, 'leak.png');
+
+    await fs.writeFile(pngPath, Buffer.from(TINY_PNG_BASE64, 'base64'));
+    await fs.writeFile(svgPath, '<svg xmlns="http://www.w3.org/2000/svg"><circle cx="5" cy="5" r="4"/></svg>', 'utf8');
+    await fs.writeFile(txtPath, 'segredo', 'utf8');
+    await fs.symlink('/etc/passwd', symlinkPath);
+
+    // 1. 200 PNG + X-Content-Type-Options: nosniff
+    const pngRes = await fetch(`${baseUrl}/api/files/media?path=${encodeURIComponent(pngPath)}`);
+    assert.equal(pngRes.status, 200);
+    assert.equal(pngRes.headers.get('content-type'), 'image/png');
+    assert.equal(pngRes.headers.get('x-content-type-options'), 'nosniff');
+
+    // 2. 200 SVG + Content-Security-Policy: sandbox
+    const svgRes = await fetch(`${baseUrl}/api/files/media?path=${encodeURIComponent(svgPath)}`);
+    assert.equal(svgRes.status, 200);
+    assert.equal(svgRes.headers.get('content-type'), 'image/svg+xml');
+    assert.equal(svgRes.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(svgRes.headers.get('content-security-policy'), 'sandbox');
+
+    // 3. 403 para caminho absoluto fora dos diretórios permitidos (/etc/passwd)
+    const etcRes = await fetch(`${baseUrl}/api/files/media?path=${encodeURIComponent('/etc/passwd')}`);
+    assert.equal(etcRes.status, 403);
+
+    // 4. 403 para path traversal relativo (../../etc/passwd)
+    const traversalRes = await fetch(`${baseUrl}/api/files/media?path=${encodeURIComponent('../../etc/passwd')}`);
+    assert.equal(traversalRes.status, 403);
+
+    // 5. 403 para symlink apontando para fora dos diretórios permitidos
+    const symlinkRes = await fetch(`${baseUrl}/api/files/media?path=${encodeURIComponent(symlinkPath)}`);
+    assert.equal(symlinkRes.status, 403);
+
+    // 6. 415 para extensão não-imagem em diretório permitido
+    const txtRes = await fetch(`${baseUrl}/api/files/media?path=${encodeURIComponent(txtPath)}`);
+    assert.equal(txtRes.status, 415);
+
+    // 7. 404 para imagem inexistente em diretório permitido
+    const missingPath = path.join(tempUploadsDir, 'nao-existe.png');
+    const missingRes = await fetch(`${baseUrl}/api/files/media?path=${encodeURIComponent(missingPath)}`);
+    assert.equal(missingRes.status, 404);
   });
 });

@@ -218,6 +218,49 @@ filesRouter.post('/upload-image', express.json({ limit: '16mb' }), async (req: R
   }
 });
 
+const hasTraversalSegment = (inputPath: string): boolean => {
+  return inputPath.replace(/\\/g, '/').split('/').includes('..');
+};
+
+const isExplicitAbsolutePath = (inputPath: string): boolean => {
+  return (
+    inputPath.startsWith('/') ||
+    inputPath.startsWith('\\') ||
+    /^[a-zA-Z]:/.test(inputPath)
+  );
+};
+
+const resolveMediaCandidatePaths = (cleanPath: string, subproject?: string): string[] => {
+  const workspaceBase = path.resolve(process.env.WORKSPACE_DIR || '/workspace');
+  const candidates: string[] = [];
+
+  if (isExplicitAbsolutePath(cleanPath)) {
+    const resolvedAbs = path.resolve(cleanPath);
+    candidates.push(resolvedAbs);
+
+    if (
+      subproject &&
+      (resolvedAbs === workspaceBase || resolvedAbs.startsWith(`${workspaceBase}${path.sep}`))
+    ) {
+      const subRel = resolvedAbs.slice(workspaceBase.length).replace(/^[/\\]+/, '');
+      if (subRel && !subRel.startsWith(`${subproject}/`) && subRel !== subproject) {
+        candidates.push(path.resolve(workspaceBase, subproject, subRel));
+      }
+    }
+    return Array.from(new Set(candidates));
+  }
+
+  if (subproject) {
+    candidates.push(path.resolve(workspaceBase, subproject, cleanPath));
+  }
+  candidates.push(path.resolve(workspaceBase, cleanPath));
+  candidates.push(path.resolve('/app', cleanPath));
+  candidates.push(path.resolve(process.cwd(), cleanPath));
+  candidates.push(path.resolve('/root/.gemini/antigravity-cli/brain', cleanPath));
+
+  return Array.from(new Set(candidates));
+};
+
 /**
  * Serve imagens binárias de forma segura (uploads do usuário, screenshots e imagens geradas pelo agente).
  * Restrito aos diretórios autorizados via isPathAllowed() e somente extensões de imagem.
@@ -231,7 +274,28 @@ filesRouter.get('/media', async (req: Request, res: Response) => {
   }
 
   const cleanPath = cleanRawPath(rawPath);
-  const candidates = resolveCandidatePaths(cleanPath, subproject);
+  if (
+    !cleanPath ||
+    cleanPath.includes('\0') ||
+    hasTraversalSegment(cleanPath) ||
+    (subproject && (subproject.includes('\0') || hasTraversalSegment(subproject) || isExplicitAbsolutePath(subproject)))
+  ) {
+    return res.status(403).json({
+      error: 'Acesso negado: caminho inválido ou tentativa de path traversal detectada.',
+      path: cleanPath
+    });
+  }
+
+  if (isExplicitAbsolutePath(cleanPath)) {
+    if ((process.platform !== 'win32' && /^[a-zA-Z]:/.test(cleanPath)) || !isPathAllowed(path.resolve(cleanPath))) {
+      return res.status(403).json({
+        error: 'Acesso negado: o caminho solicitado está fora dos diretórios autorizados do Kraken.',
+        path: cleanPath
+      });
+    }
+  }
+
+  const candidates = resolveMediaCandidatePaths(cleanPath, subproject);
   let hasAnyAllowedCandidate = false;
 
   for (const candidate of candidates) {
@@ -240,19 +304,30 @@ filesRouter.get('/media', async (req: Request, res: Response) => {
 
     try {
       if (!fsSync.existsSync(candidate)) continue;
-      const stat = await fs.stat(candidate);
+
+      const realPath = await fs.realpath(candidate);
+      if (!isPathAllowed(realPath)) {
+        return res.status(403).json({
+          error: 'Acesso negado: o caminho solicitado aponta para fora dos diretórios autorizados do Kraken.',
+          path: cleanPath
+        });
+      }
+
+      const stat = await fs.stat(realPath);
       if (!stat.isFile()) continue;
 
-      const mimeType = getMediaMimeType(candidate);
+      const candidateMime = getMediaMimeType(candidate);
+      const realMime = getMediaMimeType(realPath);
+      const mimeType = candidateMime && realMime ? realMime : null;
       if (!mimeType) {
         return res.status(415).json({ error: 'Tipo de arquivo não suportado para visualização de mídia.', path: candidate });
       }
 
       if (stat.size > MAX_MEDIA_READ_BYTES) {
-        return res.status(413).json({ error: 'Imagem muito grande para exibição inline (> 20MB).', path: candidate });
+        return res.status(413).json({ error: 'Imagem muito grande para exibição inline (> 20MB).', path: realPath });
       }
 
-      const fileBuffer = await fs.readFile(candidate);
+      const fileBuffer = await fs.readFile(realPath);
       res.setHeader('Content-Type', mimeType);
       res.setHeader('Content-Length', String(fileBuffer.length));
       res.setHeader('X-Content-Type-Options', 'nosniff');

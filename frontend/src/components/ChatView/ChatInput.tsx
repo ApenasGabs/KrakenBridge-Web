@@ -285,6 +285,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const initialTextRef = useRef<string>('');
+  const attachmentsRef = useRef<ChatImageAttachment[]>(attachments);
+  attachmentsRef.current = attachments;
   const hasSendableContent = Boolean(prompt.trim() || attachments.length > 0);
 
   const handleImageFiles = useCallback(async (fileList: FileList | File[]) => {
@@ -297,7 +299,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     const allowedMimes = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']);
 
     setImageUploadError(null);
-    const availableSlots = Math.max(0, maxImages - attachments.length);
+    const availableSlots = Math.max(0, maxImages - attachmentsRef.current.length);
     if (availableSlots === 0) {
       setImageUploadError(`Limite máximo de ${maxImages} imagens por mensagem atingido.`);
       return;
@@ -326,7 +328,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         }
       }
       if (uploaded.length > 0) {
-        onAttachmentsChange([...attachments, ...uploaded]);
+        const nextAttachments = [...attachmentsRef.current, ...uploaded].slice(0, maxImages);
+        attachmentsRef.current = nextAttachments;
+        onAttachmentsChange(nextAttachments);
       }
       if (errors.length > 0) {
         setImageUploadError(errors[0]);
@@ -337,13 +341,15 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         fileInputRef.current.value = '';
       }
     }
-  }, [attachments, conversationId, effectiveDisabled, isOnline, onAttachmentsChange]);
+  }, [conversationId, effectiveDisabled, isOnline, onAttachmentsChange]);
 
   const handleRemoveAttachment = useCallback((id: string) => {
     if (!onAttachmentsChange) return;
-    onAttachmentsChange(attachments.filter((att) => att.id !== id));
+    const nextAttachments = attachmentsRef.current.filter((att) => att.id !== id);
+    attachmentsRef.current = nextAttachments;
+    onAttachmentsChange(nextAttachments);
     setImageUploadError(null);
-  }, [attachments, onAttachmentsChange]);
+  }, [onAttachmentsChange]);
 
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const items = e.clipboardData?.items;
