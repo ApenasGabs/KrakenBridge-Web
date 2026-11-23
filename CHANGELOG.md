@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.49.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.48.3...v1.49.0) (2026-11-23)
+
+### ✨ Features
+
+* **chat:** Suporte a envio de imagens e exibição inline com lightbox ([#211](https://github.com/ApenasGabs/KrakenBridge-Web/issues/211)) ([b54dd9f](https://github.com/ApenasGabs/KrakenBridge-Web/commit/b54dd9f6d51ac77b85e0d5ab2a62b8c07aa95a7b)), closes [#210](https://github.com/ApenasGabs/KrakenBridge-Web/issues/210) [#210](https://github.com/ApenasGabs/KrakenBridge-Web/issues/210) [#210](https://github.com/ApenasGabs/KrakenBridge-Web/issues/210)
+
 ## [1.48.3](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.48.2...v1.48.3) (2026-11-22)
 
 ### 🐛 Bug Fixes
