@@ -20,8 +20,12 @@ import {
   Zap,
   Flame,
   Radio,
-  Play
+  Play,
+  DollarSign,
+  Cpu
 } from 'lucide-react';
+import { formatUsd } from '../../utils/currencyFormat';
+import { formatTokens } from '../../utils/waterConsumption';
 
 export const PaperclipDashboard: React.FC = () => {
   const [snapshot, setSnapshot] = useState<PaperclipStateSnapshot | null>(null);
@@ -273,7 +277,7 @@ export const PaperclipDashboard: React.FC = () => {
       )}
 
       {/* Cartões Rápidos de Resumo */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="bg-base-200/40 border border-base-300 p-3 rounded-xl flex flex-col items-center text-center">
           <span className="text-xs text-base-content/60">Agentes</span>
           <span className="text-xl font-bold text-base-content">{stats.totalAgents}</span>
@@ -308,6 +312,27 @@ export const PaperclipDashboard: React.FC = () => {
           <span className="text-xs text-base-content/60">PRs Abertos</span>
           <span className="text-xl font-bold text-primary">{stats.openPrsCount}</span>
           <span className="text-[10px] text-base-content/50">com auditoria CI</span>
+        </div>
+
+        <div
+          data-testid="paperclip-estimated-cost-card"
+          className="col-span-2 sm:col-span-2 lg:col-span-1 bg-base-200/40 border border-emerald-500/30 p-3 rounded-xl flex flex-col items-center text-center"
+        >
+          <span className="text-xs text-base-content/60 flex items-center gap-1">
+            <DollarSign className="w-3 h-3 text-emerald-500" />
+            Custo Est. (USD)
+          </span>
+          <span
+            data-testid="paperclip-estimated-cost-value"
+            className="text-xl font-bold font-mono text-emerald-500"
+          >
+            {formatUsd(snapshot?.costSummary?.totalEstimatedCostUsd ?? 0)}
+          </span>
+          <span className="text-[10px] text-base-content/50">
+            {snapshot?.costSummary?.totalTokens
+              ? `${formatTokens(snapshot.costSummary.totalTokens)} tokens`
+              : 'base 1M tokens'}
+          </span>
         </div>
       </div>
 
@@ -348,13 +373,29 @@ export const PaperclipDashboard: React.FC = () => {
                         {agent.name.slice(0, 2).toUpperCase()}
                       </div>
                       <div>
-                        <div className="font-bold text-xs sm:text-sm text-base-content flex items-center gap-1.5">
+                        <div className="font-bold text-xs sm:text-sm text-base-content flex items-center gap-1.5 flex-wrap">
                           {agent.name}
                           <span className={`badge badge-xs font-semibold ${
                             isError ? 'badge-error' : isRunning ? 'badge-info' : 'badge-success'
                           }`}>
                             {agent.status.toUpperCase()}
                           </span>
+                          {typeof agent.estimatedCostUsd === 'number' ? (
+                            <span
+                              data-testid={`agent-cost-${agent.id}`}
+                              className="badge badge-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-mono font-bold"
+                              title="Custo estimado equivalente por 1M tokens"
+                            >
+                              {formatUsd(agent.estimatedCostUsd)}
+                            </span>
+                          ) : agent.tokenUsage && agent.tokenUsage.totalTokens > 0 ? (
+                            <span
+                              className="badge badge-xs badge-ghost font-mono text-base-content/60"
+                              title="Modelo não tarifado (auto ou desconhecido)"
+                            >
+                              Não tarifado
+                            </span>
+                          ) : null}
                         </div>
                         <p className="text-[11px] text-base-content/60 truncate max-w-[200px] sm:max-w-[260px]">
                           {agent.title || agent.role}
@@ -389,6 +430,22 @@ export const PaperclipDashboard: React.FC = () => {
                       <div className="text-base-content/50 text-[11px] flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         Último heartbeat: {agent.lastHeartbeatAt ? new Date(agent.lastHeartbeatAt).toLocaleTimeString('pt-BR') : 'sem registro'}
+                      </div>
+                    )}
+
+                    {agent.tokenUsage && agent.tokenUsage.totalTokens > 0 && (
+                      <div className="flex items-center justify-between text-[11px] text-base-content/60 font-mono">
+                        <span className="truncate">
+                          {agent.model ? `${agent.model} • ` : ''}
+                          {formatTokens(agent.tokenUsage.inputTokens)} in
+                          {agent.tokenUsage.cachedInputTokens > 0 ? ` • ${formatTokens(agent.tokenUsage.cachedInputTokens)} cache` : ''}
+                          {' '}• {formatTokens(agent.tokenUsage.outputTokens)} out
+                        </span>
+                        {agent.tokenUsage.unpricedTokens > 0 && (
+                          <span className="text-[10px] text-base-content/50 shrink-0 ml-2">
+                            ({formatTokens(agent.tokenUsage.unpricedTokens)} auto)
+                          </span>
+                        )}
                       </div>
                     )}
 
@@ -602,6 +659,57 @@ export const PaperclipDashboard: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Estimativa de Custo por Modelo (Paperclip) */}
+          {snapshot?.costSummary && snapshot.costSummary.modelBreakdown.length > 0 && (
+            <div
+              data-testid="paperclip-model-costs"
+              className="bg-base-100 p-4 rounded-2xl border border-base-300 space-y-3"
+            >
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h4 className="text-xs font-bold text-base-content uppercase tracking-wider flex items-center gap-1.5">
+                  <Cpu className="w-3.5 h-3.5 text-emerald-500" />
+                  Custo Estimado por Modelo (1M Tokens)
+                </h4>
+                <span className="text-xs font-mono font-bold text-emerald-500">
+                  Total: {formatUsd(snapshot.costSummary.totalEstimatedCostUsd)}
+                  {snapshot.costSummary.unpricedTokens > 0 && (
+                    <span className="text-base-content/50 font-normal ml-1.5">
+                      (+{formatTokens(snapshot.costSummary.unpricedTokens)} não tarifados)
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {snapshot.costSummary.modelBreakdown.map((item) => {
+                  const totalModelTokens = item.inputTokens + item.cachedInputTokens + item.outputTokens;
+                  return (
+                    <div
+                      key={item.model}
+                      className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-base-200/40 border border-base-300 text-xs font-mono"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-bold text-base-content truncate">{item.model}</div>
+                        <div className="text-[10px] text-base-content/60">
+                          {formatTokens(totalModelTokens)} tokens • {item.eventCount} runs
+                        </div>
+                      </div>
+                      {item.isPriced && typeof item.estimatedCostUsd === 'number' ? (
+                        <span className="font-bold text-emerald-500 shrink-0">
+                          {formatUsd(item.estimatedCostUsd)}
+                        </span>
+                      ) : (
+                        <span className="badge badge-xs badge-ghost text-base-content/60 shrink-0">
+                          Não tarifado
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

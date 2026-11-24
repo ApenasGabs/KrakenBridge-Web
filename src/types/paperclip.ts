@@ -1,5 +1,13 @@
 export type AgentStatus = 'idle' | 'running' | 'error' | 'paused' | 'offline' | string;
 
+export interface PaperclipAgentTokenUsage {
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  unpricedTokens: number;
+}
+
 export interface PaperclipAgent {
   id: string;
   companyId: string;
@@ -10,6 +18,7 @@ export interface PaperclipAgent {
   lifecycleState?: string;
   reportsTo?: string | null;
   adapterType?: string;
+  model?: string;
   lastHeartbeatAt?: string;
   currentRunId?: string;
   currentIssueId?: string;
@@ -19,6 +28,9 @@ export interface PaperclipAgent {
   lastError?: string;
   lastErrorDetails?: string;
   icon?: string | null;
+  estimatedCostUsd?: number | null;
+  reportedCostUsd?: number;
+  tokenUsage?: PaperclipAgentTokenUsage;
 }
 
 export type IssueStatus = 'todo' | 'in_progress' | 'blocked' | 'in_review' | 'done' | string;
@@ -84,6 +96,32 @@ export interface PaperclipRun {
     lastConfirmedActivityAt?: string;
   };
   retryExhaustedReason?: string | null;
+  estimatedCostUsd?: number | null;
+}
+
+export interface PaperclipModelCostBreakdown {
+  model: string;
+  canonicalModel: string | null;
+  isPriced: boolean;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  eventCount: number;
+  estimatedCostUsd: number | null;
+}
+
+export interface PaperclipCostSummary {
+  totalEstimatedCostUsd: number;
+  totalReportedCostUsd: number;
+  totalInputTokens: number;
+  totalCachedInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  unpricedTokens: number;
+  unpricedEventsCount: number;
+  totalEventsCount: number;
+  budgetMonthlyUsd?: number;
+  modelBreakdown: PaperclipModelCostBreakdown[];
 }
 
 export interface PaperclipProjectProgress {
@@ -222,4 +260,5 @@ export interface PaperclipStateSnapshot {
   openPrs: EnrichedPullRequest[];
   stalls: DetectedStall[];
   timeline: PaperclipTimelineEvent[];
+  costSummary?: PaperclipCostSummary;
 }

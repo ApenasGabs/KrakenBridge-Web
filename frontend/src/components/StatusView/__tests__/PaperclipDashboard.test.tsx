@@ -31,6 +31,15 @@ describe('PaperclipDashboard UI Component (Issue #141)', () => {
         role: 'engineer',
         title: 'Principal Systems Engineer',
         status: 'error',
+        model: 'gemini-4-argon-high',
+        estimatedCostUsd: 14.5,
+        tokenUsage: {
+          inputTokens: 2000000,
+          cachedInputTokens: 0,
+          outputTokens: 500000,
+          totalTokens: 2500000,
+          unpricedTokens: 0
+        },
         lastError: 'RESOURCE_EXHAUSTED 429',
         lastErrorDetails: 'AGY_ERROR: quota limit exceeded for all accounts'
       },
@@ -125,7 +134,40 @@ describe('PaperclipDashboard UI Component (Issue #141)', () => {
         severity: 'error' as const,
         agentName: 'Kraken Forge'
       }
-    ]
+    ],
+    costSummary: {
+      totalEstimatedCostUsd: 14.5,
+      totalReportedCostUsd: 0,
+      totalInputTokens: 2000000,
+      totalCachedInputTokens: 0,
+      totalOutputTokens: 500000,
+      totalTokens: 2500000,
+      unpricedTokens: 100000,
+      unpricedEventsCount: 1,
+      totalEventsCount: 10,
+      modelBreakdown: [
+        {
+          model: 'gemini-4-argon-high',
+          canonicalModel: 'gemini-4-argon',
+          isPriced: true,
+          inputTokens: 2000000,
+          cachedInputTokens: 0,
+          outputTokens: 500000,
+          eventCount: 9,
+          estimatedCostUsd: 14.5
+        },
+        {
+          model: 'auto',
+          canonicalModel: null,
+          isPriced: false,
+          inputTokens: 100000,
+          cachedInputTokens: 0,
+          outputTokens: 0,
+          eventCount: 1,
+          estimatedCostUsd: null
+        }
+      ]
+    }
   };
 
   beforeEach(() => {
@@ -202,6 +244,19 @@ describe('PaperclipDashboard UI Component (Issue #141)', () => {
     await waitFor(() => {
       expect(screen.getByText('Agente Kraken Forge mudou para ERROR')).toBeDefined();
       expect(screen.getByText(/Erro: adapter_failed/i)).toBeDefined();
+    });
+  });
+
+  it('deve exibir o custo estimado (USD) total da empresa e breakdown por modelo', async () => {
+    render(<PaperclipDashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('paperclip-estimated-cost-card')).toBeDefined();
+      expect(screen.getByTestId('paperclip-estimated-cost-value')).toHaveTextContent('$14.50');
+      expect(screen.getByTestId('agent-cost-ag-forge')).toHaveTextContent('$14.50');
+      expect(screen.getByTestId('paperclip-model-costs')).toBeDefined();
+      expect(screen.getByText('gemini-4-argon-high')).toBeDefined();
+      expect(screen.getByText('Não tarifado')).toBeDefined();
     });
   });
 });

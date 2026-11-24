@@ -39,9 +39,13 @@ export interface TokenUsageRecord {
   model: string;
   agent: string;
   input_tokens: number;
+  cached_input_tokens?: number;
   output_tokens: number;
   thinking_tokens?: number;
   total_tokens: number;
+  estimatedCostUsd?: number | null;
+  isPriced?: boolean;
+  canonicalModel?: string | null;
 }
 
 export interface TokenAggregatedUsage {
@@ -51,6 +55,8 @@ export interface TokenAggregatedUsage {
   thinking_tokens: number;
   sessions_count: number;
   last_recorded_at: string | null;
+  estimatedCostUsd?: number;
+  unpricedTurnsCount?: number;
 }
 
 export interface AccountModelQuotaSummary {

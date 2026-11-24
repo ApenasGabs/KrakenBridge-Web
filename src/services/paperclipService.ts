@@ -6,6 +6,7 @@ import type { Response } from 'express';
 import { pushNotificationService } from './pushNotificationService.js';
 import { PrReviewSlaService } from './prReviewSlaService.js';
 import { PaperclipAutoRemediationService } from './paperclipAutoRemediationService.js';
+import { calculateTokenCostUsd, roundUsd } from '../utils/modelPricing.js';
 import type {
   PaperclipAgent,
   PaperclipIssue,
@@ -15,6 +16,8 @@ import type {
   PaperclipTimelineEvent,
   DetectedStall,
   PaperclipStateSnapshot,
+  PaperclipCostSummary,
+  PaperclipModelCostBreakdown,
   PaperclipEventType
 } from '../types/paperclip.js';
 
@@ -97,7 +100,19 @@ export class PaperclipService {
       projectsProgress: [],
       openPrs: [],
       stalls: [],
-      timeline: []
+      timeline: [],
+      costSummary: {
+        totalEstimatedCostUsd: 0,
+        totalReportedCostUsd: 0,
+        totalInputTokens: 0,
+        totalCachedInputTokens: 0,
+        totalOutputTokens: 0,
+        totalTokens: 0,
+        unpricedTokens: 0,
+        unpricedEventsCount: 0,
+        totalEventsCount: 0,
+        modelBreakdown: []
+      }
     };
 
     this.prReviewSlaService = new PrReviewSlaService({
@@ -259,6 +274,13 @@ export class PaperclipService {
       // 4. Busca Live Runs (execuções ativas agora)
       const rawLiveRuns = await this.fetchPaperclip<any[]>(`/api/companies/${this.companyId}/live-runs`).catch(() => []);
 
+      // 4.1 Busca custos & tokens do Paperclip (por agente+modelo, por agente e resumo)
+      const [rawCostByAgentModel, rawCostByAgent, rawCostSummary] = await Promise.all([
+        this.fetchPaperclip<Record<string, unknown>[]>(`/api/companies/${this.companyId}/costs/by-agent-model`).catch(() => []),
+        this.fetchPaperclip<Record<string, unknown>[]>(`/api/companies/${this.companyId}/costs/by-agent`).catch(() => []),
+        this.fetchPaperclip<Record<string, unknown> | null>(`/api/companies/${this.companyId}/costs/summary`).catch(() => null)
+      ]);
+
       // 5. Busca PRs dos repositórios monitorados
       const openPrs = await this.fetchEnrichedPRs();
 
@@ -269,12 +291,20 @@ export class PaperclipService {
         console.warn('[PaperclipService] Falha na avaliação de SLA de PRs:', (slaErr as Error).message);
       }
 
+      const { agentCostMap, costSummary } = this.buildCostSnapshot(
+        rawAgents,
+        rawCostByAgentModel,
+        rawCostByAgent,
+        rawCostSummary
+      );
+
       // Normaliza agentes
       const agents: PaperclipAgent[] = rawAgents.map(a => {
         // Encontra run atual se o agente estiver em live runs
         const activeRun = rawLiveRuns.find(r => r.agentId === a.id);
         const lastRun = rawRuns.find(r => r.agentId === a.id);
         const assignedIssue = a.currentIssueId ? rawIssues.find(i => i.id === a.currentIssueId) : undefined;
+        const costInfo = agentCostMap.get(a.id);
 
         // Desmascara erro real
         let realError = a.lastError || null;
@@ -295,6 +325,7 @@ export class PaperclipService {
           lifecycleState: a.lifecycleState,
           reportsTo: a.reportsTo,
           adapterType: a.adapterType,
+          model: a.adapterConfig?.model || costInfo?.primaryModel,
           lastHeartbeatAt: a.lastHeartbeatAt || lastRun?.finishedAt || lastRun?.startedAt,
           currentRunId: activeRun?.id,
           currentIssueId: activeRun?.issueId || a.currentIssueId,
@@ -303,7 +334,10 @@ export class PaperclipService {
           runDurationMs: activeRun?.startedAt ? Date.now() - new Date(activeRun.startedAt).getTime() : undefined,
           lastError: realError,
           lastErrorDetails: realErrorDetails,
-          icon: a.icon
+          icon: a.icon,
+          estimatedCostUsd: costInfo ? costInfo.estimatedCostUsd : null,
+          reportedCostUsd: costInfo?.reportedCostUsd ?? 0,
+          tokenUsage: costInfo?.tokenUsage
         };
       });
 
@@ -346,7 +380,8 @@ export class PaperclipService {
         exitCode: r.exitCode,
         stderr: r.resultJson?.stderr || r.stderr,
         execution: r.execution,
-        retryExhaustedReason: r.retryExhaustedReason
+        retryExhaustedReason: r.retryExhaustedReason,
+        estimatedCostUsd: this.resolveRunEstimatedCostUsd(r)
       }));
 
       const activeRuns: PaperclipRun[] = rawLiveRuns.map(r => ({
@@ -386,7 +421,8 @@ export class PaperclipService {
         projectsProgress,
         openPrs,
         stalls: detectedStalls,
-        timeline: this.snapshot.timeline
+        timeline: this.snapshot.timeline,
+        costSummary
       };
 
       // Dispara detecção de transições de eventos e notificações
@@ -406,6 +442,267 @@ export class PaperclipService {
     }
 
     return this.snapshot;
+  }
+
+  /**
+   * Calcula custo estimado em USD para um heartbeat-run do Paperclip
+   */
+  private resolveRunEstimatedCostUsd(run: Record<string, unknown>): number | null {
+    const usageJson = (run.usageJson && typeof run.usageJson === 'object') ? (run.usageJson as Record<string, unknown>) : null;
+    const directCostUsd = Number(run.costUsd ?? usageJson?.costUsd ?? usageJson?.cacheAdjustedCostUsd);
+    if (Number.isFinite(directCostUsd) && directCostUsd > 0) {
+      return roundUsd(directCostUsd);
+    }
+
+    const estimatedApiCostCents = Number(run.estimatedApiCostCents ?? usageJson?.estimatedApiCostCents);
+    if (Number.isFinite(estimatedApiCostCents) && estimatedApiCostCents > 0) {
+      return roundUsd(estimatedApiCostCents / 100);
+    }
+
+    const model = typeof usageJson?.model === 'string' ? usageJson.model : undefined;
+    const inputTokens = Number(run.inputTokens ?? usageJson?.inputTokens ?? 0);
+    const cachedInputTokens = Number(run.cachedInputTokens ?? usageJson?.cachedInputTokens ?? 0);
+    const outputTokens = Number(run.outputTokens ?? usageJson?.outputTokens ?? 0);
+
+    const calc = calculateTokenCostUsd({
+      model,
+      inputTokens,
+      cachedInputTokens,
+      outputTokens
+    });
+
+    return calc.costUsd;
+  }
+
+  /**
+   * Consolida custos estimados (USD) por agente e da empresa a partir dos dados do Paperclip
+   */
+  public buildCostSnapshot(
+    rawAgents: Record<string, unknown>[],
+    rawCostByAgentModel: Record<string, unknown>[],
+    rawCostByAgent: Record<string, unknown>[],
+    rawCostSummary: Record<string, unknown> | null
+  ): {
+    agentCostMap: Map<string, {
+      estimatedCostUsd: number | null;
+      reportedCostUsd: number;
+      primaryModel?: string;
+      tokenUsage: {
+        inputTokens: number;
+        cachedInputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+        unpricedTokens: number;
+      };
+    }>;
+    costSummary: PaperclipCostSummary;
+  } {
+    const agentCostMap = new Map<string, {
+      estimatedCostUsd: number | null;
+      reportedCostUsd: number;
+      primaryModel?: string;
+      tokenUsage: {
+        inputTokens: number;
+        cachedInputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+        unpricedTokens: number;
+      };
+    }>();
+
+    const modelAggMap = new Map<string, PaperclipModelCostBreakdown>();
+
+    let totalEstimatedCostUsd = 0;
+    let totalReportedCostUsd = 0;
+    let totalInputTokens = 0;
+    let totalCachedInputTokens = 0;
+    let totalOutputTokens = 0;
+    let unpricedTokens = 0;
+    let unpricedEventsCount = 0;
+    let totalEventsCount = 0;
+
+    const ensureAgentEntry = (agentId: string) => {
+      let existing = agentCostMap.get(agentId);
+      if (!existing) {
+        existing = {
+          estimatedCostUsd: null,
+          reportedCostUsd: 0,
+          tokenUsage: {
+            inputTokens: 0,
+            cachedInputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            unpricedTokens: 0
+          }
+        };
+        agentCostMap.set(agentId, existing);
+      }
+      return existing;
+    };
+
+    const agentConfiguredModel = new Map<string, string>();
+    for (const ag of rawAgents) {
+      const id = typeof ag.id === 'string' ? ag.id : '';
+      const adapterConfig = (ag.adapterConfig && typeof ag.adapterConfig === 'object') ? (ag.adapterConfig as Record<string, unknown>) : null;
+      const cfgModel = typeof adapterConfig?.model === 'string' ? adapterConfig.model : undefined;
+      if (id && cfgModel) {
+        agentConfiguredModel.set(id, cfgModel);
+      }
+    }
+
+    const useByAgentModel = Array.isArray(rawCostByAgentModel) && rawCostByAgentModel.length > 0;
+
+    const applyCostRow = (row: Record<string, unknown>, includeModelBreakdown: boolean) => {
+      const agentId = typeof row.agentId === 'string' ? row.agentId : '';
+      if (!agentId) return;
+
+      const model = includeModelBreakdown && typeof row.model === 'string' && row.model.trim()
+        ? row.model.trim()
+        : (agentConfiguredModel.get(agentId) || 'auto');
+      const inputTokens = Math.max(0, Number(row.inputTokens) || 0);
+      const cachedInputTokens = Math.max(0, Number(row.cachedInputTokens) || 0);
+      const outputTokens = Math.max(0, Number(row.outputTokens) || 0);
+      const rowTokens = inputTokens + cachedInputTokens + outputTokens;
+      const eventCount = Math.max(0, Number(row.eventCount) || 0);
+
+      const reportedCents = Math.max(0, Number(row.costCents) || 0);
+      const estimatedApiCents = Number(row.estimatedApiCostCents);
+      const reportedUsd = reportedCents / 100;
+
+      const calc = calculateTokenCostUsd({
+        model,
+        inputTokens,
+        cachedInputTokens,
+        outputTokens
+      });
+
+      const rowCostUsd = Number.isFinite(estimatedApiCents) && estimatedApiCents > 0
+        ? roundUsd(estimatedApiCents / 100)
+        : calc.isPriced && calc.costUsd !== null
+          ? calc.costUsd
+          : reportedUsd > 0
+            ? roundUsd(reportedUsd)
+            : null;
+
+      const entry = ensureAgentEntry(agentId);
+      entry.tokenUsage.inputTokens += inputTokens;
+      entry.tokenUsage.cachedInputTokens += cachedInputTokens;
+      entry.tokenUsage.outputTokens += outputTokens;
+      entry.tokenUsage.totalTokens += rowTokens;
+      entry.reportedCostUsd = roundUsd(entry.reportedCostUsd + reportedUsd);
+      if (includeModelBreakdown) {
+        if (!entry.primaryModel && model !== 'auto') {
+          entry.primaryModel = model;
+        }
+      } else {
+        entry.primaryModel = model;
+      }
+
+      totalInputTokens += inputTokens;
+      totalCachedInputTokens += cachedInputTokens;
+      totalOutputTokens += outputTokens;
+      totalReportedCostUsd = roundUsd(totalReportedCostUsd + reportedUsd);
+      totalEventsCount += eventCount;
+
+      if (rowCostUsd !== null) {
+        entry.estimatedCostUsd = roundUsd((entry.estimatedCostUsd ?? 0) + rowCostUsd);
+        totalEstimatedCostUsd = roundUsd(totalEstimatedCostUsd + rowCostUsd);
+      } else {
+        entry.tokenUsage.unpricedTokens += rowTokens;
+        unpricedTokens += rowTokens;
+        unpricedEventsCount += eventCount;
+      }
+
+      if (includeModelBreakdown) {
+        const modEntry = modelAggMap.get(model) || {
+          model,
+          canonicalModel: calc.canonicalModel,
+          isPriced: rowCostUsd !== null,
+          inputTokens: 0,
+          cachedInputTokens: 0,
+          outputTokens: 0,
+          eventCount: 0,
+          estimatedCostUsd: rowCostUsd !== null ? 0 : null
+        };
+        modEntry.inputTokens += inputTokens;
+        modEntry.cachedInputTokens += cachedInputTokens;
+        modEntry.outputTokens += outputTokens;
+        modEntry.eventCount += eventCount;
+        if (rowCostUsd !== null) {
+          modEntry.isPriced = true;
+          modEntry.estimatedCostUsd = roundUsd((modEntry.estimatedCostUsd ?? 0) + rowCostUsd);
+        }
+        modelAggMap.set(model, modEntry);
+      }
+    };
+
+    if (useByAgentModel) {
+      for (const row of rawCostByAgentModel) {
+        applyCostRow(row, true);
+      }
+    } else if (Array.isArray(rawCostByAgent) && rawCostByAgent.length > 0) {
+      for (const row of rawCostByAgent) {
+        applyCostRow(row, false);
+      }
+    }
+
+    // Fallback direto via campos dos próprios agentes (estimatedApiCostCents / spentMonthlyCents)
+    for (const ag of rawAgents) {
+      const agentId = typeof ag.id === 'string' ? ag.id : '';
+      if (!agentId) continue;
+
+      const existing = agentCostMap.get(agentId);
+      const estimatedApiCostCents = Number(ag.estimatedApiCostCents);
+      const spentMonthlyCents = Number(ag.spentMonthlyCents);
+
+      if (!existing) {
+        const entry = ensureAgentEntry(agentId);
+        entry.primaryModel = agentConfiguredModel.get(agentId);
+        if (Number.isFinite(estimatedApiCostCents) && estimatedApiCostCents > 0) {
+          const usd = roundUsd(estimatedApiCostCents / 100);
+          entry.estimatedCostUsd = usd;
+          totalEstimatedCostUsd = roundUsd(totalEstimatedCostUsd + usd);
+        } else if (Number.isFinite(spentMonthlyCents) && spentMonthlyCents > 0) {
+          const usd = roundUsd(spentMonthlyCents / 100);
+          entry.estimatedCostUsd = usd;
+          entry.reportedCostUsd = usd;
+          totalEstimatedCostUsd = roundUsd(totalEstimatedCostUsd + usd);
+          totalReportedCostUsd = roundUsd(totalReportedCostUsd + usd);
+        }
+      } else if (existing.estimatedCostUsd === null && Number.isFinite(estimatedApiCostCents) && estimatedApiCostCents > 0) {
+        const usd = roundUsd(estimatedApiCostCents / 100);
+        existing.estimatedCostUsd = usd;
+        totalEstimatedCostUsd = roundUsd(totalEstimatedCostUsd + usd);
+      }
+    }
+
+    const summaryBudgetCents = Number(rawCostSummary?.budgetCents);
+    const budgetMonthlyUsd = Number.isFinite(summaryBudgetCents) && summaryBudgetCents > 0
+      ? roundUsd(summaryBudgetCents / 100)
+      : undefined;
+
+    const modelBreakdown = Array.from(modelAggMap.values()).sort((a, b) => {
+      const costDiff = (b.estimatedCostUsd ?? -1) - (a.estimatedCostUsd ?? -1);
+      if (costDiff !== 0) return costDiff;
+      return (b.inputTokens + b.cachedInputTokens + b.outputTokens) - (a.inputTokens + a.cachedInputTokens + a.outputTokens);
+    });
+
+    return {
+      agentCostMap,
+      costSummary: {
+        totalEstimatedCostUsd: roundUsd(totalEstimatedCostUsd),
+        totalReportedCostUsd: roundUsd(totalReportedCostUsd),
+        totalInputTokens,
+        totalCachedInputTokens,
+        totalOutputTokens,
+        totalTokens: totalInputTokens + totalCachedInputTokens + totalOutputTokens,
+        unpricedTokens,
+        unpricedEventsCount,
+        totalEventsCount,
+        budgetMonthlyUsd,
+        modelBreakdown
+      }
+    };
   }
 
   /**
@@ -1021,11 +1318,14 @@ export class PaperclipService {
    * Gera o relatório resumo estruturado para o comando de chat /paperclip status
    */
   public getPaperclipSummary(): string {
-    const { agents, issues, stalls, openPrs, projectsProgress, connected, lastPollAt } = this.snapshot;
+    const { agents, issues, stalls, openPrs, projectsProgress, connected, lastPollAt, costSummary } = this.snapshot;
 
     const lines: string[] = [];
     lines.push(`## 📎 Status em Tempo Real do Paperclip`);
-    lines.push(`> **Conexão:** ${connected ? '🟢 Online' : '🔴 Desconectado'} | **Atualizado:** ${new Date(lastPollAt).toLocaleTimeString('pt-BR')} | **Servidor:** \`${this.paperclipPublicUrl}\`\n`);
+    const costLabel = costSummary && costSummary.totalEstimatedCostUsd > 0
+      ? ` | **Custo Estimado (API):** $${costSummary.totalEstimatedCostUsd.toFixed(2)}`
+      : '';
+    lines.push(`> **Conexão:** ${connected ? '🟢 Online' : '🔴 Desconectado'} | **Atualizado:** ${new Date(lastPollAt).toLocaleTimeString('pt-BR')} | **Servidor:** \`${this.paperclipPublicUrl}\`${costLabel}\n`);
 
     // 1. Agentes
     lines.push(`### 🤖 Esquadrão de Agentes`);
