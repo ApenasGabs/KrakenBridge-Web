@@ -16,7 +16,7 @@ export default defineConfig({
       injectRegister: false,
       manifest: false,
       includeAssets: [
-        "kraken-icon.svg",
+        "kraken-symbol.png",
         "apple-touch-icon.png",
         "icon-192x192.png",
         "icon-512x512.png",
@@ -26,6 +26,8 @@ export default defineConfig({
       ],
       injectManifest: {
         globPatterns: ["**/*.{js,css,html,svg,png,ico,webmanifest,woff2}"],
+        // SVGs mestres (~1,2 MB cada) ficam fora do precache; a UI usa os PNGs
+        globIgnores: ["**/kraken-icon.svg", "**/kraken-symbol.svg"],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
       },
     }),

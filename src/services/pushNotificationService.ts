@@ -216,8 +216,8 @@ class PushNotificationService {
     const jsonPayload = JSON.stringify({
       title: payload.title,
       body: payload.body,
-      icon: payload.icon || '/kraken-icon.svg',
-      badge: payload.badge || '/kraken-icon.svg',
+      icon: payload.icon || '/icon-192x192.png',
+      badge: payload.badge || '/icon-192x192.png',
       tag: payload.tag || 'kraken-agent-event',
       data: payload.data || { url: '/' }
     });

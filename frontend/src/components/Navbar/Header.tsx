@@ -88,7 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className="flex items-center gap-1.5 shrink-0">
           <img
-            src="./kraken-icon.svg"
+            src="./kraken-symbol.png"
             alt="Kraken Logo"
             className="w-7 h-7 rounded-lg object-contain shadow-sm"
           />

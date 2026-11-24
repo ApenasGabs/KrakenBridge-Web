@@ -25,7 +25,7 @@ services:
       AISTUDIO_API_KEY: "${AISTUDIO_API_KEY:-}"
     image: node:22
     labels:
-      icon: https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/kraken.png
+      icon: https://raw.githubusercontent.com/ApenasGabs/KrakenBridge-Web/main/frontend/public/icon-512x512.png
       io.zimaos.app.id: zimaapp://v2app/krakenbridge-web
     networks:
       default: null
@@ -98,7 +98,7 @@ x-casaos:
     pt_BR: 'KrakenBridge Web: Ponte Multi-Agente com IA Aut?noma e VS Code Integrado para ZimaOS e Docker. Execute agentes com logs de terminal em tempo real e diffs instant?neos no seu homelab.'
   developer: KrakenBridge Community
   hostname: ""
-  icon: https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/kraken.png
+  icon: https://raw.githubusercontent.com/ApenasGabs/KrakenBridge-Web/main/frontend/public/icon-512x512.png
   id: com.krakenbridge.web
   index: /
   is_uncontrolled: false
@@ -109,7 +109,7 @@ x-casaos:
   tagline:
     en_US: Multi-Agent Autonomous AI Bridge & Web IDE
     pt_BR: Ponte Multi-Agente com IA Aut?noma e Web IDE
-  thumbnail: https://raw.githubusercontent.com/walkxcode/dashboard-icons/main/png/kraken.png
+  thumbnail: https://raw.githubusercontent.com/ApenasGabs/KrakenBridge-Web/main/frontend/public/icon-512x512.png
   title:
     custom: KrakenBridge Web
     en_US: KrakenBridge Studio

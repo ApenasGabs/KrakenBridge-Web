@@ -146,8 +146,8 @@ x-casaos:
       - **VS Code Web Integrado:** Alterne instantaneamente entre o Agente e o editor VS Code no mesmo workspace compartilhado.
       - **Otimizado para ZimaOS:** Montagem nativa de volumes, detecção profunda de repositórios Git e tema escuro responsivo.
   developer: KrakenBridge Community
-  icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-gemini.png
-  thumbnail: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/google-gemini.png
+  icon: https://raw.githubusercontent.com/ApenasGabs/KrakenBridge-Web/main/frontend/public/icon-512x512.png
+  thumbnail: https://raw.githubusercontent.com/ApenasGabs/KrakenBridge-Web/main/frontend/public/icon-512x512.png
   title:
     en_US: KrakenBridge Web
     pt_BR: KrakenBridge Web

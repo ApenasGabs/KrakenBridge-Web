@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { Header } from '../Header';
 
-describe('Header Brand & New Logo Validation (Issue #214)', () => {
+describe('Header Brand & Official Logo Validation (Issue #216)', () => {
   const defaultProps = {
     activeTab: 'chat' as const,
     onTabChange: vi.fn(),
@@ -27,7 +27,7 @@ describe('Header Brand & New Logo Validation (Issue #214)', () => {
 
     const logoImg = screen.getByAltText('Kraken Logo');
     expect(logoImg).toBeInTheDocument();
-    expect(logoImg).toHaveAttribute('src', './kraken-icon.svg');
+    expect(logoImg).toHaveAttribute('src', './kraken-symbol.png');
     expect(logoImg).toHaveClass('w-7', 'h-7', 'object-contain', 'rounded-lg');
   });
 
