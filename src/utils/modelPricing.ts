@@ -204,17 +204,17 @@ const PROVIDER_PREFIX_REGEX = /^(?:google\/|anthropic\/|openai\/|vertex_ai\/|us\
 /**
  * Arredonda valores USD para 6 casas decimais evitando ruído de ponto flutuante.
  */
-export function roundUsd(value: number): number {
+export const roundUsd = (value: number): number => {
   if (!Number.isFinite(value)) return 0;
   return Math.round(value * 1_000_000) / 1_000_000;
-}
+};
 
 /**
  * Normaliza identificadores de modelo removendo prefixos de provedor e sufixos de esforço
  * (-high, -medium, -low, -xhigh, -max, -minimal), resolvendo aliases conhecidos.
  * Retorna null para 'auto', vazio ou modelos não catalogados.
  */
-export function normalizeModelName(rawModel?: string | null): string | null {
+export const normalizeModelName = (rawModel?: string | null): string | null => {
   if (!rawModel || typeof rawModel !== 'string') return null;
   let cleaned = rawModel.trim().toLowerCase();
   if (UNPRICED_SENTINELS.has(cleaned)) return null;
@@ -240,30 +240,30 @@ export function normalizeModelName(rawModel?: string | null): string | null {
   }
 
   return null;
-}
+};
 
 /**
  * Obtém a entrada de tarifação oficial para o modelo informado ou null se não tarifado.
  */
-export function getModelPricing(rawModel?: string | null): ResolvedModelPricing | null {
+export const getModelPricing = (rawModel?: string | null): ResolvedModelPricing | null => {
   const canonicalModel = normalizeModelName(rawModel);
   if (!canonicalModel) return null;
   const pricing = MODEL_PRICING_CATALOG[canonicalModel];
   if (!pricing) return null;
   return { canonicalModel, pricing };
-}
+};
 
-function sanitizeTokenCount(value: unknown): number {
+const sanitizeTokenCount = (value: unknown): number => {
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) return 0;
   return num;
-}
+};
 
 /**
  * Calcula o custo estimado em USD para um volume de tokens e modelo.
  * Retorna costUsd: null e isPriced: false quando o modelo for desconhecido ou 'auto'.
  */
-export function calculateTokenCostUsd(input: TokenCostCalculationInput): TokenCostCalculationResult {
+export const calculateTokenCostUsd = (input: TokenCostCalculationInput): TokenCostCalculationResult => {
   const resolved = getModelPricing(input.model);
   if (!resolved) {
     return {

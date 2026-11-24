@@ -1,7 +1,7 @@
 /**
  * Utilitário compartilhado para formatação de valores estimados em USD.
  */
-export function formatUsd(value?: number | null): string {
+export const formatUsd = (value?: number | null): string => {
   if (value === null || value === undefined || !Number.isFinite(value)) {
     return '—';
   }

@@ -552,62 +552,68 @@ export class PaperclipService {
 
     const useByAgentModel = Array.isArray(rawCostByAgentModel) && rawCostByAgentModel.length > 0;
 
-    if (useByAgentModel) {
-      for (const row of rawCostByAgentModel) {
-        const agentId = typeof row.agentId === 'string' ? row.agentId : '';
-        if (!agentId) continue;
+    const applyCostRow = (row: Record<string, unknown>, includeModelBreakdown: boolean) => {
+      const agentId = typeof row.agentId === 'string' ? row.agentId : '';
+      if (!agentId) return;
 
-        const model = typeof row.model === 'string' && row.model.trim() ? row.model.trim() : (agentConfiguredModel.get(agentId) || 'auto');
-        const inputTokens = Math.max(0, Number(row.inputTokens) || 0);
-        const cachedInputTokens = Math.max(0, Number(row.cachedInputTokens) || 0);
-        const outputTokens = Math.max(0, Number(row.outputTokens) || 0);
-        const rowTokens = inputTokens + cachedInputTokens + outputTokens;
-        const eventCount = Math.max(0, Number(row.eventCount) || 0);
+      const model = includeModelBreakdown && typeof row.model === 'string' && row.model.trim()
+        ? row.model.trim()
+        : (agentConfiguredModel.get(agentId) || 'auto');
+      const inputTokens = Math.max(0, Number(row.inputTokens) || 0);
+      const cachedInputTokens = Math.max(0, Number(row.cachedInputTokens) || 0);
+      const outputTokens = Math.max(0, Number(row.outputTokens) || 0);
+      const rowTokens = inputTokens + cachedInputTokens + outputTokens;
+      const eventCount = Math.max(0, Number(row.eventCount) || 0);
 
-        const reportedCents = Math.max(0, Number(row.costCents) || 0);
-        const estimatedApiCents = Number(row.estimatedApiCostCents);
-        const reportedUsd = reportedCents / 100;
+      const reportedCents = Math.max(0, Number(row.costCents) || 0);
+      const estimatedApiCents = Number(row.estimatedApiCostCents);
+      const reportedUsd = reportedCents / 100;
 
-        const calc = calculateTokenCostUsd({
-          model,
-          inputTokens,
-          cachedInputTokens,
-          outputTokens
-        });
+      const calc = calculateTokenCostUsd({
+        model,
+        inputTokens,
+        cachedInputTokens,
+        outputTokens
+      });
 
-        const rowCostUsd = Number.isFinite(estimatedApiCents) && estimatedApiCents > 0
-          ? roundUsd(estimatedApiCents / 100)
-          : calc.isPriced && calc.costUsd !== null
-            ? calc.costUsd
-            : reportedUsd > 0
-              ? roundUsd(reportedUsd)
-              : null;
+      const rowCostUsd = Number.isFinite(estimatedApiCents) && estimatedApiCents > 0
+        ? roundUsd(estimatedApiCents / 100)
+        : calc.isPriced && calc.costUsd !== null
+          ? calc.costUsd
+          : reportedUsd > 0
+            ? roundUsd(reportedUsd)
+            : null;
 
-        const entry = ensureAgentEntry(agentId);
-        entry.tokenUsage.inputTokens += inputTokens;
-        entry.tokenUsage.cachedInputTokens += cachedInputTokens;
-        entry.tokenUsage.outputTokens += outputTokens;
-        entry.tokenUsage.totalTokens += rowTokens;
-        entry.reportedCostUsd = roundUsd(entry.reportedCostUsd + reportedUsd);
+      const entry = ensureAgentEntry(agentId);
+      entry.tokenUsage.inputTokens += inputTokens;
+      entry.tokenUsage.cachedInputTokens += cachedInputTokens;
+      entry.tokenUsage.outputTokens += outputTokens;
+      entry.tokenUsage.totalTokens += rowTokens;
+      entry.reportedCostUsd = roundUsd(entry.reportedCostUsd + reportedUsd);
+      if (includeModelBreakdown) {
         if (!entry.primaryModel && model !== 'auto') {
           entry.primaryModel = model;
         }
+      } else {
+        entry.primaryModel = model;
+      }
 
-        totalInputTokens += inputTokens;
-        totalCachedInputTokens += cachedInputTokens;
-        totalOutputTokens += outputTokens;
-        totalReportedCostUsd = roundUsd(totalReportedCostUsd + reportedUsd);
-        totalEventsCount += eventCount;
+      totalInputTokens += inputTokens;
+      totalCachedInputTokens += cachedInputTokens;
+      totalOutputTokens += outputTokens;
+      totalReportedCostUsd = roundUsd(totalReportedCostUsd + reportedUsd);
+      totalEventsCount += eventCount;
 
-        if (rowCostUsd !== null) {
-          entry.estimatedCostUsd = roundUsd((entry.estimatedCostUsd ?? 0) + rowCostUsd);
-          totalEstimatedCostUsd = roundUsd(totalEstimatedCostUsd + rowCostUsd);
-        } else {
-          entry.tokenUsage.unpricedTokens += rowTokens;
-          unpricedTokens += rowTokens;
-          unpricedEventsCount += eventCount;
-        }
+      if (rowCostUsd !== null) {
+        entry.estimatedCostUsd = roundUsd((entry.estimatedCostUsd ?? 0) + rowCostUsd);
+        totalEstimatedCostUsd = roundUsd(totalEstimatedCostUsd + rowCostUsd);
+      } else {
+        entry.tokenUsage.unpricedTokens += rowTokens;
+        unpricedTokens += rowTokens;
+        unpricedEventsCount += eventCount;
+      }
 
+      if (includeModelBreakdown) {
         const modEntry = modelAggMap.get(model) || {
           model,
           canonicalModel: calc.canonicalModel,
@@ -628,59 +634,15 @@ export class PaperclipService {
         }
         modelAggMap.set(model, modEntry);
       }
+    };
+
+    if (useByAgentModel) {
+      for (const row of rawCostByAgentModel) {
+        applyCostRow(row, true);
+      }
     } else if (Array.isArray(rawCostByAgent) && rawCostByAgent.length > 0) {
       for (const row of rawCostByAgent) {
-        const agentId = typeof row.agentId === 'string' ? row.agentId : '';
-        if (!agentId) continue;
-
-        const model = agentConfiguredModel.get(agentId) || 'auto';
-        const inputTokens = Math.max(0, Number(row.inputTokens) || 0);
-        const cachedInputTokens = Math.max(0, Number(row.cachedInputTokens) || 0);
-        const outputTokens = Math.max(0, Number(row.outputTokens) || 0);
-        const rowTokens = inputTokens + cachedInputTokens + outputTokens;
-        const eventCount = Math.max(0, Number(row.eventCount) || 0);
-
-        const reportedCents = Math.max(0, Number(row.costCents) || 0);
-        const estimatedApiCents = Number(row.estimatedApiCostCents);
-        const reportedUsd = reportedCents / 100;
-
-        const calc = calculateTokenCostUsd({
-          model,
-          inputTokens,
-          cachedInputTokens,
-          outputTokens
-        });
-
-        const rowCostUsd = Number.isFinite(estimatedApiCents) && estimatedApiCents > 0
-          ? roundUsd(estimatedApiCents / 100)
-          : calc.isPriced && calc.costUsd !== null
-            ? calc.costUsd
-            : reportedUsd > 0
-              ? roundUsd(reportedUsd)
-              : null;
-
-        const entry = ensureAgentEntry(agentId);
-        entry.primaryModel = model;
-        entry.tokenUsage.inputTokens += inputTokens;
-        entry.tokenUsage.cachedInputTokens += cachedInputTokens;
-        entry.tokenUsage.outputTokens += outputTokens;
-        entry.tokenUsage.totalTokens += rowTokens;
-        entry.reportedCostUsd = roundUsd(entry.reportedCostUsd + reportedUsd);
-
-        totalInputTokens += inputTokens;
-        totalCachedInputTokens += cachedInputTokens;
-        totalOutputTokens += outputTokens;
-        totalReportedCostUsd = roundUsd(totalReportedCostUsd + reportedUsd);
-        totalEventsCount += eventCount;
-
-        if (rowCostUsd !== null) {
-          entry.estimatedCostUsd = roundUsd((entry.estimatedCostUsd ?? 0) + rowCostUsd);
-          totalEstimatedCostUsd = roundUsd(totalEstimatedCostUsd + rowCostUsd);
-        } else {
-          entry.tokenUsage.unpricedTokens += rowTokens;
-          unpricedTokens += rowTokens;
-          unpricedEventsCount += eventCount;
-        }
+        applyCostRow(row, false);
       }
     }
 
