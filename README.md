@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="frontend/public/icon-512x512.png" width="180" height="180" alt="KrakenBridge Logo" />
+
 # 🦑 KRAKENBRIDGE WEB
 ### 🌉 Multi-Agent Autonomous AI Bridge & Web IDE
 **Google Antigravity • Claude Code • OpenAI Codex / Aider • VS Code Web**
