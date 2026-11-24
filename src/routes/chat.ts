@@ -996,6 +996,7 @@ chatRouter.post('/', async (req: Request, res: Response) => {
           conversationId,
           durationMs: Date.now() - executionStartTime,
           input_tokens: lastUsage.input_tokens,
+          cached_input_tokens: lastUsage.cached_input_tokens ?? lastUsage.cache_read_input_tokens,
           output_tokens: lastUsage.output_tokens,
           thinking_tokens: lastUsage.thinking_tokens,
           total_tokens: lastUsage.total_tokens

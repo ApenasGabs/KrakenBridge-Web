@@ -16,6 +16,7 @@ import type {
 } from '../types/quota.js';
 import { accountService } from './accountService.js';
 import { claudeAuthService } from './claudeAuthService.js';
+import { calculateTokenCostUsd, roundUsd } from '../utils/modelPricing.js';
 
 const execPromise = util.promisify(exec);
 
@@ -105,6 +106,7 @@ export interface RecordUsageOptions {
   conversationId?: string | null;
   durationMs?: number;
   input_tokens?: number;
+  cached_input_tokens?: number;
   output_tokens?: number;
   thinking_tokens?: number;
   total_tokens?: number;
@@ -351,6 +353,7 @@ class QuotaService {
     conversationId = null,
     durationMs = 0,
     input_tokens = 0,
+    cached_input_tokens = 0,
     output_tokens = 0,
     thinking_tokens = 0,
     total_tokens = 0,
@@ -369,6 +372,7 @@ class QuotaService {
       conversationId: conversationId || null,
       durationMs: Number(durationMs) || 0,
       input_tokens: Number(input_tokens) || 0,
+      cached_input_tokens: Number(cached_input_tokens) || 0,
       output_tokens: Number(output_tokens) || 0,
       thinking_tokens: Number(thinking_tokens) || 0,
       total_tokens: total
@@ -441,17 +445,35 @@ class QuotaService {
     const oneDayAgo = now - (24 * 60 * 60 * 1000);
     const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
 
-    const hourly = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0 };
-    const daily = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0 };
-    const weekly = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0 };
-    const modelBreakdown: Record<string, { totalTokens: number; count: number; inputTokens: number; outputTokens: number; thinkingTokens: number }> = {};
-    const workspaceBreakdown: Record<string, { totalTokens: number; count: number }> = {};
+    const hourly = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0, estimatedCostUsd: 0 };
+    const daily = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0, estimatedCostUsd: 0 };
+    const weekly = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0, estimatedCostUsd: 0 };
+    const modelBreakdown: Record<string, {
+      totalTokens: number;
+      count: number;
+      inputTokens: number;
+      cachedInputTokens: number;
+      outputTokens: number;
+      thinkingTokens: number;
+      estimatedCostUsd: number | null;
+      isPriced: boolean;
+      canonicalModel: string | null;
+    }> = {};
+    const workspaceBreakdown: Record<string, {
+      totalTokens: number;
+      count: number;
+      estimatedCostUsd: number;
+      unpricedTurnsCount: number;
+    }> = {};
 
     let totalTokensAllTime = 0;
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
     let totalThinkingTokens = 0;
     let totalAgentTimeMs = 0;
+    let totalEstimatedCostUsd = 0;
+    let unpricedTurnsCount = 0;
+    let unpricedTokens = 0;
 
     // Mapa dos últimos 42 dias para o Heatmap (Orca style)
     const DAY_COUNT = 42;
@@ -462,6 +484,7 @@ class QuotaService {
       outputTokens: number;
       thinkingTokens: number;
       turnsCount: number;
+      estimatedCostUsd: number;
     }>();
 
     for (let i = DAY_COUNT - 1; i >= 0; i--) {
@@ -473,7 +496,8 @@ class QuotaService {
         inputTokens: 0,
         outputTokens: 0,
         thinkingTokens: 0,
-        turnsCount: 0
+        turnsCount: 0,
+        estimatedCostUsd: 0
       });
     }
 
@@ -481,11 +505,20 @@ class QuotaService {
       const time = new Date(item.timestamp).getTime();
       const tokens = item.total_tokens || 0;
       const inp = item.input_tokens || 0;
+      const cachedInp = item.cached_input_tokens || 0;
       const out = item.output_tokens || 0;
       const thk = item.thinking_tokens || 0;
       const dur = item.durationMs || 0;
       const model = item.model || 'desconhecido';
       const subproject = item.subproject || 'Geral';
+
+      const costCalc = calculateTokenCostUsd({
+        model,
+        inputTokens: inp,
+        cachedInputTokens: cachedInp,
+        outputTokens: out,
+        thinkingTokens: thk
+      });
 
       totalTokensAllTime += tokens;
       totalInputTokens += inp;
@@ -493,22 +526,50 @@ class QuotaService {
       totalThinkingTokens += thk;
       totalAgentTimeMs += dur;
 
+      if (costCalc.isPriced && costCalc.costUsd !== null) {
+        totalEstimatedCostUsd = roundUsd(totalEstimatedCostUsd + costCalc.costUsd);
+      } else {
+        unpricedTurnsCount += 1;
+        unpricedTokens += tokens;
+      }
+
       // Agregações por modelo
       if (!modelBreakdown[model]) {
-        modelBreakdown[model] = { totalTokens: 0, count: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0 };
+        modelBreakdown[model] = {
+          totalTokens: 0,
+          count: 0,
+          inputTokens: 0,
+          cachedInputTokens: 0,
+          outputTokens: 0,
+          thinkingTokens: 0,
+          estimatedCostUsd: costCalc.isPriced ? 0 : null,
+          isPriced: costCalc.isPriced,
+          canonicalModel: costCalc.canonicalModel
+        };
       }
       modelBreakdown[model].totalTokens += tokens;
       modelBreakdown[model].count += 1;
       modelBreakdown[model].inputTokens += inp;
+      modelBreakdown[model].cachedInputTokens += cachedInp;
       modelBreakdown[model].outputTokens += out;
       modelBreakdown[model].thinkingTokens += thk;
+      if (costCalc.isPriced && costCalc.costUsd !== null) {
+        modelBreakdown[model].isPriced = true;
+        modelBreakdown[model].canonicalModel = costCalc.canonicalModel;
+        modelBreakdown[model].estimatedCostUsd = roundUsd((modelBreakdown[model].estimatedCostUsd ?? 0) + costCalc.costUsd);
+      }
 
       // Agregações por workspace
       if (!workspaceBreakdown[subproject]) {
-        workspaceBreakdown[subproject] = { totalTokens: 0, count: 0 };
+        workspaceBreakdown[subproject] = { totalTokens: 0, count: 0, estimatedCostUsd: 0, unpricedTurnsCount: 0 };
       }
       workspaceBreakdown[subproject].totalTokens += tokens;
       workspaceBreakdown[subproject].count += 1;
+      if (costCalc.isPriced && costCalc.costUsd !== null) {
+        workspaceBreakdown[subproject].estimatedCostUsd = roundUsd(workspaceBreakdown[subproject].estimatedCostUsd + costCalc.costUsd);
+      } else {
+        workspaceBreakdown[subproject].unpricedTurnsCount += 1;
+      }
 
       // Mapa diário para o heatmap
       const dayKey = (item.timestamp || '').slice(0, 10);
@@ -519,6 +580,9 @@ class QuotaService {
         dEntry.outputTokens += out;
         dEntry.thinkingTokens += thk;
         dEntry.turnsCount += 1;
+        if (costCalc.isPriced && costCalc.costUsd !== null) {
+          dEntry.estimatedCostUsd = roundUsd(dEntry.estimatedCostUsd + costCalc.costUsd);
+        }
       }
 
       if (time >= sevenDaysAgo) {
@@ -527,6 +591,9 @@ class QuotaService {
         weekly.outputTokens += out;
         weekly.thinkingTokens += thk;
         weekly.count += 1;
+        if (costCalc.isPriced && costCalc.costUsd !== null) {
+          weekly.estimatedCostUsd = roundUsd(weekly.estimatedCostUsd + costCalc.costUsd);
+        }
       }
 
       if (time >= oneDayAgo) {
@@ -535,6 +602,9 @@ class QuotaService {
         daily.outputTokens += out;
         daily.thinkingTokens += thk;
         daily.count += 1;
+        if (costCalc.isPriced && costCalc.costUsd !== null) {
+          daily.estimatedCostUsd = roundUsd(daily.estimatedCostUsd + costCalc.costUsd);
+        }
       }
 
       if (time >= oneHourAgo) {
@@ -543,6 +613,9 @@ class QuotaService {
         hourly.outputTokens += out;
         hourly.thinkingTokens += thk;
         hourly.count += 1;
+        if (costCalc.isPriced && costCalc.costUsd !== null) {
+          hourly.estimatedCostUsd = roundUsd(hourly.estimatedCostUsd + costCalc.costUsd);
+        }
       }
     }
 
@@ -579,7 +652,21 @@ class QuotaService {
     });
 
     const recentDaily = dailyPoints.slice(-14);
-    const recentTurns = this.records.slice(-15).reverse();
+    const recentTurns = this.records.slice(-15).reverse().map((turn) => {
+      const costCalc = calculateTokenCostUsd({
+        model: turn.model,
+        inputTokens: turn.input_tokens,
+        cachedInputTokens: turn.cached_input_tokens,
+        outputTokens: turn.output_tokens,
+        thinkingTokens: turn.thinking_tokens
+      });
+      return {
+        ...turn,
+        estimatedCostUsd: costCalc.costUsd,
+        isPriced: costCalc.isPriced,
+        canonicalModel: costCalc.canonicalModel
+      };
+    });
     const firstEventAt = this.records.length > 0 ? this.records[0].timestamp : null;
 
     const aggregates = {
@@ -590,7 +677,10 @@ class QuotaService {
       totalRecordedTurns: this.records.length,
       totalAgentTimeMs,
       firstEventAt,
-      activeDays
+      activeDays,
+      estimatedCostUsd: totalEstimatedCostUsd,
+      unpricedTurnsCount,
+      unpricedTokens
     };
 
     const fallbackGroups: QuotaGroup[] = [

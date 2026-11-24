@@ -15,13 +15,15 @@ import {
   FolderKanban, 
   Cpu, 
   Activity,
-  Droplets
+  Droplets,
+  DollarSign
 } from 'lucide-react';
 import { 
   formatWaterLiters, 
   formatTokens, 
   useWaterMetrics 
 } from '../../utils/waterConsumption';
+import { formatUsd } from '../../utils/currencyFormat';
 
 interface StatsDashboardProps {
   runningCount: number;
@@ -210,7 +212,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
       )}
 
       {/* 1. CARDS DE RESUMO EXECUTIVO (ORCA STYLE STAT CARDS) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
         {/* Card 1: Execuções / Agentes */}
         <div className="rounded-2xl border border-base-300/80 bg-base-200/40 p-3.5 flex flex-col justify-between shadow-xs hover:border-primary/40 transition-colors">
           <div className="flex items-center justify-between text-base-content/60 mb-2">
@@ -324,6 +326,31 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
             </div>
             <div className="text-[10px] sm:text-[11px] text-base-content/60 mt-0.5 truncate">
               {stats?.gemini?.fiveHour?.message || 'Limite 100% livre'}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 5: Custo Estimado (USD) */}
+        <div
+          data-testid="estimated-cost-card"
+          className="col-span-2 sm:col-span-1 rounded-2xl border border-base-300/80 bg-base-200/40 p-3.5 flex flex-col justify-between shadow-xs hover:border-emerald-500/40 transition-colors"
+        >
+          <div className="flex items-center justify-between text-base-content/60 mb-2">
+            <span className="text-[11px] font-medium uppercase tracking-wider">Custo Estimado (USD)</span>
+            <DollarSign className="w-4 h-4 text-emerald-500" />
+          </div>
+          <div>
+            <div
+              data-testid="estimated-cost-value"
+              className="text-xl sm:text-2xl font-black text-emerald-500 font-mono tracking-tight"
+            >
+              {formatUsd(aggregates?.estimatedCostUsd ?? 0)}
+            </div>
+            <div className="text-[10px] sm:text-[11px] text-base-content/60 mt-0.5 truncate">
+              Base 1M tokens
+              {(aggregates?.unpricedTurnsCount ?? 0) > 0 && (
+                <span> • {aggregates?.unpricedTurnsCount} não tarifado(s)</span>
+              )}
             </div>
           </div>
         </div>
@@ -543,10 +570,19 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                   const pct = Math.round(((modData.totalTokens || 0) / tokenMixTotal) * 100);
                   return (
                     <div key={modName} className="flex flex-col gap-1">
-                      <div className="flex items-center justify-between text-xs font-mono">
-                        <span className="font-bold text-base-content truncate max-w-[200px]">{modName}</span>
-                        <span className="text-base-content/70">
-                          {showWaterMetrics ? formatWaterLiters(modData.totalTokens, true) : formatTokens(modData.totalTokens)} ({modData.count} turnos)
+                      <div className="flex items-center justify-between text-xs font-mono gap-2">
+                        <span className="font-bold text-base-content truncate max-w-[180px]">{modName}</span>
+                        <span className="text-base-content/70 flex items-center gap-1.5 shrink-0">
+                          <span>
+                            {showWaterMetrics ? formatWaterLiters(modData.totalTokens, true) : formatTokens(modData.totalTokens)} ({modData.count} turnos)
+                          </span>
+                          {modData.isPriced === false || modData.estimatedCostUsd === null ? (
+                            <span className="badge badge-xs badge-ghost text-[10px] text-base-content/60">Não tarifado</span>
+                          ) : typeof modData.estimatedCostUsd === 'number' ? (
+                            <span className="text-emerald-500 font-bold" data-testid={`model-cost-${modName}`}>
+                              {formatUsd(modData.estimatedCostUsd)}
+                            </span>
+                          ) : null}
                         </span>
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-base-300 overflow-hidden">
@@ -580,10 +616,17 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                   const pct = Math.round(((wsData.totalTokens || 0) / tokenMixTotal) * 100);
                   return (
                     <div key={wsName} className="flex flex-col gap-1">
-                      <div className="flex items-center justify-between text-xs font-mono">
-                        <span className="font-bold text-base-content truncate max-w-[200px]">{wsName}</span>
-                        <span className="text-base-content/70">
-                          {showWaterMetrics ? formatWaterLiters(wsData.totalTokens, true) : formatTokens(wsData.totalTokens)} ({wsData.count} turnos)
+                      <div className="flex items-center justify-between text-xs font-mono gap-2">
+                        <span className="font-bold text-base-content truncate max-w-[180px]">{wsName}</span>
+                        <span className="text-base-content/70 flex items-center gap-1.5 shrink-0">
+                          <span>
+                            {showWaterMetrics ? formatWaterLiters(wsData.totalTokens, true) : formatTokens(wsData.totalTokens)} ({wsData.count} turnos)
+                          </span>
+                          {typeof wsData.estimatedCostUsd === 'number' && (
+                            <span className="text-emerald-500 font-bold" data-testid={`workspace-cost-${wsName}`}>
+                              {formatUsd(wsData.estimatedCostUsd)}
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-base-300 overflow-hidden">
@@ -621,12 +664,13 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                 <th>Modelo</th>
                 <th>{showWaterMetrics ? 'In / Out / Thk (Água)' : 'In / Out / Thk'}</th>
                 <th>{showWaterMetrics ? 'Total Água' : 'Total Tokens'}</th>
+                <th>Custo Est.</th>
               </tr>
             </thead>
             <tbody className="font-mono text-xs">
               {recentTurns.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-4 text-base-content/50">
+                  <td colSpan={6} className="text-center py-4 text-base-content/50">
                     Nenhum turno registrado recentemente.
                   </td>
                 </tr>
@@ -657,6 +701,22 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                       </td>
                       <td className={`font-bold ${showWaterMetrics ? 'text-info' : 'text-primary'}`}>
                         {showWaterMetrics ? formatWaterLiters(turn.total_tokens, true) : formatTokens(turn.total_tokens)}
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {turn.isPriced === false || turn.estimatedCostUsd === null ? (
+                          <span
+                            className="badge badge-xs badge-ghost text-base-content/60"
+                            title="Modelo não tarifado (auto ou desconhecido)"
+                          >
+                            Não tarifado
+                          </span>
+                        ) : typeof turn.estimatedCostUsd === 'number' ? (
+                          <span className="text-emerald-500 font-semibold">
+                            {formatUsd(turn.estimatedCostUsd)}
+                          </span>
+                        ) : (
+                          <span className="text-base-content/40">—</span>
+                        )}
                       </td>
                     </tr>
                   );

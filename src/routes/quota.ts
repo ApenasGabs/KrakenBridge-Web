@@ -77,11 +77,12 @@ quotaRouter.post('/route-by-model', async (req: Request, res: Response) => {
 // POST /api/quota/record - Registra um consumo de tokens manualmente
 quotaRouter.post('/record', async (req: Request, res: Response) => {
   try {
-    const { model, agent, input_tokens, output_tokens, thinking_tokens, total_tokens } = req.body || {};
+    const { model, agent, input_tokens, cached_input_tokens, output_tokens, thinking_tokens, total_tokens } = req.body || {};
     const record = await quotaService.recordUsage({
       model,
       agent,
       input_tokens,
+      cached_input_tokens,
       output_tokens,
       thinking_tokens,
       total_tokens

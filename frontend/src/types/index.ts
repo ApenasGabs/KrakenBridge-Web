@@ -326,6 +326,7 @@ export interface QuotaWindowStats {
   count: number;
   limit?: number;
   percent?: number;
+  estimatedCostUsd?: number;
 }
 
 export interface DailyIntensityPoint {
@@ -336,6 +337,7 @@ export interface DailyIntensityPoint {
   thinkingTokens: number;
   turnsCount: number;
   intensity: 0 | 1 | 2 | 3 | 4;
+  estimatedCostUsd?: number;
 }
 
 export interface StatsAggregates {
@@ -347,6 +349,28 @@ export interface StatsAggregates {
   totalAgentTimeMs: number;
   firstEventAt: string | null;
   activeDays: number;
+  estimatedCostUsd?: number;
+  unpricedTurnsCount?: number;
+  unpricedTokens?: number;
+}
+
+export interface ModelBreakdownEntry {
+  totalTokens: number;
+  count: number;
+  inputTokens?: number;
+  cachedInputTokens?: number;
+  outputTokens?: number;
+  thinkingTokens?: number;
+  estimatedCostUsd?: number | null;
+  isPriced?: boolean;
+  canonicalModel?: string | null;
+}
+
+export interface WorkspaceBreakdownEntry {
+  totalTokens: number;
+  count: number;
+  estimatedCostUsd?: number;
+  unpricedTurnsCount?: number;
 }
 
 export interface QuotaStats {
@@ -361,13 +385,13 @@ export interface QuotaStats {
   bestDay?: { day: string; totalTokens: number } | null;
   activeDays?: number;
   recentDaily?: DailyIntensityPoint[];
-  workspaceBreakdown?: Record<string, { totalTokens: number; count: number }>;
+  workspaceBreakdown?: Record<string, WorkspaceBreakdownEntry>;
   tokens?: {
     hourly: QuotaWindowStats;
     daily: QuotaWindowStats;
     weekly: QuotaWindowStats;
-    modelBreakdown: Record<string, { totalTokens: number; count: number }>;
-    workspaceBreakdown?: Record<string, { totalTokens: number; count: number }>;
+    modelBreakdown: Record<string, ModelBreakdownEntry>;
+    workspaceBreakdown?: Record<string, WorkspaceBreakdownEntry>;
     recentTurns: Array<{
       id: string;
       timestamp: string;
@@ -376,9 +400,13 @@ export interface QuotaStats {
       subproject?: string;
       durationMs?: number;
       input_tokens: number;
+      cached_input_tokens?: number;
       output_tokens: number;
       thinking_tokens: number;
       total_tokens: number;
+      estimatedCostUsd?: number | null;
+      isPriced?: boolean;
+      canonicalModel?: string | null;
     }>;
     totalRecordedTurns: number;
     dailyPoints?: DailyIntensityPoint[];
@@ -638,6 +666,14 @@ export interface MemoryHandoff {
 
 export type AgentStatus = 'idle' | 'running' | 'error' | 'paused' | 'offline' | string;
 
+export interface PaperclipAgentTokenUsage {
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  unpricedTokens: number;
+}
+
 export interface PaperclipAgent {
   id: string;
   companyId: string;
@@ -648,6 +684,7 @@ export interface PaperclipAgent {
   lifecycleState?: string;
   reportsTo?: string | null;
   adapterType?: string;
+  model?: string;
   lastHeartbeatAt?: string;
   currentRunId?: string;
   currentIssueId?: string;
@@ -657,6 +694,9 @@ export interface PaperclipAgent {
   lastError?: string;
   lastErrorDetails?: string;
   icon?: string | null;
+  estimatedCostUsd?: number | null;
+  reportedCostUsd?: number;
+  tokenUsage?: PaperclipAgentTokenUsage;
 }
 
 export type IssueStatus = 'todo' | 'in_progress' | 'blocked' | 'in_review' | 'done' | string;
@@ -722,6 +762,32 @@ export interface PaperclipRun {
     lastConfirmedActivityAt?: string;
   };
   retryExhaustedReason?: string | null;
+  estimatedCostUsd?: number | null;
+}
+
+export interface PaperclipModelCostBreakdown {
+  model: string;
+  canonicalModel: string | null;
+  isPriced: boolean;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  eventCount: number;
+  estimatedCostUsd: number | null;
+}
+
+export interface PaperclipCostSummary {
+  totalEstimatedCostUsd: number;
+  totalReportedCostUsd: number;
+  totalInputTokens: number;
+  totalCachedInputTokens: number;
+  totalOutputTokens: number;
+  totalTokens: number;
+  unpricedTokens: number;
+  unpricedEventsCount: number;
+  totalEventsCount: number;
+  budgetMonthlyUsd?: number;
+  modelBreakdown: PaperclipModelCostBreakdown[];
 }
 
 export interface PaperclipProjectProgress {
@@ -821,6 +887,7 @@ export interface PaperclipStateSnapshot {
   openPrs: EnrichedPullRequest[];
   stalls: DetectedStall[];
   timeline: PaperclipTimelineEvent[];
+  costSummary?: PaperclipCostSummary;
 }
 
 export interface LocalSubagent {
