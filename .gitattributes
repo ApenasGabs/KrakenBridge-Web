@@ -9,3 +9,7 @@
 *.md text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+
+# Artes mestres: preservar byte a byte e sem diff textual (~1,2 MB cada)
+frontend/public/kraken-icon.svg -text -diff
+frontend/public/kraken-symbol.svg -text -diff
