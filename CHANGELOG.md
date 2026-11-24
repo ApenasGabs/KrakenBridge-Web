@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.52.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.52.0...v1.52.1) (2026-11-24)
+
+### 🐛 Bug Fixes
+
+* **mcp:** sincronizar Anytype e AI Memory em CLAUDE_CONFIG_DIR/.claude.json (Refs [#218](https://github.com/ApenasGabs/KrakenBridge-Web/issues/218)) ([#219](https://github.com/ApenasGabs/KrakenBridge-Web/issues/219)) ([544a06d](https://github.com/ApenasGabs/KrakenBridge-Web/commit/544a06d57dc0fdc93a5dc4970a6ae37e9e094cc1))
+
 ## [1.52.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.51.0...v1.52.0) (2026-11-24)
 
 ### ✨ Features
