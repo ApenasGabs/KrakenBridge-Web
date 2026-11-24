@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.50.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.49.0...v1.50.0) (2026-11-24)
+
+### ✨ Features
+
+* **metrics:** Exibir estimativa de custo (USD) por 1M tokens no Kraken e PaperclipDashboard ([#213](https://github.com/ApenasGabs/KrakenBridge-Web/issues/213)) ([b9a18f3](https://github.com/ApenasGabs/KrakenBridge-Web/commit/b9a18f36ecbdc64f6e23476c94b430f3f6bd58c6))
+
 ## [1.49.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.48.3...v1.49.0) (2026-11-23)
 
 ### ✨ Features
