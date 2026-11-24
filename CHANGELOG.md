@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.52.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.51.0...v1.52.0) (2026-11-24)
+
+### ✨ Features
+
+* **branding:** adotar logotipo e símbolo oficiais da pasta Logos ([#217](https://github.com/ApenasGabs/KrakenBridge-Web/issues/217)) ([36622f3](https://github.com/ApenasGabs/KrakenBridge-Web/commit/36622f347b98a888b10b5dc1abcabe83a2833c04)), closes [#216](https://github.com/ApenasGabs/KrakenBridge-Web/issues/216)
+
 ## [1.51.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.50.0...v1.51.0) (2026-11-24)
 
 ### ✨ Features
