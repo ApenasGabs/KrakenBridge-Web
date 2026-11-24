@@ -1,23 +1,296 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <linearGradient id="krakenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <!-- Background Gradient (Squircle) -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#11162b" />
+      <stop offset="50%" stop-color="#0c0e1d" />
+      <stop offset="100%" stop-color="#06070e" />
+    </linearGradient>
+
+    <!-- Squircle Subtle Border -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" />
+      <stop offset="50%" stop-color="#334155" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+
+    <!-- Radial Ambient Center Glow -->
+    <radialGradient id="centerGlow" cx="50%" cy="48%" r="45%">
+      <stop offset="0%" stop-color="#0284c7" stop-opacity="0.32" />
+      <stop offset="40%" stop-color="#4f46e5" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#06070e" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Letter K: Left Vertical Stem Gradient -->
+    <linearGradient id="kStemGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="25%" stop-color="#00c6ff" />
+      <stop offset="60%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+
+    <!-- Letter K: Top Diagonal Arm Gradient -->
+    <linearGradient id="kArmTopGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="40%" stop-color="#00d2ff" />
+      <stop offset="100%" stop-color="#38bdf8" />
+    </linearGradient>
+
+    <!-- Letter K: Bottom Diagonal Leg Gradient -->
+    <linearGradient id="kLegBotGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="50%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#a855f7" />
+    </linearGradient>
+
+    <!-- Letter K: Deep Bevel Shading -->
+    <linearGradient id="kInnerDark" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#090d1a" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#090d1a" stop-opacity="0.2" />
+    </linearGradient>
+
+    <!-- Kraken Head Dome Gradient -->
+    <linearGradient id="headDomeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#38bdf8" />
-      <stop offset="50%" stop-color="#818cf8" />
+      <stop offset="25%" stop-color="#00c6ff" />
+      <stop offset="65%" stop-color="#0284c7" />
+      <stop offset="100%" stop-color="#1e3a8a" />
+    </linearGradient>
+
+    <!-- Tentacle Outer Top Highlight -->
+    <linearGradient id="tentacleCyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9" />
+      <stop offset="35%" stop-color="#38bdf8" />
+      <stop offset="70%" stop-color="#2563eb" />
       <stop offset="100%" stop-color="#6366f1" />
     </linearGradient>
-    <linearGradient id="darkBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#18181b" />
-      <stop offset="100%" stop-color="#09090b" />
+
+    <!-- Tentacle Deep Shadow (Underbelly) -->
+    <linearGradient id="tentacleShadowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b" />
+      <stop offset="60%" stop-color="#31104b" />
+      <stop offset="100%" stop-color="#0f172a" />
     </linearGradient>
+
+    <!-- Eye Bioluminescent Glow -->
+    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f0fdfa" />
+      <stop offset="40%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0369a1" />
+    </linearGradient>
+
+    <!-- Circuit Trace Glow Filter -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="128" fill="url(#darkBg)" stroke="#3f3f46" stroke-width="8"/>
-  <circle cx="256" cy="256" r="180" fill="url(#krakenGrad)" opacity="0.12"/>
-  <path d="M160 140 V372 M160 256 L310 140 M210 218 L330 372" 
-        stroke="url(#krakenGrad)" 
-        stroke-width="48" 
-        stroke-linecap="round" 
-        stroke-linejoin="round" 
-        fill="none"/>
-  <circle cx="340" cy="140" r="18" fill="#38bdf8" />
-  <circle cx="360" cy="372" r="18" fill="#818cf8" />
+
+  <!-- 1. Background Container (Squircle) -->
+  <rect x="24" y="24" width="464" height="464" rx="104" ry="104" fill="url(#bgGrad)" stroke="url(#borderGrad)" stroke-width="3.5" />
+
+  <!-- 2. Ambient Tech Glow -->
+  <circle cx="256" cy="250" r="180" fill="url(#centerGlow)" />
+
+  <!-- 3. Geometric Background Circuits / Neural Bridge Grid -->
+  <g opacity="0.32" stroke="#00f2fe" stroke-width="1.2" fill="none">
+    <line x1="290" y1="210" x2="328" y2="252" />
+    <line x1="328" y1="252" x2="315" y2="266" />
+    <circle cx="328" cy="252" r="2.5" fill="#38bdf8" />
+    <line x1="170" y1="240" x2="195" y2="265" />
+    <circle cx="195" cy="265" r="2.5" fill="#38bdf8" />
+    <path d="M 235 320 L 256 328 L 278 320" />
+    <circle cx="256" cy="328" r="3" fill="#818cf8" />
+  </g>
+
+  <!-- 4. The Iconic Letter "K" -->
+  <g id="letter-K">
+    <!-- Left Vertical Stem of K -->
+    <path d="M 172 152 
+             L 220 152 
+             C 214 185, 214 220, 220 255 
+             C 214 290, 214 325, 220 358 
+             L 172 358 
+             C 178 325, 178 290, 172 255 
+             C 178 220, 178 185, 172 152 Z" 
+          fill="url(#kStemGrad)" />
+
+    <!-- Left Stem Inner Inset Shadow/Bevel -->
+    <path d="M 184 165 L 194 165 L 194 345 L 184 345 Z" fill="url(#kInnerDark)" opacity="0.75" />
+
+    <!-- Top Right Diagonal Arm of K -->
+    <path d="M 236 242 
+             L 305 152 
+             L 358 152 
+             C 330 185, 300 220, 274 252 
+             L 236 242 Z" 
+          fill="url(#kArmTopGrad)" />
+
+    <!-- Bottom Right Diagonal Leg of K -->
+    <path d="M 246 250 
+             L 282 284 
+             L 354 358 
+             L 302 358 
+             L 242 292 
+             L 226 276 Z" 
+          fill="url(#kLegBotGrad)" />
+
+    <!-- Bottom Right Leg Futuristic Inset Slot -->
+    <path d="M 284 294 L 328 340 L 318 344 L 276 300 Z" fill="#1e1b4b" opacity="0.8" />
+  </g>
+
+  <!-- 5. Background / Underbelly Tentacles -->
+  <g id="underbelly-tentacles">
+    <!-- Left Lateral Outer Tentacle -->
+    <path d="M 195 240 
+             C 160 220, 138 200, 142 178 
+             C 145 160, 162 165, 168 180 
+             C 172 195, 160 215, 140 230 
+             C 130 238, 140 258, 155 264 
+             C 175 272, 195 260, 205 250 Z" 
+          fill="url(#tentacleShadowGrad)" />
+
+    <!-- Right Lateral Outer Tentacle -->
+    <path d="M 315 240 
+             C 350 220, 372 200, 368 178 
+             C 365 160, 348 165, 342 180 
+             C 338 195, 350 215, 370 230 
+             C 380 238, 370 258, 355 264 
+             C 335 272, 315 260, 305 250 Z" 
+          fill="url(#tentacleShadowGrad)" />
+  </g>
+
+  <!-- 6. Midground Sweeping Tentacles (Left and Right Flanks) -->
+  <g id="midground-tentacles">
+    <!-- Outer Left Flank Tentacle -->
+    <path d="M 215 195 
+             C 180 180, 145 200, 138 230 
+             C 132 255, 150 275, 178 280 
+             C 195 282, 210 270, 202 255 
+             C 192 238, 175 235, 165 248 
+             C 155 235, 168 215, 195 210 
+             C 210 208, 222 215, 230 225 Z" 
+          fill="url(#tentacleCyanGrad)" />
+
+    <!-- Outer Right Flank Tentacle -->
+    <path d="M 297 195 
+             C 332 180, 367 200, 374 230 
+             C 380 255, 362 275, 334 280 
+             C 317 282, 302 270, 310 255 
+             C 320 238, 337 235, 347 248 
+             C 357 235, 344 215, 317 210 
+             C 302 208, 290 215, 282 225 Z" 
+          fill="url(#tentacleCyanGrad)" />
+  </g>
+
+  <!-- 7. Main Foreground Central Tentacles (Crossing Over the K) -->
+  <g id="foreground-tentacles">
+    <!-- Center-Left Major Tentacle (Sweeps down across the K stem) -->
+    <path d="M 238 212 
+             C 225 240, 185 270, 160 305 
+             C 142 330, 148 355, 172 355 
+             C 190 355, 198 335, 212 310 
+             C 230 278, 260 252, 272 230 
+             C 260 220, 248 215, 238 212 Z" 
+          fill="url(#tentacleCyanGrad)" />
+
+    <!-- Shadow under Center-Left Tentacle -->
+    <path d="M 164 315 
+             C 154 332, 160 350, 174 350 
+             C 165 342, 164 330, 172 318 
+             C 188 290, 222 258, 246 232 
+             C 240 234, 232 238, 226 244 
+             C 202 268, 178 292, 164 315 Z" 
+          fill="#1e1b4b" opacity="0.6" />
+
+    <!-- Center-Right Major Tentacle (Sweeps down along lower diagonal) -->
+    <path d="M 274 212 
+             C 287 240, 327 270, 352 305 
+             C 370 330, 364 355, 340 355 
+             C 322 355, 314 335, 300 310 
+             C 282 278, 252 252, 240 230 
+             C 252 220, 264 215, 274 212 Z" 
+          fill="url(#tentacleCyanGrad)" />
+
+    <!-- Shadow under Center-Right Tentacle -->
+    <path d="M 348 315 
+             C 358 332, 352 350, 338 350 
+             C 347 342, 348 330, 340 318 
+             C 324 290, 290 258, 266 232 
+             C 272 234, 280 238, 286 244 
+             C 310 268, 334 292, 348 315 Z" 
+          fill="#1e1b4b" opacity="0.6" />
+
+    <!-- Central Symmetrical Tentacle Junction / Ribs -->
+    <path d="M 256 220 
+             C 244 245, 235 272, 228 300 
+             C 238 296, 248 290, 256 280 
+             C 264 290, 274 296, 284 300 
+             C 277 272, 268 245, 256 220 Z" 
+          fill="url(#tentacleCyanGrad)" />
+  </g>
+
+  <!-- 8. Kraken Head (Dome, Mantle & Cybernetics) -->
+  <g id="kraken-head">
+    <!-- Back Mantle Crest -->
+    <path d="M 210 152 
+             C 205 130, 222 108, 256 108 
+             C 290 108, 307 130, 302 152 
+             C 305 168, 298 185, 286 195 
+             C 272 205, 240 205, 226 195 
+             C 214 185, 207 168, 210 152 Z" 
+          fill="#0f172a" />
+
+    <!-- Main Front Dome -->
+    <path d="M 218 156 
+             C 215 125, 232 110, 256 110 
+             C 280 110, 297 125, 294 156 
+             C 294 178, 285 194, 276 202 
+             C 266 210, 246 210, 236 202 
+             C 227 194, 218 178, 218 156 Z" 
+          fill="url(#headDomeGrad)" />
+
+    <!-- Top Left Gloss Specular Highlight -->
+    <ellipse cx="237" cy="126" rx="9" ry="16" transform="rotate(-30 237 126)" fill="#ffffff" opacity="0.6" />
+    <circle cx="230" cy="144" r="3.5" fill="#ffffff" opacity="0.45" />
+
+    <!-- Bioluminescent Circuit Traces & Neural Nodes on Forehead -->
+    <g stroke="#e0f2fe" stroke-width="1.6" fill="none" opacity="0.85">
+      <!-- Circuit Branch Right -->
+      <path d="M 256 150 Q 266 142 272 132 L 278 128" />
+      <circle cx="278" cy="128" r="2.2" fill="#38bdf8" />
+      <circle cx="268" cy="142" r="1.8" fill="#a5f3fc" />
+      <!-- Circuit Center Node -->
+      <circle cx="256" cy="154" r="2.5" fill="#38bdf8" />
+      <path d="M 256 157 L 256 168" />
+      <circle cx="256" cy="168" r="2" fill="#a5f3fc" />
+    </g>
+
+    <!-- Side Cowl / Temporal Flanges -->
+    <!-- Left Flange -->
+    <path d="M 216 145 C 208 148, 204 162, 214 175 C 218 170, 220 158, 216 145 Z" fill="#0284c7" />
+    <!-- Right Flange -->
+    <path d="M 296 145 C 304 148, 308 162, 298 175 C 294 170, 292 158, 296 145 Z" fill="#0284c7" />
+
+    <!-- 9. Glowing Eyes (High-Tech Bioluminescence) -->
+    <!-- Left Eye Socket -->
+    <path d="M 226 168 C 232 165, 242 169, 245 178 C 240 181, 230 180, 226 168 Z" fill="#060d1a" />
+    <!-- Left Eye Iris & Glow -->
+    <path d="M 228 170 C 234 167, 240 171, 243 177 C 238 179, 231 178, 228 170 Z" fill="url(#eyeGrad)" filter="url(#glow)" />
+
+    <!-- Right Eye Socket -->
+    <path d="M 286 168 C 280 165, 270 169, 267 178 C 272 181, 282 180, 286 168 Z" fill="#060d1a" />
+    <!-- Right Eye Iris & Glow -->
+    <path d="M 284 170 C 278 167, 272 171, 269 177 C 274 179, 281 178, 284 170 Z" fill="url(#eyeGrad)" filter="url(#glow)" />
+  </g>
+
+  <!-- 10. Outer Tentacle Tip Curls (Fine Aesthetic Flourishes) -->
+  <g fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round" opacity="0.75">
+    <!-- Top Left Curl -->
+    <path d="M 148 168 C 144 180, 155 195, 162 205" />
+    <!-- Top Right Curl -->
+    <path d="M 364 168 C 368 180, 357 195, 350 205" />
+    <!-- Bottom Flourish -->
+    <path d="M 326 312 C 342 316, 350 326, 344 336" />
+  </g>
 </svg>

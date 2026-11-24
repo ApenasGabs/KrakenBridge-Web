@@ -87,9 +87,11 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          <div className="w-7 h-7 rounded-lg bg-primary text-primary-content flex items-center justify-center font-bold text-xs sm:text-sm shadow-sm">
-            K
-          </div>
+          <img
+            src="./kraken-icon.svg"
+            alt="Kraken Logo"
+            className="w-7 h-7 rounded-lg object-contain shadow-sm"
+          />
           <div className="hidden 2xl:block">
             <h1 className="text-sm font-bold tracking-tight text-base-content leading-none">
               KrakenBridge
