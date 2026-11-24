@@ -589,9 +589,9 @@ chatRouter.post('/', async (req: Request, res: Response) => {
     await claudeGuardrailsService.ensureProvisioned().catch((err) => {
       console.warn('[KrakenBridge] Aviso ao provisionar guardrails do Claude:', err?.message || err);
     });
-    // Garante sincronização do servidor MCP Anytype em ~/.claude.json (#200)
-    await mcpService.ensureAnytypeMcpServer().catch((err) => {
-      console.warn('[KrakenBridge] Aviso ao provisionar MCP Anytype para o Claude:', err?.message || err);
+    // Garante sincronização dos servidores MCP essenciais (Anytype + AI Memory) em ~/.claude.json e $CLAUDE_CONFIG_DIR/.claude.json (#200, #218)
+    await mcpService.ensureClaudeCoreMcpServers().catch((err) => {
+      console.warn('[KrakenBridge] Aviso ao provisionar MCPs essenciais para o Claude:', err?.message || err);
     });
   }
 

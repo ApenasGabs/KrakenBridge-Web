@@ -4,17 +4,29 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import os from 'os';
 import path from 'path';
-import type { McpConfigFile, McpServerItem, McpAuthUrlResponse, McpExchangeResponse } from '../types/mcp.js';
+import type { McpConfigFile, McpServerConfig, McpServerItem, McpAuthUrlResponse, McpExchangeResponse } from '../types/mcp.js';
 
 const execAsync = promisify(exec);
 
 const DEFAULT_ANYTYPE_CLI_PATH = '/workspace/anytype-mcp/bin/cli.mjs';
 const DEFAULT_ANYTYPE_BASE_URL = 'http://192.168.31.5:31009';
+const DEFAULT_AI_MEMORY_URL = 'http://192.168.31.5:49374/mcp?flavor=claude';
+const DEFAULT_AI_MEMORY_TOKEN_FILE = '/DATA/AppData/ai-memory/auth-tokens/default';
 
 export interface AnytypeProvisionResult {
   cliExists: boolean;
   mcpConfigUpdated: boolean;
   claudeConfigUpdated: boolean;
+}
+
+export interface AiMemoryProvisionResult {
+  configured: boolean;
+  claudeConfigUpdated: boolean;
+}
+
+export interface ClaudeCoreMcpProvisionResult {
+  anytype: AnytypeProvisionResult;
+  aiMemory: AiMemoryProvisionResult;
 }
 
 const getConfigPath = (): string => process.env.MCP_CONFIG_PATH || '/root/.gemini/config/mcp_config.json';
@@ -25,6 +37,39 @@ const getClaudeUserConfigPath = (): string => {
   if (process.env.CLAUDE_USER_CONFIG_FILE) return process.env.CLAUDE_USER_CONFIG_FILE;
   if (process.env.CLAUDE_USER_CONFIG_PATH) return process.env.CLAUDE_USER_CONFIG_PATH;
   return path.join(process.env.HOME || os.homedir() || '/root', '.claude.json');
+};
+
+/**
+ * Retorna os arquivos `.claude.json` onde o Claude Code CLI pode ler `mcpServers`:
+ * - `~/.claude.json` (quando `CLAUDE_CONFIG_DIR` não está definido)
+ * - `$CLAUDE_CONFIG_DIR/.claude.json` (quando `CLAUDE_CONFIG_DIR` está definido, como em `chat.ts`)
+ *
+ * Mantém isolamento em testes quando apenas `CLAUDE_USER_CONFIG_FILE`/`CLAUDE_USER_CONFIG_PATH`
+ * é sobrescrito sem `CLAUDE_CONFIG_DIR`.
+ */
+export const getClaudeUserConfigPaths = async (): Promise<string[]> => {
+  const candidates: string[] = [getClaudeUserConfigPath()];
+  const hasExplicitUserOverride = Boolean(
+    process.env.CLAUDE_USER_CONFIG_FILE || process.env.CLAUDE_USER_CONFIG_PATH
+  );
+
+  if (process.env.CLAUDE_CONFIG_DIR?.trim()) {
+    candidates.push(path.join(process.env.CLAUDE_CONFIG_DIR.trim(), '.claude.json'));
+  } else if (!hasExplicitUserOverride) {
+    const homeDir = process.env.HOME || os.homedir() || '/root';
+    candidates.push(path.join(homeDir, '.claude', '.claude.json'));
+  }
+
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const resolved = await fs.realpath(candidate).catch(() => path.resolve(candidate));
+    if (!seen.has(resolved)) {
+      seen.add(resolved);
+      unique.push(candidate);
+    }
+  }
+  return unique;
 };
 
 const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
@@ -113,6 +158,164 @@ export const upsertAnytypeInClaudeConfig = (
     nextConfig: { ...config, mcpServers: existingServers },
     changed: true
   };
+};
+
+/**
+ * Normaliza a URL do servidor MCP `ai-memory` para o flavor do Claude Code (`flavor=claude`).
+ */
+export const normalizeAiMemoryUrlForClaude = (rawUrl: string): string => {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return DEFAULT_AI_MEMORY_URL;
+  try {
+    const parsed = new URL(trimmed);
+    const currentFlavor = parsed.searchParams.get('flavor');
+    if (!currentFlavor || currentFlavor.toLowerCase() === 'gemini') {
+      parsed.searchParams.set('flavor', 'claude');
+    }
+    return parsed.toString();
+  } catch {
+    return trimmed;
+  }
+};
+
+const resolveAiMemoryConfig = async (
+  existingMcpServer?: McpServerConfig
+): Promise<{ url: string; headers?: Record<string, string> }> => {
+  const rawUrl =
+    process.env.AI_MEMORY_CLAUDE_URL?.trim() ||
+    process.env.AI_MEMORY_URL?.trim() ||
+    existingMcpServer?.url?.trim() ||
+    (existingMcpServer as (McpServerConfig & { serverUrl?: string }) | undefined)?.serverUrl?.trim() ||
+    DEFAULT_AI_MEMORY_URL;
+
+  const url = normalizeAiMemoryUrlForClaude(rawUrl);
+
+  let authHeader =
+    process.env.AI_MEMORY_TOKEN?.trim()
+      ? (process.env.AI_MEMORY_TOKEN.trim().toLowerCase().startsWith('bearer ')
+        ? process.env.AI_MEMORY_TOKEN.trim()
+        : `Bearer ${process.env.AI_MEMORY_TOKEN.trim()}`)
+      : existingMcpServer?.headers?.Authorization?.trim() || '';
+
+  if (!authHeader) {
+    const tokenFile = process.env.AI_MEMORY_TOKEN_FILE || DEFAULT_AI_MEMORY_TOKEN_FILE;
+    const rawToken = await fs.readFile(tokenFile, 'utf8').catch(() => '');
+    const cleanToken = rawToken.trim();
+    if (cleanToken) {
+      authHeader = cleanToken.toLowerCase().startsWith('bearer ')
+        ? cleanToken
+        : `Bearer ${cleanToken}`;
+    }
+  }
+
+  return authHeader
+    ? { url, headers: { Authorization: authHeader } }
+    : { url };
+};
+
+/**
+ * Mescla a entrada do servidor MCP `ai-memory` (HTTP) em um objeto `.claude.json`
+ * preservando configurações existentes.
+ */
+export const upsertAiMemoryInClaudeConfig = (
+  config: Record<string, unknown>,
+  desiredUrl: string,
+  desiredHeaders?: Record<string, string>
+): { nextConfig: Record<string, unknown>; changed: boolean } => {
+  const existingServers = isPlainRecord(config.mcpServers) ? { ...config.mcpServers } : {};
+  const existingEntry = existingServers['ai-memory'];
+
+  if (!isPlainRecord(existingEntry)) {
+    const newEntry: Record<string, unknown> = {
+      type: 'http',
+      url: desiredUrl
+    };
+    if (desiredHeaders && Object.keys(desiredHeaders).length > 0) {
+      newEntry.headers = { ...desiredHeaders };
+    }
+    existingServers['ai-memory'] = newEntry;
+    return {
+      nextConfig: { ...config, mcpServers: existingServers },
+      changed: true
+    };
+  }
+
+  let entryChanged = false;
+  const nextEntry: Record<string, unknown> = { ...existingEntry };
+
+  if (!nextEntry.type) {
+    nextEntry.type = 'http';
+    entryChanged = true;
+  }
+  if (typeof nextEntry.url !== 'string' || !nextEntry.url.trim()) {
+    nextEntry.url = desiredUrl;
+    entryChanged = true;
+  }
+
+  if (desiredHeaders && Object.keys(desiredHeaders).length > 0) {
+    const currentHeaders = isPlainRecord(nextEntry.headers) ? { ...nextEntry.headers } : {};
+    let headersChanged = false;
+    for (const [k, v] of Object.entries(desiredHeaders)) {
+      if (!currentHeaders[k] && v) {
+        currentHeaders[k] = v;
+        headersChanged = true;
+      }
+    }
+    if (headersChanged) {
+      nextEntry.headers = currentHeaders;
+      entryChanged = true;
+    }
+  }
+
+  if (!entryChanged) {
+    return { nextConfig: config, changed: false };
+  }
+
+  existingServers['ai-memory'] = nextEntry;
+  return {
+    nextConfig: { ...config, mcpServers: existingServers },
+    changed: true
+  };
+};
+
+const updateClaudeUserConfigFile = async (
+  claudeUserConfigPath: string,
+  updater: (current: Record<string, unknown>) => { nextConfig: Record<string, unknown>; changed: boolean },
+  label: string
+): Promise<boolean> => {
+  let claudeObj: Record<string, unknown> = {};
+  const exists = await fs.stat(claudeUserConfigPath).then(() => true).catch(() => false);
+
+  if (exists) {
+    try {
+      const raw = await fs.readFile(claudeUserConfigPath, 'utf8');
+      if (raw.trim()) {
+        const parsed: unknown = JSON.parse(raw);
+        if (!isPlainRecord(parsed)) {
+          console.error(`[McpService] ${claudeUserConfigPath} não contém um objeto JSON válido; servidor ${label} não foi gravado.`);
+          return false;
+        }
+        claudeObj = parsed;
+      }
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT') {
+        console.error(`[McpService] Erro ao ler ${claudeUserConfigPath} (JSON inválido); preservando arquivo original:`, (err as Error).message);
+        return false;
+      }
+    }
+  }
+
+  const { nextConfig, changed } = updater(claudeObj);
+  if (!changed) return false;
+
+  const linkTarget = await fs.readlink(claudeUserConfigPath).catch(() => null);
+  const targetPath = linkTarget
+    ? path.resolve(path.dirname(claudeUserConfigPath), linkTarget)
+    : await fs.realpath(claudeUserConfigPath).catch(() => claudeUserConfigPath);
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+  await fs.writeFile(targetPath, JSON.stringify(nextConfig, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+  return true;
 };
 
 function extractAuthCodeOrToken(input: unknown): string {
@@ -372,7 +575,8 @@ class McpService {
 
   /**
    * Garante que o servidor MCP `anytype` esteja configurado em `mcp_config.json` e
-   * sincronizado em `~/.claude.json` (`/DATA/.claude.json`) para uso pelo Claude Code.
+   * sincronizado em todos os arquivos `.claude.json` do Claude Code (`~/.claude.json`
+   * e `$CLAUDE_CONFIG_DIR/.claude.json`).
    */
   async ensureAnytypeMcpServer(): Promise<AnytypeProvisionResult> {
     const cliPath = getAnytypeCliPath();
@@ -397,43 +601,50 @@ class McpService {
       mcpConfigUpdated = true;
     }
 
-    const claudeUserConfigPath = getClaudeUserConfigPath();
-    let claudeObj: Record<string, unknown> = {};
-    const exists = await fs.stat(claudeUserConfigPath).then(() => true).catch(() => false);
-
-    if (exists) {
-      try {
-        const raw = await fs.readFile(claudeUserConfigPath, 'utf8');
-        if (raw.trim()) {
-          const parsed: unknown = JSON.parse(raw);
-          if (!isPlainRecord(parsed)) {
-            console.error(`[McpService] ${claudeUserConfigPath} não contém um objeto JSON válido; servidor Anytype não foi gravado.`);
-            return { cliExists: true, mcpConfigUpdated, claudeConfigUpdated: false };
-          }
-          claudeObj = parsed;
-        }
-      } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') {
-          console.error(`[McpService] Erro ao ler ${claudeUserConfigPath} (JSON inválido); preservando arquivo original:`, (err as Error).message);
-          return { cliExists: true, mcpConfigUpdated, claudeConfigUpdated: false };
-        }
-      }
+    const claudePaths = await getClaudeUserConfigPaths();
+    let claudeConfigUpdated = false;
+    for (const claudeUserConfigPath of claudePaths) {
+      const updated = await updateClaudeUserConfigFile(
+        claudeUserConfigPath,
+        (claudeObj) => upsertAnytypeInClaudeConfig(claudeObj, cliPath, desiredEnv),
+        'Anytype'
+      );
+      if (updated) claudeConfigUpdated = true;
     }
 
-    const { nextConfig, changed } = upsertAnytypeInClaudeConfig(claudeObj, cliPath, desiredEnv);
-    if (!changed) {
-      return { cliExists: true, mcpConfigUpdated, claudeConfigUpdated: false };
+    return { cliExists: true, mcpConfigUpdated, claudeConfigUpdated };
+  }
+
+  /**
+   * Garante que o servidor MCP `ai-memory` (HTTP) esteja sincronizado em todos os
+   * arquivos `.claude.json` do Claude Code (`~/.claude.json` e `$CLAUDE_CONFIG_DIR/.claude.json`).
+   */
+  async ensureAiMemoryMcpServer(): Promise<AiMemoryProvisionResult> {
+    const mcpConfig = await this.readConfig();
+    const { url, headers } = await resolveAiMemoryConfig(mcpConfig.mcpServers?.['ai-memory']);
+
+    const claudePaths = await getClaudeUserConfigPaths();
+    let claudeConfigUpdated = false;
+    for (const claudeUserConfigPath of claudePaths) {
+      const updated = await updateClaudeUserConfigFile(
+        claudeUserConfigPath,
+        (claudeObj) => upsertAiMemoryInClaudeConfig(claudeObj, url, headers),
+        'AI Memory'
+      );
+      if (updated) claudeConfigUpdated = true;
     }
 
-    const linkTarget = await fs.readlink(claudeUserConfigPath).catch(() => null);
-    const targetPath = linkTarget
-      ? path.resolve(path.dirname(claudeUserConfigPath), linkTarget)
-      : await fs.realpath(claudeUserConfigPath).catch(() => claudeUserConfigPath);
-    await fs.mkdir(path.dirname(targetPath), { recursive: true });
-    await fs.writeFile(targetPath, JSON.stringify(nextConfig, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+    return { configured: Boolean(url), claudeConfigUpdated };
+  }
 
-    return { cliExists: true, mcpConfigUpdated, claudeConfigUpdated: true };
+  /**
+   * Provisiona os servidores MCP essenciais do Homelab (`anytype` e `ai-memory`)
+   * para o Claude Code (tanto `~/.claude.json` quanto `$CLAUDE_CONFIG_DIR/.claude.json`).
+   */
+  async ensureClaudeCoreMcpServers(): Promise<ClaudeCoreMcpProvisionResult> {
+    const anytype = await this.ensureAnytypeMcpServer();
+    const aiMemory = await this.ensureAiMemoryMcpServer();
+    return { anytype, aiMemory };
   }
 }
 

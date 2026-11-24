@@ -299,12 +299,12 @@ app.listen(PORT, '0.0.0.0', () => {
     console.warn('[KrakenBridge] Aviso ao iniciar Coucou Phone Link:', err?.message || err);
   });
 
-  // Assegurar armazenamento persistente e auto-cura do cofre do Claude Code e MCP Anytype
+  // Assegurar armazenamento persistente e auto-cura do cofre do Claude Code e MCPs essenciais (Anytype + AI Memory)
   claudeAuthService
     .ensurePersistentStorage()
-    .then(() => mcpService.ensureAnytypeMcpServer())
+    .then(() => mcpService.ensureClaudeCoreMcpServers())
     .catch((err) => {
-      console.warn('[KrakenBridge] Aviso ao assegurar persistência do Claude / MCP Anytype:', err?.message || err);
+      console.warn('[KrakenBridge] Aviso ao assegurar persistência do Claude / MCPs essenciais:', err?.message || err);
     });
 
   // Inicializar cache persistente de cotas multi-contas (AGY + Claude Code) e auto-refresh periódico

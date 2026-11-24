@@ -11,7 +11,12 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-import { mcpService, upsertAnytypeInClaudeConfig } from '../dist-server/services/mcpService.js';
+import {
+  mcpService,
+  upsertAnytypeInClaudeConfig,
+  upsertAiMemoryInClaudeConfig,
+  normalizeAiMemoryUrlForClaude
+} from '../dist-server/services/mcpService.js';
 import { ensureClaudeJsonSymlink, claudeAuthService } from '../dist-server/services/claudeAuthService.js';
 
 const withIsolatedEnv = async (envOverrides, fn) => {
@@ -309,6 +314,186 @@ test('claude mcp get anytype: servidor auto-provisionado reporta status Connecte
         assert.match(output, /anytype:/);
         assert.match(output, /Connected/);
         assert.match(output, /\/workspace\/anytype-mcp\/bin\/cli\.mjs/);
+      }
+    );
+  } finally {
+    await new Promise((resolve) => mockServer.close(resolve));
+    await fs.rm(tmpHome, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+test('mcpService.ensureClaudeCoreMcpServers: sincroniza anytype e ai-memory em ~/.claude.json e $CLAUDE_CONFIG_DIR/.claude.json', async () => {
+  const tmpDir = path.join(os.tmpdir(), `mcp-core-claude-dir-${randomUUID()}`);
+  const claudeConfigDir = path.join(tmpDir, 'claude-config-dir');
+  await fs.mkdir(claudeConfigDir, { recursive: true });
+
+  const mcpConfigPath = path.join(tmpDir, 'mcp_config.json');
+  const claudeUserPath = path.join(tmpDir, '.claude.json');
+  const claudeDirJsonPath = path.join(claudeConfigDir, '.claude.json');
+  const fakeCliPath = path.join(tmpDir, 'cli.mjs');
+  const tokenFile = path.join(tmpDir, 'ai-memory-token');
+
+  await fs.writeFile(fakeCliPath, '#!/usr/bin/env node\n', 'utf8');
+  await fs.writeFile(tokenFile, 'file-secret-token\n', 'utf8');
+  await fs.writeFile(
+    mcpConfigPath,
+    JSON.stringify({
+      mcpServers: {
+        'ai-memory': {
+          url: 'http://192.0.2.20:49374/mcp?flavor=gemini',
+          headers: {
+            Authorization: 'Bearer mcp-config-token'
+          }
+        },
+        anytype: {
+          command: fakeCliPath,
+          env: {
+            ANYTYPE_API_BASE_URL: 'http://192.0.2.20:31009',
+            OPENAPI_MCP_HEADERS: '{"Authorization":"Bearer anytype-tok","Anytype-Version":"2025-11-08"}'
+          }
+        }
+      }
+    }),
+    'utf8'
+  );
+  await fs.writeFile(claudeDirJsonPath, JSON.stringify({ userID: 'dir-user', mcpServers: {} }), 'utf8');
+
+  try {
+    await withIsolatedEnv(
+      {
+        MCP_CONFIG_PATH: mcpConfigPath,
+        CLAUDE_USER_CONFIG_FILE: claudeUserPath,
+        CLAUDE_CONFIG_DIR: claudeConfigDir,
+        ANYTYPE_MCP_CLI_PATH: fakeCliPath,
+        AI_MEMORY_CLAUDE_URL: undefined,
+        AI_MEMORY_URL: undefined,
+        AI_MEMORY_TOKEN: undefined,
+        AI_MEMORY_TOKEN_FILE: tokenFile
+      },
+      async () => {
+        const res = await mcpService.ensureClaudeCoreMcpServers();
+        assert.equal(res.anytype.cliExists, true);
+        assert.equal(res.anytype.claudeConfigUpdated, true);
+        assert.equal(res.aiMemory.configured, true);
+        assert.equal(res.aiMemory.claudeConfigUpdated, true);
+
+        for (const targetFile of [claudeUserPath, claudeDirJsonPath]) {
+          const parsed = JSON.parse(await fs.readFile(targetFile, 'utf8'));
+          assert.equal(parsed.mcpServers.anytype.command, 'node');
+          assert.deepEqual(parsed.mcpServers.anytype.args, [fakeCliPath]);
+          assert.deepEqual(parsed.mcpServers['ai-memory'], {
+            type: 'http',
+            url: 'http://192.0.2.20:49374/mcp?flavor=claude',
+            headers: {
+              Authorization: 'Bearer mcp-config-token'
+            }
+          });
+        }
+
+        const dirParsed = JSON.parse(await fs.readFile(claudeDirJsonPath, 'utf8'));
+        assert.equal(dirParsed.userID, 'dir-user');
+
+        // Idempotência
+        const second = await mcpService.ensureClaudeCoreMcpServers();
+        assert.equal(second.anytype.claudeConfigUpdated, false);
+        assert.equal(second.aiMemory.claudeConfigUpdated, false);
+      }
+    );
+
+    // Fallback de token via AI_MEMORY_TOKEN_FILE quando mcp_config.json não tem ai-memory
+    assert.equal(
+      normalizeAiMemoryUrlForClaude('http://192.0.2.20:49374/mcp?flavor=gemini'),
+      'http://192.0.2.20:49374/mcp?flavor=claude'
+    );
+    assert.equal(
+      normalizeAiMemoryUrlForClaude('http://192.0.2.20:49374/mcp'),
+      'http://192.0.2.20:49374/mcp?flavor=claude'
+    );
+    const upserted = upsertAiMemoryInClaudeConfig(
+      { mcpServers: { 'ai-memory': { type: 'http', url: 'http://192.0.2.20:49374/mcp?flavor=claude' } } },
+      'http://192.0.2.20:49374/mcp?flavor=claude',
+      { Authorization: 'Bearer injected-token' }
+    );
+    assert.equal(upserted.changed, true);
+    assert.equal(upserted.nextConfig.mcpServers['ai-memory'].headers.Authorization, 'Bearer injected-token');
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+  }
+});
+
+test('claude mcp get (com CLAUDE_CONFIG_DIR): anytype e ai-memory reportam Connected', async () => {
+  const realCliPath = '/workspace/anytype-mcp/bin/cli.mjs';
+  if (!fsSync.existsSync(realCliPath)) return;
+
+  const tmpHome = path.join(os.tmpdir(), `claude-mcp-dir-verify-${randomUUID()}`);
+  const claudeConfigDir = path.join(tmpHome, '.claude');
+  await fs.mkdir(claudeConfigDir, { recursive: true });
+  const mcpConfigPath = path.join(tmpHome, 'mcp_config.json');
+
+  const mockServer = http.createServer((req, res) => {
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        let reqId = 1;
+        try { reqId = JSON.parse(body).id ?? 1; } catch {}
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          id: reqId,
+          result: {
+            protocolVersion: '2024-11-05',
+            capabilities: { tools: {} },
+            serverInfo: { name: 'ai-memory-mock', version: '1.0.0' }
+          }
+        }));
+      });
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('{}');
+  });
+  await new Promise((resolve) => mockServer.listen(0, '127.0.0.1', resolve));
+  const address = mockServer.address();
+  const mockBaseUrl = `http://127.0.0.1:${address.port}`;
+
+  try {
+    await withIsolatedEnv(
+      {
+        HOME: tmpHome,
+        CLAUDE_CONFIG_DIR: claudeConfigDir,
+        MCP_CONFIG_PATH: mcpConfigPath,
+        CLAUDE_USER_CONFIG_FILE: undefined,
+        CLAUDE_USER_CONFIG_PATH: undefined,
+        ANYTYPE_MCP_CLI_PATH: realCliPath,
+        ANYTYPE_API_BASE_URL: mockBaseUrl,
+        AI_MEMORY_URL: `${mockBaseUrl}/mcp`,
+        AI_MEMORY_TOKEN: 'test-token-218'
+      },
+      async () => {
+        const res = await mcpService.ensureClaudeCoreMcpServers();
+        assert.equal(res.anytype.cliExists, true);
+        assert.equal(res.aiMemory.configured, true);
+        assert.equal(fsSync.existsSync(path.join(claudeConfigDir, '.claude.json')), true);
+
+        const cliEnv = { ...process.env, HOME: tmpHome, CLAUDE_CONFIG_DIR: claudeConfigDir };
+
+        const { stdout: anytypeOut } = await execFileAsync('claude', ['mcp', 'get', 'anytype'], {
+          env: cliEnv,
+          encoding: 'utf8',
+          timeout: 15000
+        });
+        assert.match(anytypeOut, /anytype:/);
+        assert.match(anytypeOut, /Connected/);
+
+        const { stdout: memoryOut } = await execFileAsync('claude', ['mcp', 'get', 'ai-memory'], {
+          env: cliEnv,
+          encoding: 'utf8',
+          timeout: 15000
+        });
+        assert.match(memoryOut, /ai-memory:/);
+        assert.match(memoryOut, /Connected/);
+        assert.match(memoryOut, /flavor=claude/);
       }
     );
   } finally {
