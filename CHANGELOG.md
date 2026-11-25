@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.53.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.52.1...v1.53.0) (2026-11-25)
+
+### ✨ Features
+
+* **metrics:** somar consumo do Paperclip ao painel geral de Status ([#227](https://github.com/ApenasGabs/KrakenBridge-Web/issues/227)) ([ed6c3f2](https://github.com/ApenasGabs/KrakenBridge-Web/commit/ed6c3f295d2d13914fb5f96e84e7a1756263b3da)), closes [#226](https://github.com/ApenasGabs/KrakenBridge-Web/issues/226) [#226](https://github.com/ApenasGabs/KrakenBridge-Web/issues/226) [#226](https://github.com/ApenasGabs/KrakenBridge-Web/issues/226)
+
 ## [1.52.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.52.0...v1.52.1) (2026-11-24)
 
 ### 🐛 Bug Fixes
