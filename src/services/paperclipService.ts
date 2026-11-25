@@ -1,3 +1,4 @@
+import { getPaperclipApiToken } from '../utils/paperclipToken.js';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
@@ -27,7 +28,6 @@ const execAsync = promisify(exec);
 const DEFAULT_PAPERCLIP_URL = 'http://192.168.31.5:3101';
 const DEFAULT_PAPERCLIP_PUBLIC_URL = 'https://paperclip.apenasgabs.dev';
 const DEFAULT_COMPANY_ID = '4034eb89-a640-48d2-8b4d-f2bb0f10a119'; // APE
-const DEFAULT_API_TOKEN = 'pcp_5df95fac0e950db0d8e9770214678a478ccb79d6d6ce9f3a';
 const DEFAULT_GABOT_URL = 'http://192.168.31.5:3091/api/admin/notify';
 
 // Repositórios monitorados do Homelab
@@ -54,7 +54,6 @@ export class PaperclipService {
   private paperclipUrl: string;
   private paperclipPublicUrl: string;
   private companyId: string;
-  private apiToken: string;
   private gabotWebhookUrl: string;
   private gabotWebhookSecret: string;
   public prReviewSlaService: PrReviewSlaService;
@@ -83,7 +82,6 @@ export class PaperclipService {
     this.paperclipUrl = (process.env.PAPERCLIP_URL || process.env.PAPERCLIP_API_URL || DEFAULT_PAPERCLIP_URL).replace(/\/+$/, '');
     this.paperclipPublicUrl = (process.env.PAPERCLIP_PUBLIC_URL || DEFAULT_PAPERCLIP_PUBLIC_URL).replace(/\/+$/, '');
     this.companyId = process.env.PAPERCLIP_COMPANY_ID || DEFAULT_COMPANY_ID;
-    this.apiToken = process.env.PAPERCLIP_API_TOKEN || DEFAULT_API_TOKEN;
     this.gabotWebhookUrl = process.env.GABOT_WEBHOOK_URL || DEFAULT_GABOT_URL;
     this.gabotWebhookSecret = process.env.GABOT_WEBHOOK_SECRET || this.tryReadGabotSecretFromStatusHub();
 
@@ -119,7 +117,6 @@ export class PaperclipService {
       paperclipUrl: this.paperclipUrl,
       paperclipPublicUrl: this.paperclipPublicUrl,
       companyId: this.companyId,
-      apiToken: this.apiToken,
       notifyAlert: this.notifyAlert.bind(this)
     });
 
@@ -127,7 +124,6 @@ export class PaperclipService {
       paperclipUrl: this.paperclipUrl,
       paperclipPublicUrl: this.paperclipPublicUrl,
       companyId: this.companyId,
-      apiToken: this.apiToken,
       notifyAlert: this.notifyAlert.bind(this),
       addTimelineEvent: this.addTimelineEvent.bind(this)
     });
@@ -175,7 +171,7 @@ export class PaperclipService {
   private async fetchPaperclip<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = endpoint.startsWith('http') ? endpoint : `${this.paperclipUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${this.apiToken}`,
+      'Authorization': `Bearer ${getPaperclipApiToken()}`,
       'Accept': 'application/json',
       ...(options.headers as Record<string, string> || {})
     };
