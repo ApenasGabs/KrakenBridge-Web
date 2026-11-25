@@ -1,0 +1,22 @@
+{
+  "preset": "frontend-react",
+  "language": "typescript/javascript",
+  "rules": {
+    "functions": "arrow-only",
+    "typescript": { "noExplicitAny": true },
+    "ui": { "requireDataTestId": true },
+    "security": { "blockInnerHTML": true, "blockHardcodedSecrets": true },
+    "cleanCode": { "blockConsoleLog": true, "blockEmptyCatch": true }
+  },
+  "overrides": [
+    {
+      "paths": ["src/**", "scripts/**", "server.js"],
+      "rules": { "cleanCode": { "blockConsoleLog": false } }
+    },
+    {
+      "paths": ["public/**"],
+      "rules": { "functions": "any" }
+    }
+  ],
+  "docsSync": []
+}
