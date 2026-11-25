@@ -71,6 +71,37 @@ describe('Consumo do Paperclip no painel geral (#226)', () => {
     assert.equal(kraken.paperclipUsage, null);
   });
 
+  test('totais, custo, períodos, modelos, workspaces e heatmap respeitam o filtro', async () => {
+    const external = await new PaperclipUsageService(makeFetcher()).getSnapshot();
+    const kraken = await quotaService.getStats({ source: 'kraken', external });
+    const paperclip = await quotaService.getStats({ source: 'paperclip', external });
+    for (const [stats, tokens, count] of [[kraken, 150, 1], [paperclip, 1_100_000, 2]]) {
+      assert.equal(stats.aggregates.totalTokensAllTime, tokens);
+      for (const period of ['hourly', 'daily', 'weekly']) {
+        assert.equal(stats.tokens[period].totalTokens, tokens);
+        assert.equal(stats.tokens[period].estimatedCostUsd, stats.aggregates.estimatedCostUsd);
+      }
+      const model = stats.tokens.modelBreakdown['gemini-4-hydrogen-high'];
+      assert.equal(model.totalTokens, tokens);
+      assert.equal(model.count, count);
+      const heatmapPoint = stats.dailyPoints.at(-1);
+      assert.equal(heatmapPoint.totalTokens, tokens);
+      assert.equal(heatmapPoint.turnsCount, count);
+    }
+    assert.deepEqual(Object.keys(kraken.workspaceBreakdown), ['Geral']);
+    assert.deepEqual(Object.keys(paperclip.workspaceBreakdown), ['Paperclip (agentes)']);
+  });
+
+  test('execuções do Paperclip aparecem na lista com agente, modelo e horário', async () => {
+    const external = await new PaperclipUsageService(makeFetcher()).getSnapshot();
+    const { tokens } = await quotaService.getStats({ source: 'paperclip', external });
+    assert.equal(tokens.recentTurns.length, 1);
+    const [turn] = tokens.recentTurns;
+    assert.equal(turn.agent, 'Kraken Sentinel');
+    assert.equal(turn.model, 'gemini-4-hydrogen-high');
+    assert.equal(turn.timestamp, run.startedAt);
+  });
+
   test('falha do Paperclip é sinalizada e mantém o consumo do Kraken', async () => {
     const external = await new PaperclipUsageService(async () => { throw new Error('offline'); }).getSnapshot();
     const stats = await quotaService.getStats({ source: 'all', external });

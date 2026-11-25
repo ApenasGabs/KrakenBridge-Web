@@ -43,4 +43,35 @@ describe('StatsDashboard - filtro por origem (#226)', () => {
     renderDashboard();
     expect(await screen.findByTestId('paperclip-usage-warning')).toHaveTextContent('Paperclip indisponível');
   });
+
+  it('execuções do Paperclip aparecem na lista com agente, modelo e horário', async () => {
+    const timestamp = '2026-11-25T05:15:00.000Z';
+    const empty = { totalTokens: 0, inputTokens: 0, outputTokens: 0, thinkingTokens: 0, count: 0 };
+    vi.mocked(api.getQuotaStats).mockResolvedValue(makeStats({
+      tokens: {
+        hourly: empty,
+        daily: empty,
+        weekly: empty,
+        modelBreakdown: {},
+        totalRecordedTurns: 1,
+        recentTurns: [{
+          id: 'paperclip-r1',
+          timestamp,
+          agent: 'Kraken Sentinel',
+          source: 'paperclip',
+          model: 'gemini-4-hydrogen-high',
+          subproject: 'Paperclip (agentes)',
+          input_tokens: 10,
+          output_tokens: 5,
+          thinking_tokens: 0,
+          total_tokens: 15
+        }]
+      }
+    }));
+    renderDashboard();
+
+    const row = (await screen.findByText('Kraken Sentinel')).closest('tr');
+    expect(row).toHaveTextContent('gemini-4-hydrogen-high');
+    expect(row).toHaveTextContent(new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  });
 });
