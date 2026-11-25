@@ -7,6 +7,7 @@ import type { Response } from 'express';
 import { pushNotificationService } from './pushNotificationService.js';
 import { PrReviewSlaService } from './prReviewSlaService.js';
 import { PaperclipAutoRemediationService } from './paperclipAutoRemediationService.js';
+import { PaperclipGuardianService } from './paperclipGuardianService.js';
 import { calculateTokenCostUsd, roundUsd } from '../utils/modelPricing.js';
 import type {
   PaperclipAgent,
@@ -58,6 +59,7 @@ export class PaperclipService {
   private gabotWebhookSecret: string;
   public prReviewSlaService: PrReviewSlaService;
   public autoRemediationService: PaperclipAutoRemediationService;
+  public guardianService: PaperclipGuardianService;
 
   private pollIntervalMs = 35000; // 35 segundos
   private pollTimer: NodeJS.Timeout | null = null;
@@ -126,6 +128,11 @@ export class PaperclipService {
       companyId: this.companyId,
       notifyAlert: this.notifyAlert.bind(this),
       addTimelineEvent: this.addTimelineEvent.bind(this)
+    });
+
+    this.guardianService = new PaperclipGuardianService({
+      paperclipUrl: this.paperclipUrl,
+      companyId: this.companyId
     });
 
     if (process.env.NODE_ENV !== 'test') {
@@ -210,6 +217,7 @@ export class PaperclipService {
     this.initialPollTimeout.unref();
 
     this.pollTimer = setInterval(() => {
+      void this.guardianService.tick();
       this.poll().catch(err => {
         console.warn('[PaperclipService] Erro no polling de rotina:', (err as Error).message);
       });

@@ -14,6 +14,14 @@ paperclipRouter.get('/status', (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/paperclip/guardian
+ * Última verificação da fila do Guardião de Pipeline (sem IA)
+ */
+paperclipRouter.get('/guardian', (_req: Request, res: Response) => {
+  res.json(paperclipService.guardianService.getReport());
+});
+
+/**
  * GET /api/paperclip/summary
  * Retorna o resumo formatado em Markdown para o comando de chat ou visualização rápida
  */
