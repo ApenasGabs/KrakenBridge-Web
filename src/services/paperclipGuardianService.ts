@@ -22,6 +22,7 @@ const TODO_STALE_MS = 15 * MINUTE_MS;
 const CHECK_INTERVAL_MS = 5 * MINUTE_MS;
 const MIN_WAKE_INTERVAL_MS = 15 * MINUTE_MS;
 const ITEM_COOLDOWN_MS = 60 * MINUTE_MS;
+const HISTORY_LIMIT = 100;
 
 export type GuardianMode = 'off' | 'shadow' | 'active';
 export type PrState = 'open' | 'none' | 'unknown';
@@ -51,7 +52,8 @@ export interface GuardianReport {
   action: 'none' | 'would_wake' | 'woken' | 'cooldown' | 'error';
   error?: string;
 }
-interface GuardianState { lastWakeAt: number; items: Record<string, number> }
+export interface GuardianDecision { at: string; mode: GuardianMode; findings: GuardianFinding[] }
+interface GuardianState { lastWakeAt: number; items: Record<string, number>; history: GuardianDecision[] }
 
 const isWaitingForHuman = (issue: GuardianIssue): boolean =>
   Boolean(issue.assigneeUserId) || issue.executionState?.currentParticipant?.type === 'user';
@@ -141,7 +143,7 @@ export class PaperclipGuardianService {
   private readonly statePath: string;
   private readonly now: () => number;
   private readonly lookupPr: (url: string) => Promise<string>;
-  private state: GuardianState = { lastWakeAt: 0, items: {} };
+  private state: GuardianState = { lastWakeAt: 0, items: {}, history: [] };
   private lastCheckAt = 0;
   private running = false;
   private report: GuardianReport | null = null;
@@ -154,8 +156,8 @@ export class PaperclipGuardianService {
     this.loadState();
   }
 
-  public getReport(): { mode: GuardianMode; report: GuardianReport | null } {
-    return { mode: this.mode, report: this.report };
+  public getReport(): { mode: GuardianMode; report: GuardianReport | null; history: GuardianDecision[] } {
+    return { mode: this.mode, report: this.report, history: [...this.state.history] };
   }
 
   /** Chamado a cada polling; respeita o intervalo próprio e nunca lança. */
@@ -204,7 +206,6 @@ export class PaperclipGuardianService {
     const due = findings.filter(finding => now - (this.state.items[keyOf(finding)] ?? 0) >= ITEM_COOLDOWN_MS);
     if (due.length === 0 || now - this.state.lastWakeAt < MIN_WAKE_INTERVAL_MS) return 'cooldown';
 
-    const summary = due.map(finding => `${finding.identifier}=${finding.reason}`).join(', ');
     if (this.mode === 'active') {
       await this.request(`/api/routines/${GUARDIAN_ROUTINE_ID}/run`, {
         method: 'POST',
@@ -214,9 +215,9 @@ export class PaperclipGuardianService {
     // Em sombra o estado também avança: o registro mostra quantas vezes a IA seria acordada.
     const items = Object.fromEntries(Object.entries(this.state.items).filter(([, at]) => now - at < ITEM_COOLDOWN_MS));
     for (const finding of due) items[keyOf(finding)] = now;
-    this.state = { lastWakeAt: now, items };
+    const decision: GuardianDecision = { at: new Date(now).toISOString(), mode: this.mode, findings: due };
+    this.state = { lastWakeAt: now, items, history: [decision, ...this.state.history].slice(0, HISTORY_LIMIT) };
     this.saveState();
-    console.log(`[PaperclipGuardian] ${this.mode === 'active' ? 'Rotina acionada' : 'SOMBRA, acionaria a rotina'}: ${summary}`);
     return this.mode === 'active' ? 'woken' : 'would_wake';
   }
 
@@ -264,7 +265,11 @@ export class PaperclipGuardianService {
   private loadState(): void {
     try {
       const parsed = JSON.parse(fs.readFileSync(this.statePath, 'utf8')) as Partial<GuardianState>;
-      this.state = { lastWakeAt: Number(parsed.lastWakeAt) || 0, items: parsed.items ?? {} };
+      this.state = {
+        lastWakeAt: Number(parsed.lastWakeAt) || 0,
+        items: parsed.items ?? {},
+        history: Array.isArray(parsed.history) ? parsed.history : []
+      };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
         console.warn('[PaperclipGuardian] Estado ilegível, recomeçando:', (err as Error).message);

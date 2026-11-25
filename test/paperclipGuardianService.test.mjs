@@ -82,6 +82,7 @@ test('Guardião: ativo aciona uma vez e respeita cooldown após reinício', asyn
   const restarted = make();
   await restarted.tick();
   assert.equal(restarted.getReport().report.action, 'cooldown');
+  assert.equal(restarted.getReport().history[0].findings[0].identifier, 'APE-1');
   clock.now += 41 * 60000;
   await restarted.tick();
   assert.equal(posts.length, 2);
