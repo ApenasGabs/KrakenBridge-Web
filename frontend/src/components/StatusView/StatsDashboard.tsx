@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import type { QuotaStats, DailyIntensityPoint } from '../../types';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { QuotaStats, DailyIntensityPoint, UsageSource } from '../../types';
 import { api } from '../../services/api';
 import { TelemetryAndSetupPanel } from './TelemetryAndSetupPanel';
 import { 
@@ -53,6 +53,12 @@ function formatDayLabel(dayStr: string): string {
   return dayStr;
 }
 
+const USAGE_SOURCES: Array<{ value: UsageSource; label: string }> = [
+  { value: 'all', label: 'Tudo' },
+  { value: 'kraken', label: 'Kraken' },
+  { value: 'paperclip', label: 'Paperclip' }
+];
+
 const INTENSITY_CLASSES: Record<number, string> = {
   0: 'bg-base-300/40 border-base-content/5',
   1: 'bg-primary/25 border-primary/30',
@@ -70,23 +76,29 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
   const [stats, setStats] = useState<QuotaStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [source, setSource] = useState<UsageSource>('all');
+  const requestRef = useRef(0);
   const [hoveredDay, setHoveredDay] = useState<DailyIntensityPoint | null>(null);
   const [showWaterMetrics, setShowWaterMetrics] = useWaterMetrics();
 
   const loadStats = useCallback(async (isRefresh = false) => {
+    // Ignora respostas antigas quando o filtro muda durante uma consulta
+    const requestId = ++requestRef.current;
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
-      const data = isRefresh ? (await api.refreshQuota()).stats : await api.getQuotaStats();
-      setStats(data);
+      const data = isRefresh ? (await api.refreshQuota(source)).stats : await api.getQuotaStats(source);
+      if (requestId === requestRef.current) setStats(data);
     } catch (err) {
       console.warn('[StatsDashboard] Erro ao carregar métricas:', err);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === requestRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     loadStats();
@@ -189,6 +201,36 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
         </div>
       </div>
 
+      {/* Filtro por origem do consumo */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="join" role="group" aria-label="Origem do consumo">
+          {USAGE_SOURCES.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setSource(value)}
+              aria-pressed={source === value}
+              data-testid={`usage-source-${value}`}
+              className={`btn btn-xs sm:btn-sm join-item ${source === value ? 'btn-primary' : 'btn-ghost border border-base-300'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {stats?.usageSource && stats.usageSource !== source && (
+          <span role="status" className="text-xs text-base-content/60">
+            {loading ? 'Atualizando valores...' : 'Falha ao atualizar: valores do filtro anterior'}
+          </span>
+        )}
+        {source !== 'kraken' && stats?.paperclipUsage && (!stats.paperclipUsage.available || stats.paperclipUsage.stale) && (
+          <span role="alert" data-testid="paperclip-usage-warning" className="badge badge-warning badge-sm h-auto py-1">
+            {stats.paperclipUsage.available
+              ? 'Paperclip fora do ar: exibindo o último dado lido'
+              : 'Paperclip indisponível: o consumo dele não está somado'}
+          </span>
+        )}
+      </div>
+
       {/* Banner Informativo de Pegada Hídrica quando ativado */}
       {showWaterMetrics && (
         <div 
@@ -221,7 +263,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
           </div>
           <div>
             <div className="text-xl sm:text-2xl font-black text-base-content font-mono tracking-tight">
-              {aggregates?.totalRecordedTurns || stats?.tokens?.totalRecordedTurns || totalConversations}
+              {aggregates?.totalRecordedTurns || stats?.tokens?.totalRecordedTurns || (source === 'paperclip' ? 0 : totalConversations)}
             </div>
             <div className="text-[10px] sm:text-[11px] text-base-content/60 mt-0.5 flex items-center gap-1.5">
               <span>{totalWorkspaces} workspaces</span>
@@ -242,7 +284,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
               {formatDuration(aggregates?.totalAgentTimeMs)}
             </div>
             <div className="text-[10px] sm:text-[11px] text-base-content/60 mt-0.5">
-              Acumulado em sessões de agentes
+              {source === 'kraken' ? 'Acumulado em sessões de agentes' : 'Somente sessões do Kraken'}
             </div>
           </div>
         </div>
@@ -688,6 +730,9 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
                         <span className="badge badge-xs badge-ghost font-mono">
                           {turn.subproject || 'Geral'}
                         </span>
+                        {turn.source === 'paperclip' && (
+                          <span className="ml-1 text-base-content/60">{turn.agent}</span>
+                        )}
                       </td>
                       <td className="text-base-content font-medium truncate max-w-[150px]">
                         {turn.model}

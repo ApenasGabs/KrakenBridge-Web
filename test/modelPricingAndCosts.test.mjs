@@ -16,6 +16,7 @@ const {
   getModelPricing,
   calculateTokenCostUsd
 } = await import('../dist-server/utils/modelPricing.js');
+const { saoPauloDayKey } = await import('../dist-server/utils/saoPauloDay.js');
 const { quotaService } = await import('../dist-server/services/quotaService.js');
 const { PaperclipService } = await import('../dist-server/services/paperclipService.js');
 
@@ -165,7 +166,7 @@ describe('modelPricing - Catálogo Oficial e Normalização (#212)', () => {
     assert.equal(stats.workspaceBreakdown['KrakenBridge-Web'].estimatedCostUsd, 4.5);
     assert.equal(stats.workspaceBreakdown['KrakenBridge-Web'].unpricedTurnsCount, 1);
 
-    const todayPoint = stats.dailyPoints.find((p) => p.day === today.slice(0, 10));
+    const todayPoint = stats.dailyPoints.find((p) => p.day === saoPauloDayKey(today));
     assert.ok(todayPoint, 'Ponto diário de hoje deve existir');
     assert.equal(todayPoint.estimatedCostUsd, 4.5);
 

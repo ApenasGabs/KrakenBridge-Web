@@ -133,3 +133,45 @@ export interface RouteByModelResponse {
   message: string;
 }
 
+
+export type UsageSource = 'all' | 'kraken' | 'paperclip';
+
+/** Consumo agregado (dia + modelo) vindo de fora do histórico do Kraken */
+export interface ExternalUsageItem {
+  day: string;
+  model: string;
+  subproject: string;
+  count: number;
+  input_tokens: number;
+  cached_input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+
+export interface ExternalTurn {
+  id: string;
+  timestamp: string;
+  agent: string;
+  model: string;
+  subproject: string;
+  durationMs: number;
+  input_tokens: number;
+  cached_input_tokens: number;
+  output_tokens: number;
+  thinking_tokens: number;
+  total_tokens: number;
+  source: 'paperclip';
+}
+
+export interface ExternalUsageSnapshot {
+  available: boolean;
+  stale: boolean;
+  items: ExternalUsageItem[];
+  windows: Record<'hourly' | 'daily' | 'weekly', ExternalUsageItem[]>;
+  recentTurns: ExternalTurn[];
+}
+
+export interface StatsOptions {
+  source?: UsageSource;
+  external?: ExternalUsageSnapshot;
+}

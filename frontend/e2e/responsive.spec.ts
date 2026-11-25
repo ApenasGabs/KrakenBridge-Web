@@ -76,7 +76,7 @@ test.describe('Validação Responsiva & Regressão de Layout (Issue #49)', () =>
 
       // 8. Visão Status > Paperclip Live: sem overflow horizontal
       await page.getByTestId('tab-status').click();
-      const paperclipBtn = page.getByRole('button', { name: /paperclip|clip/i });
+      const paperclipBtn = page.getByTitle('Status e Agentes do Paperclip em Tempo Real');
       if (await paperclipBtn.isVisible()) {
         await paperclipBtn.click();
         await expect(page.getByText('Paperclip Orchestrator')).toBeVisible();
