@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.55.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.54.0...v1.55.0) (2026-11-25)
+
+### ✨ Features
+
+* **paperclip:** Guardião de Pipeline sem IA, em modo sombra (Refs [#231](https://github.com/ApenasGabs/KrakenBridge-Web/issues/231)) ([#234](https://github.com/ApenasGabs/KrakenBridge-Web/issues/234)) ([d7cc207](https://github.com/ApenasGabs/KrakenBridge-Web/commit/d7cc207981a60b4ee83d0c44f692e8bf2dbb763a))
+
 ## [1.54.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.53.1...v1.54.0) (2026-11-25)
 
 ### ✨ Features
