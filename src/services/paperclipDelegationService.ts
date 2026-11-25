@@ -1,7 +1,7 @@
+import { getPaperclipApiToken } from '../utils/paperclipToken.js';
 import {
   DEFAULT_PAPERCLIP_URL,
   DEFAULT_COMPANY_ID,
-  DEFAULT_API_TOKEN,
   DEFAULT_CEO_AGENT_ID
 } from './paperclipAutoRemediationService.js';
 
@@ -31,7 +31,7 @@ export class PaperclipDelegationService {
     return process.env.PAPERCLIP_COMPANY_ID || DEFAULT_COMPANY_ID;
   }
   private get token(): string {
-    return process.env.PAPERCLIP_API_TOKEN || DEFAULT_API_TOKEN;
+    return getPaperclipApiToken();
   }
 
   async delegateGithubIssue(params: DelegateIssueParams): Promise<DelegateIssueResult> {

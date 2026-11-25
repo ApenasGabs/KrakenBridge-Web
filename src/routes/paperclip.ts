@@ -1,3 +1,4 @@
+import { getPaperclipApiToken } from '../utils/paperclipToken.js';
 import { Router, type Request, type Response } from 'express';
 import { paperclipService } from '../services/paperclipService.js';
 
@@ -161,7 +162,7 @@ paperclipRouter.post('/action', async (req: Request, res: Response) => {
   if (action === 'wakeup' && agentId) {
     try {
       const paperclipUrl = process.env.PAPERCLIP_URL || 'http://192.168.31.5:3101';
-      const token = process.env.PAPERCLIP_API_TOKEN || 'pcp_5df95fac0e950db0d8e9770214678a478ccb79d6d6ce9f3a';
+      const token = getPaperclipApiToken();
       const response = await fetch(`${paperclipUrl}/api/agents/${agentId}/wakeup`, {
         method: 'POST',
         headers: {

@@ -1,3 +1,4 @@
+import { getPaperclipApiToken } from '../utils/paperclipToken.js';
 import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
@@ -14,7 +15,6 @@ const execAsync = promisify(exec);
 export const DEFAULT_PAPERCLIP_URL = 'http://192.168.31.5:3101';
 export const DEFAULT_PAPERCLIP_PUBLIC_URL = 'https://paperclip.apenasgabs.dev';
 export const DEFAULT_COMPANY_ID = '4034eb89-a640-48d2-8b4d-f2bb0f10a119';
-export const DEFAULT_API_TOKEN = 'pcp_5df95fac0e950db0d8e9770214678a478ccb79d6d6ce9f3a';
 export const DEFAULT_CEO_AGENT_ID = '38631dff-5dd3-4fb6-bc81-d90aa6b27a00';
 
 export interface AutoRemediationOptions {
@@ -60,7 +60,12 @@ export class PaperclipAutoRemediationService {
   private paperclipUrl: string;
   private paperclipPublicUrl: string;
   private companyId: string;
-  private apiToken: string;
+  private readonly configuredToken?: string;
+
+  private get apiToken(): string {
+    return this.configuredToken || getPaperclipApiToken();
+  }
+
   private ceoAgentId: string;
   private cooldownMs: number;
   private notifyAlertCallback?: AutoRemediationOptions['notifyAlert'];
@@ -73,7 +78,7 @@ export class PaperclipAutoRemediationService {
     this.paperclipUrl = (options.paperclipUrl || process.env.PAPERCLIP_URL || DEFAULT_PAPERCLIP_URL).replace(/\/+$/, '');
     this.paperclipPublicUrl = (options.paperclipPublicUrl || process.env.PAPERCLIP_PUBLIC_URL || DEFAULT_PAPERCLIP_PUBLIC_URL).replace(/\/+$/, '');
     this.companyId = options.companyId || process.env.PAPERCLIP_COMPANY_ID || DEFAULT_COMPANY_ID;
-    this.apiToken = options.apiToken || process.env.PAPERCLIP_API_TOKEN || DEFAULT_API_TOKEN;
+    this.configuredToken = options.apiToken;
     this.ceoAgentId = options.ceoAgentId || DEFAULT_CEO_AGENT_ID;
     this.cooldownMs = options.cooldownMs ?? 5 * 60 * 1000; // 5 minutos de cooldown por issue
     this.notifyAlertCallback = options.notifyAlert;
