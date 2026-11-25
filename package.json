@@ -11,6 +11,7 @@
     "build": "npm run build:frontend && npm run build:server",
     "test:server": "node --test test/*.test.mjs",
     "test": "node --test test/*.test.mjs && npm run --prefix frontend test -- --run",
+    "paperclip:sync": "node dist-server/scripts/paperclipSync.js",
     "typecheck": "tsc --noEmit",
     "test:e2e": "npm run --prefix frontend test:e2e",
     "test:responsive": "npm run --prefix frontend test:responsive",
