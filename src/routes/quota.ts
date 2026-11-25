@@ -9,7 +9,7 @@ export const quotaRouter = Router();
 const paperclipUsageService = new PaperclipUsageService((path) => paperclipService.fetchCompanyResource(path));
 
 const parseUsageSource = (value: unknown): UsageSource =>
-  value === 'kraken' || value === 'paperclip' ? value : 'all';
+  value === 'all' || value === 'paperclip' ? value : 'kraken';
 
 const loadStats = async (source: UsageSource) => {
   const external = source === 'kraken' ? undefined : await paperclipUsageService.getSnapshot();

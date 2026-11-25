@@ -293,7 +293,7 @@ export async function setupMockApi(page: Page, options: MockOptions = {}) {
   });
 
   // Rota de Cotas
-  await page.route('**/api/quota', async (route) => {
+  await page.route(/\/api\/quota(?:\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

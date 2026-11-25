@@ -129,16 +129,16 @@ export const api = {
     return res.json();
   },
 
-  async getQuotaStats(source: UsageSource = 'all'): Promise<QuotaStats> {
-    const res = await fetch(`${getApiBase()}/quota?source=${source}`, { headers: authHeaders() });
+  async getQuotaStats(source?: UsageSource): Promise<QuotaStats> {
+    const res = await fetch(`${getApiBase()}/quota${source ? `?source=${source}` : ''}`, { headers: authHeaders() });
     if (!res.ok) {
       throw new Error(`Erro ao buscar dados de cota (${res.status})`);
     }
     return res.json();
   },
 
-  async refreshQuota(source: UsageSource = 'all'): Promise<{ ok: boolean; stats: QuotaStats }> {
-    const res = await fetch(`${getApiBase()}/quota/refresh?source=${source}`, {
+  async refreshQuota(source?: UsageSource): Promise<{ ok: boolean; stats: QuotaStats }> {
+    const res = await fetch(`${getApiBase()}/quota/refresh${source ? `?source=${source}` : ''}`, {
       method: 'POST',
       headers: authHeaders()
     });
