@@ -5,6 +5,12 @@ Todas as mudanças notáveis deste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.53.1](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.53.0...v1.53.1) (2026-11-25)
+
+### 🐛 Bug Fixes
+
+* **security:** remover token da API do Paperclip do código (Refs [#230](https://github.com/ApenasGabs/KrakenBridge-Web/issues/230)) ([#233](https://github.com/ApenasGabs/KrakenBridge-Web/issues/233)) ([0f14b54](https://github.com/ApenasGabs/KrakenBridge-Web/commit/0f14b5487657f15c3f3efa1d3901946d53490f49))
+
 ## [1.53.0](https://github.com/ApenasGabs/KrakenBridge-Web/compare/v1.52.1...v1.53.0) (2026-11-25)
 
 ### ✨ Features
