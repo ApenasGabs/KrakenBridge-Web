@@ -373,8 +373,12 @@ export interface WorkspaceBreakdownEntry {
   unpricedTurnsCount?: number;
 }
 
+export type UsageSource = 'all' | 'kraken' | 'paperclip';
+
 export interface QuotaStats {
   source?: string;
+  usageSource?: UsageSource;
+  paperclipUsage?: { available: boolean; stale: boolean } | null;
   lastOfficialSync?: string;
   lastFetchedAt?: string;
   gemini: QuotaModelGroup;
@@ -396,6 +400,7 @@ export interface QuotaStats {
       id: string;
       timestamp: string;
       agent: string;
+      source?: 'kraken' | 'paperclip';
       model: string;
       subproject?: string;
       durationMs?: number;

@@ -17,6 +17,8 @@ import type {
 import { accountService } from './accountService.js';
 import { claudeAuthService } from './claudeAuthService.js';
 import { calculateTokenCostUsd, roundUsd } from '../utils/modelPricing.js';
+import { saoPauloDayKey } from '../utils/saoPauloDay.js';
+import type { ExternalUsageItem, StatsOptions } from '../types/quota.js';
 
 const execPromise = util.promisify(exec);
 
@@ -392,8 +394,11 @@ class QuotaService {
   /**
    * Retorna os dados completos de cotas oficiais Antigravity + detalhamento de tokens
    */
-  async getStats() {
+  async getStats({ source = 'kraken', external }: StatsOptions = {}) {
     await this.init();
+
+    const krakenRecords = source === 'paperclip' ? [] : this.records;
+    const externalUsage = source === 'kraken' ? undefined : external;
 
     // Tenta atualizar do Google ao vivo se estiver stale
     if (Date.now() - this.lastAgyFetch > 60000) {
@@ -488,8 +493,7 @@ class QuotaService {
     }>();
 
     for (let i = DAY_COUNT - 1; i >= 0; i--) {
-      const d = new Date(now - i * 86400000);
-      const dayStr = d.toISOString().slice(0, 10);
+      const dayStr = saoPauloDayKey(now - i * 86400000);
       dailyMap.set(dayStr, {
         day: dayStr,
         totalTokens: 0,
@@ -501,8 +505,24 @@ class QuotaService {
       });
     }
 
-    for (const item of this.records) {
-      const time = new Date(item.timestamp).getTime();
+    const usageItems = [
+      ...krakenRecords.map((r) => ({
+        ...r,
+        count: 1,
+        day: saoPauloDayKey(r.timestamp),
+        time: new Date(r.timestamp).getTime()
+      })),
+      // Itens externos já vêm agregados por dia; as janelas móveis são somadas à parte.
+      ...(externalUsage?.items ?? []).map((item) => ({
+        ...item,
+        thinking_tokens: 0,
+        durationMs: 0,
+        time: Number.NEGATIVE_INFINITY
+      }))
+    ];
+
+    for (const item of usageItems) {
+      const { time, count } = item;
       const tokens = item.total_tokens || 0;
       const inp = item.input_tokens || 0;
       const cachedInp = item.cached_input_tokens || 0;
@@ -529,7 +549,7 @@ class QuotaService {
       if (costCalc.isPriced && costCalc.costUsd !== null) {
         totalEstimatedCostUsd = roundUsd(totalEstimatedCostUsd + costCalc.costUsd);
       } else {
-        unpricedTurnsCount += 1;
+        unpricedTurnsCount += count;
         unpricedTokens += tokens;
       }
 
@@ -548,7 +568,7 @@ class QuotaService {
         };
       }
       modelBreakdown[model].totalTokens += tokens;
-      modelBreakdown[model].count += 1;
+      modelBreakdown[model].count += count;
       modelBreakdown[model].inputTokens += inp;
       modelBreakdown[model].cachedInputTokens += cachedInp;
       modelBreakdown[model].outputTokens += out;
@@ -564,22 +584,22 @@ class QuotaService {
         workspaceBreakdown[subproject] = { totalTokens: 0, count: 0, estimatedCostUsd: 0, unpricedTurnsCount: 0 };
       }
       workspaceBreakdown[subproject].totalTokens += tokens;
-      workspaceBreakdown[subproject].count += 1;
+      workspaceBreakdown[subproject].count += count;
       if (costCalc.isPriced && costCalc.costUsd !== null) {
         workspaceBreakdown[subproject].estimatedCostUsd = roundUsd(workspaceBreakdown[subproject].estimatedCostUsd + costCalc.costUsd);
       } else {
-        workspaceBreakdown[subproject].unpricedTurnsCount += 1;
+        workspaceBreakdown[subproject].unpricedTurnsCount += count;
       }
 
       // Mapa diário para o heatmap
-      const dayKey = (item.timestamp || '').slice(0, 10);
+      const dayKey = item.day;
       if (dailyMap.has(dayKey)) {
         const dEntry = dailyMap.get(dayKey)!;
         dEntry.totalTokens += tokens;
         dEntry.inputTokens += inp;
         dEntry.outputTokens += out;
         dEntry.thinkingTokens += thk;
-        dEntry.turnsCount += 1;
+        dEntry.turnsCount += count;
         if (costCalc.isPriced && costCalc.costUsd !== null) {
           dEntry.estimatedCostUsd = roundUsd(dEntry.estimatedCostUsd + costCalc.costUsd);
         }
@@ -619,6 +639,25 @@ class QuotaService {
       }
     }
 
+    const addExternalWindow = (target: typeof hourly, items: ExternalUsageItem[] = []) => {
+      for (const item of items) {
+        const cost = calculateTokenCostUsd({
+          model: item.model,
+          inputTokens: item.input_tokens,
+          cachedInputTokens: item.cached_input_tokens,
+          outputTokens: item.output_tokens
+        });
+        target.totalTokens += item.total_tokens;
+        target.inputTokens += item.input_tokens;
+        target.outputTokens += item.output_tokens;
+        target.count += item.count;
+        target.estimatedCostUsd = roundUsd(target.estimatedCostUsd + (cost.costUsd ?? 0));
+      }
+    };
+    addExternalWindow(hourly, externalUsage?.windows.hourly);
+    addExternalWindow(daily, externalUsage?.windows.daily);
+    addExternalWindow(weekly, externalUsage?.windows.weekly);
+
     // Calcula intensidade (0 a 4) e melhor dia (Best Day)
     const rawDailyPoints = Array.from(dailyMap.values());
     let maxDailyTokens = 0;
@@ -652,7 +691,13 @@ class QuotaService {
     });
 
     const recentDaily = dailyPoints.slice(-14);
-    const recentTurns = this.records.slice(-15).reverse().map((turn) => {
+    const mergedTurns = [
+      ...krakenRecords.slice(-15).reverse().map((turn) => ({ ...turn, source: 'kraken' as const })),
+      ...(externalUsage?.recentTurns ?? [])
+    ]
+      .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))
+      .slice(0, 15);
+    const recentTurns = mergedTurns.map((turn) => {
       const costCalc = calculateTokenCostUsd({
         model: turn.model,
         inputTokens: turn.input_tokens,
@@ -667,14 +712,21 @@ class QuotaService {
         canonicalModel: costCalc.canonicalModel
       };
     });
-    const firstEventAt = this.records.length > 0 ? this.records[0].timestamp : null;
+    const firstExternalDay = (externalUsage?.items ?? []).reduce<string | null>(
+      (min, item) => (min === null || item.day < min ? item.day : min),
+      null
+    );
+    const firstEventAt = [krakenRecords[0]?.timestamp, firstExternalDay ? `${firstExternalDay}T03:00:00.000Z` : null]
+      .filter((value): value is string => Boolean(value))
+      .sort()[0] ?? null;
+    const totalRecordedTurns = usageItems.reduce((sum, item) => sum + item.count, 0);
 
     const aggregates = {
       totalTokensAllTime,
       totalInputTokens,
       totalOutputTokens,
       totalThinkingTokens,
-      totalRecordedTurns: this.records.length,
+      totalRecordedTurns,
       totalAgentTimeMs,
       firstEventAt,
       activeDays,
@@ -757,6 +809,10 @@ class QuotaService {
         }
       },
       source: 'official_google',
+      usageSource: source,
+      paperclipUsage: externalUsage
+        ? { available: externalUsage.available, stale: externalUsage.stale }
+        : null,
       lastFetchedAt: this.lastAgyFetch ? new Date(this.lastAgyFetch).toISOString() : this.state.lastUpdated,
       aggregates,
       dailyPoints,
@@ -771,7 +827,7 @@ class QuotaService {
         modelBreakdown,
         workspaceBreakdown,
         recentTurns,
-        totalRecordedTurns: this.records.length,
+        totalRecordedTurns,
         dailyPoints,
         bestDay,
         aggregates

@@ -194,6 +194,11 @@ export class PaperclipService {
     return (await res.json()) as T;
   }
 
+  /** Leitura (GET) de um recurso da empresa na API do Paperclip */
+  public fetchCompanyResource(path: string): Promise<unknown> {
+    return this.fetchPaperclip<unknown>(`/api/companies/${this.companyId}/${path}`);
+  }
+
   /**
    * Inicia o ciclo de background polling
    */

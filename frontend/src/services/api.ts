@@ -9,6 +9,7 @@ import type {
   ModelsConfig, 
   ProjectWorkspace, 
   QuotaStats, 
+  UsageSource,
   MultiAccountQuotaOverview,
   RouteByModelResponse,
   ToolCall, 
@@ -128,16 +129,16 @@ export const api = {
     return res.json();
   },
 
-  async getQuotaStats(): Promise<QuotaStats> {
-    const res = await fetch(`${getApiBase()}/quota`, { headers: authHeaders() });
+  async getQuotaStats(source: UsageSource = 'all'): Promise<QuotaStats> {
+    const res = await fetch(`${getApiBase()}/quota?source=${source}`, { headers: authHeaders() });
     if (!res.ok) {
       throw new Error(`Erro ao buscar dados de cota (${res.status})`);
     }
     return res.json();
   },
 
-  async refreshQuota(): Promise<{ ok: boolean; stats: QuotaStats }> {
-    const res = await fetch(`${getApiBase()}/quota/refresh`, {
+  async refreshQuota(source: UsageSource = 'all'): Promise<{ ok: boolean; stats: QuotaStats }> {
+    const res = await fetch(`${getApiBase()}/quota/refresh?source=${source}`, {
       method: 'POST',
       headers: authHeaders()
     });

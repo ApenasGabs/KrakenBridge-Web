@@ -1,12 +1,25 @@
 import { Router, type Request, type Response } from 'express';
 import { quotaService } from '../services/quotaService.js';
+import { paperclipService } from '../services/paperclipService.js';
+import { PaperclipUsageService } from '../services/paperclipUsageService.js';
+import type { UsageSource } from '../types/quota.js';
 
 export const quotaRouter = Router();
 
+const paperclipUsageService = new PaperclipUsageService((path) => paperclipService.fetchCompanyResource(path));
+
+const parseUsageSource = (value: unknown): UsageSource =>
+  value === 'kraken' || value === 'paperclip' ? value : 'all';
+
+const loadStats = async (source: UsageSource) => {
+  const external = source === 'kraken' ? undefined : await paperclipUsageService.getSnapshot();
+  return quotaService.getStats({ source, external });
+};
+
 // GET /api/quota - Retorna métricas de cota dos modelos (Gemini e Claude/GPT) e tokens
-quotaRouter.get('/', async (_req: Request, res: Response) => {
+quotaRouter.get('/', async (req: Request, res: Response) => {
   try {
-    const stats = await quotaService.getStats();
+    const stats = await loadStats(parseUsageSource(req.query.source));
     res.json(stats);
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -14,10 +27,10 @@ quotaRouter.get('/', async (_req: Request, res: Response) => {
 });
 
 // POST /api/quota/refresh - Força consulta oficial ao vivo no Google via CLI
-quotaRouter.post('/refresh', async (_req: Request, res: Response) => {
+quotaRouter.post('/refresh', async (req: Request, res: Response) => {
   try {
     await quotaService.fetchLiveQuotaFromGoogle(true);
-    const stats = await quotaService.getStats();
+    const stats = await loadStats(parseUsageSource(req.query.source));
     res.json({ ok: true, stats });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
